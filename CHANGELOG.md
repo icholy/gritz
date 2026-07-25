@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.18.0](https://github.com/icholy/xagent/compare/v2.17.0...v2.18.0) (2026-07-25)
+
+
+### Features
+
+* **webui:** add task quick-switch menu ([079b66f](https://github.com/icholy/xagent/commit/079b66f90b44bd27d0093c3e93f77cfb536a6b48)), closes [#1510](https://github.com/icholy/xagent/issues/1510)
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([e29d5ea](https://github.com/icholy/xagent/commit/e29d5eab33166019fa019e4618ab9dbabd3113c2))
+* **store:** stop schedule tests leaking rows into the due set ([e9cc543](https://github.com/icholy/xagent/commit/e9cc543bad7f66a2c7216398809fa1ce107799f5))
+
+
+### Miscellaneous
+
+* **deps:** update dependency @types/node to v24.13.3 ([c338133](https://github.com/icholy/xagent/commit/c338133f2684fccdb5e9f561d026319c17cc659a))
+* **deps:** update dependency flyctl to v0.4.70 ([1c9e378](https://github.com/icholy/xagent/commit/1c9e3782d9fafb7218790ac69a86db577fcda596))
+* **deps:** update dependency flyctl to v0.4.71 ([2729fc4](https://github.com/icholy/xagent/commit/2729fc436b4200aaa0e401d935124cd75ddc411b))
+* **deps:** update dependency go to v1.26.5 ([478f7b2](https://github.com/icholy/xagent/commit/478f7b27d48843ac623ac22c7133bd01857302a8))
+* **deps:** update dependency pnpm to v11.13.1 ([3109b96](https://github.com/icholy/xagent/commit/3109b96f62e59b59a8d379da6a1c198d3ac601fb))
+* **deps:** update dependency vite to v8.1.5 ([033e36f](https://github.com/icholy/xagent/commit/033e36f9683824eb74c8f84ab51c8897225f7980))
+* **deps:** update dependency vitest to v4.1.10 ([b7e39ef](https://github.com/icholy/xagent/commit/b7e39efba878b198dd083eb912ced142cc516e42))
+* **deps:** update radix-ui-primitives monorepo ([d9a24ce](https://github.com/icholy/xagent/commit/d9a24ce705034300a9ccf916ea2fcc28bb233052))
+
 ## [2.17.0](https://github.com/icholy/xagent/compare/v2.16.0...v2.17.0) (2026-07-19)
 
 
