@@ -40,6 +40,21 @@ export function canOpenShell(task: TaskLike): boolean {
   }
 }
 
+// taskLabel is a task's display name. A task exists before the agent gets
+// around to naming it, so unnamed tasks fall back to their id rather than
+// rendering as an empty row.
+export function taskLabel(task: Pick<Task, 'id' | 'name'>): string {
+  return task.name || `Unnamed - ${task.id}`
+}
+
+// taskSearchValue is what the quick-switch palette fuzzy-matches a task
+// against. cmdk requires item values to be unique and appends the item's
+// keywords to this string before scoring, so appending the id both
+// disambiguates same-named tasks and makes typing a bare task number find it.
+export function taskSearchValue(task: Pick<Task, 'id' | 'name'>): string {
+  return `${taskLabel(task)} ${task.id}`
+}
+
 // TaskTab identifies which view of the task detail page is shown. It is mirrored
 // in the URL's ?tab= search param so views can be deep-linked and shared. Links
 // are not a view — they live in the task sidebar.
