@@ -17,6 +17,7 @@ import { NO_ORG, type AuthTransport } from '@/lib/transport'
 import { useOrgId } from '@/hooks/use-org-id'
 import { useOrgSSE } from '@/hooks/use-org-sse'
 import { ConnectionIndicator } from '@/components/connection-indicator'
+import { TaskSwitcher } from '@/components/task-switcher'
 import {
   Select,
   SelectContent,
@@ -224,6 +225,7 @@ function RootComponent() {
           <Outlet />
         </main>
       </div>
+      <TaskSwitcher />
       <Suspense>
         <ReactQueryDevtools buttonPosition="top-right" />
       </Suspense>
