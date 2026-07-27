@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.18.1](https://github.com/icholy/xagent/compare/v2.18.0...v2.18.1) (2026-07-27)
+
+
+### Miscellaneous
+
+* **deps:** update dependency flyctl to v0.4.72 ([892d0b4](https://github.com/icholy/xagent/commit/892d0b46be3f5f1e393635da5f2a221187ae068c))
+* **deps:** update dependency pnpm to v11.15.0 ([17a6096](https://github.com/icholy/xagent/commit/17a6096be27ee2d1e2db1987d3efc56e63462699))
+* **deps:** update dependency pnpm to v11.15.1 ([916059a](https://github.com/icholy/xagent/commit/916059a7aead35b94369a7bca167eecd82c97877))
+* **deps:** update radix-ui-primitives monorepo ([113c5f6](https://github.com/icholy/xagent/commit/113c5f67717e5ce7e563a14770a31edbf0129874))
+* move implemented proposals from accepted to implemented ([d92beda](https://github.com/icholy/xagent/commit/d92bedaf74283c94f93ce89ca5189a7671e35477))
+
 ## [2.18.0](https://github.com/icholy/xagent/compare/v2.17.0...v2.18.0) (2026-07-25)
 
 
