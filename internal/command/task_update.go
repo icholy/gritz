@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/icholy/xagent/internal/configfile"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/configfile"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -21,8 +21,8 @@ var TaskUpdateCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
-			Sources: cli.EnvVars("XAGENT_SERVER"),
+			Value:   gritzclient.DefaultURL,
+			Sources: cli.EnvVars("GRITZ_SERVER"),
 		},
 		&cli.StringFlag{
 			Name:    "name",
@@ -63,9 +63,9 @@ var TaskUpdateCommand = &cli.Command{
 			return fmt.Errorf("nothing to update")
 		}
 
-		instructions := make([]*xagentv1.Instruction, len(texts))
+		instructions := make([]*gritzv1.Instruction, len(texts))
 		for i, text := range texts {
-			instructions[i] = &xagentv1.Instruction{Text: text}
+			instructions[i] = &gritzv1.Instruction{Text: text}
 		}
 
 		serverURL := cmd.String("server")
@@ -76,8 +76,8 @@ var TaskUpdateCommand = &cli.Command{
 		if cfg.Token == "" {
 			return fmt.Errorf("not authenticated, run setup first")
 		}
-		client := xagentclient.New(xagentclient.Options{BaseURL: serverURL, Token: cfg.Token})
-		if _, err := client.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+		client := gritzclient.New(gritzclient.Options{BaseURL: serverURL, Token: cfg.Token})
+		if _, err := client.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 			Id:              taskID,
 			Name:            name,
 			Start:           start,

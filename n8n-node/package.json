@@ -1,13 +1,13 @@
 {
-  "name": "n8n-nodes-xagent",
+  "name": "n8n-nodes-gritz",
   "version": "0.1.8",
-  "description": "n8n community node for xagent task orchestration",
+  "description": "n8n community node for gritz task orchestration",
   "keywords": ["n8n-community-node-package"],
   "license": "MIT",
-  "main": "dist/nodes/XAgent/XAgent.node.js",
+  "main": "dist/nodes/Gritz/Gritz.node.js",
   "scripts": {
     "generate": "buf generate",
-    "build": "tsc && cp nodes/XAgent/xagent.png dist/nodes/XAgent/xagent.png",
+    "build": "tsc && cp nodes/Gritz/gritz.png dist/nodes/Gritz/gritz.png",
     "lint": "eslint . --ext .ts",
     "prepublishOnly": "npm run build"
   },
@@ -16,8 +16,8 @@
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "credentials": ["dist/credentials/XAgentApi.credentials.js"],
-    "nodes": ["dist/nodes/XAgent/XAgent.node.js"]
+    "credentials": ["dist/credentials/GritzApi.credentials.js"],
+    "nodes": ["dist/nodes/Gritz/Gritz.node.js"]
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.10.2",

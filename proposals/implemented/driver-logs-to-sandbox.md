@@ -1,10 +1,10 @@
-# In-sandbox driver logs at /xagent/log
+# In-sandbox driver logs at /gritz/log
 
-Issue: https://github.com/icholy/xagent/issues/1241
+Issue: https://github.com/icholy/gritz/issues/1241
 
 ## Problem
 
-The driver (`xagent driver`) runs inside the sandbox and scatters all of its
+The driver (`gritz driver`) runs inside the sandbox and scatters all of its
 diagnostics across the container's stdio, where nothing collects them:
 
 - The driver's own structured `slog` output goes to `slog.Default()`, which the
@@ -19,7 +19,7 @@ diagnostics across the container's stdio, where nothing collects them:
   stderr (`cmd.Stderr = os.Stderr` in `internal/agent/claude.go`).
 
 None of this reaches an operator except by shelling onto the runner host and
-running `docker logs xagent-{id}` — and even that is destroyed the moment the
+running `docker logs gritz-{id}` — and even that is destroyed the moment the
 sandbox is pruned or replaced. `Runner.Prune()` removes containers for archived
 tasks, and restarts adopt or recreate the container, so a failed run frequently
 cannot be debugged post-mortem at all. The Web UI shows only the one-line
@@ -29,7 +29,7 @@ cannot be debugged post-mortem at all. The Web UI shows only the one-line
 
 The sandbox already grows a first-class operator entry point: the driver
 reverse-shell (`proposals/implemented/driver-reverse-shell.md`). An operator can
-`xagent shell <task-id>` into a finished sandbox and get an interactive shell in
+`gritz shell <task-id>` into a finished sandbox and get an interactive shell in
 the same filesystem the run used. This proposal makes that shell the log viewer:
 **the driver tees everything it emits into a single file inside the sandbox, and
 the operator reads it with the shell they already have.**
@@ -40,25 +40,25 @@ the reverse-shell is the viewer.
 
 Keep it simple: one append-only file, no rotation, no per-run files.
 
-### Where logs land: `/xagent/log`
+### Where logs land: `/gritz/log`
 
 The driver appends all of its output to a single fixed file in the container:
 
 ```
-/xagent/log
+/gritz/log
 ```
 
 The path is a fixed runner/driver convention, mirroring
-`agent.DefaultConfigStore` — add an `agent.DefaultLogPath = "/xagent/log"`
-constant that both sides reference. `/xagent` is chosen deliberately over the
-existing config convention `/tmp/xagent` (`internal/agent/config.go:16`): `/tmp`
-is frequently a tmpfs or a directory a setup step may clear, whereas `/xagent`
+`agent.DefaultConfigStore` — add an `agent.DefaultLogPath = "/gritz/log"`
+constant that both sides reference. `/gritz` is chosen deliberately over the
+existing config convention `/tmp/gritz` (`internal/agent/config.go:16`): `/tmp`
+is frequently a tmpfs or a directory a setup step may clear, whereas `/gritz`
 lives on the container's writable layer, which the runner *preserves across
 runs* when it adopts an exited container (`docker.go` `adopt`). Persistence
 across runs is exactly the property post-mortem debugging needs.
 
 **The runner pre-creates the directory.** The driver may run as a non-root user,
-and `os.MkdirAll("/xagent", …)` creates a directory directly under `/`, which a
+and `os.MkdirAll("/gritz", …)` creates a directory directly under `/`, which a
 non-root driver cannot do — it would fail, and the sink would silently
 degrade to a no-op, turning the feature off invisibly. The runner already solves
 exactly this for the config dir by shipping a directory entry in the sandbox
@@ -69,12 +69,12 @@ Files: []backend.File{
     // Allow non-root agents to write to this directory.
     {Path: path.Dir(agent.DefaultConfigStore.Path(task.ID)), Mode: 0777, Dir: true},
     {Path: agent.DefaultConfigStore.Path(task.ID), Data: cfgData, Mode: 0666},
-    // New: pre-create the log dir so a non-root driver can write /xagent/log.
+    // New: pre-create the log dir so a non-root driver can write /gritz/log.
     {Path: path.Dir(agent.DefaultLogPath), Mode: 0777, Dir: true},
 }
 ```
 
-With `/xagent` pre-created `0777`, a non-root driver can create and append to the
+With `/gritz` pre-created `0777`, a non-root driver can create and append to the
 file inside it. The driver still runs `os.MkdirAll(path.Dir(agent.DefaultLogPath),
 0o777)` as a fallback (e.g. for a directly-invoked driver outside the runner),
 then opens the file with `os.OpenFile(agent.DefaultLogPath,
@@ -107,7 +107,7 @@ Today the driver logger is `slog.Default()`, passed in via
 becomes responsible for opening the file and building the logger:
 
 1. **Open the append-only sink.** A single `io.Writer` for the process, `sink`,
-   backed by the `/xagent/log` file handle opened in append mode. All three
+   backed by the `/gritz/log` file handle opened in append mode. All three
    streams tee into this one writer so the file is a single chronological
    interleaving of everything the run produced — the same thing `docker logs`
    shows today, plus the parsed tool summaries.
@@ -161,9 +161,9 @@ the whole feature is a handful of tees and one `OpenFile`.
 ### Interaction with existing docker-logs behavior
 
 `os.Stdout`/`os.Stderr` remain in every tee, so the container's stdio — and
-therefore `docker logs xagent-{id}` — behaves byte-for-byte as it does today.
+therefore `docker logs gritz-{id}` — behaves byte-for-byte as it does today.
 The file is strictly additive: an operator with host access keeps their existing
-workflow, and an operator with only `xagent shell` access gains a durable log
+workflow, and an operator with only `gritz shell` access gains a durable log
 they can `cat`, `tail -f`, `less`, or `grep` inside the sandbox. Nothing about
 the runner, server, event stream, or Web UI changes.
 
@@ -175,14 +175,14 @@ or a shell run (`proposals/implemented/driver-reverse-shell.md`) — so an opera
 cannot attach a shell to a *live* agent run. Opening a shell provisions a
 *replacement* run in the same container; because the log is a single append-only
 file on the container's persisted writable layer, that shell run sees the prior
-agent run's output already sitting in `/xagent/log`. The operator reads the
+agent run's output already sitting in `/gritz/log`. The operator reads the
 completed run's logs after the fact:
 
 ```
-xagent shell <task-id>
-$ less /xagent/log            # scroll back through prior runs
-$ tail -n 200 /xagent/log     # the most recent (just-finished) run
-$ grep -n '==== run' /xagent/log   # jump between run boundaries
+gritz shell <task-id>
+$ less /gritz/log            # scroll back through prior runs
+$ tail -n 200 /gritz/log     # the most recent (just-finished) run
+$ grep -n '==== run' /gritz/log   # jump between run boundaries
 ```
 
 ## Implementation Plan
@@ -199,7 +199,7 @@ $ grep -n '==== run' /xagent/log   # jump between run boundaries
 2. **Runner pre-creates the log dir** — Delivers: `Runner.spec` adds a
    `backend.File{Path: path.Dir(agent.DefaultLogPath), Mode: 0777, Dir: true}`
    entry so a non-root driver can write the file. Depends on: (1). Verifiable
-   by: launching a task with a non-root sandbox user and asserting `/xagent`
+   by: launching a task with a non-root sandbox user and asserting `/gritz`
    exists `0777` and the driver's log file is populated (not silently
    discarded).
 
@@ -210,7 +210,7 @@ $ grep -n '==== run' /xagent/log   # jump between run boundaries
    `==== run version=<N> … ====` delimiter before the first event. Depends on:
    (1). Verifiable by: running a driver against a dummy agent and asserting the
    delimiter and the driver's `slog` lines appear in both stderr and
-   `/xagent/log`, and that a second run appends below the first.
+   `/gritz/log`, and that a second run appends below the first.
 
 4. **Setup command tee** — Delivers: `Driver.setup` tees each setup command's
    stdout/stderr into the sink. Depends on: (3). Verifiable by: a unit/e2e test
@@ -263,11 +263,11 @@ independent of each other and can land in either order once (3) is in.
   preclude it: the same `sink` could later also feed a network shipper.
 - **Non-Docker backends.** The plan assumes an ordinary writable container
   filesystem reachable by the reverse-shell. The Lambda MicroVM backend already
-  uses `/xagent/...` control-surface paths (`lambdamicrovm.go`); confirm the
-  `/xagent/log` file does not collide and that the microVM's filesystem persists
+  uses `/gritz/...` control-surface paths (`lambdamicrovm.go`); confirm the
+  `/gritz/log` file does not collide and that the microVM's filesystem persists
   across the adopt/reuse path the same way Docker's does.
 - **Secret hygiene.** Setup stdout/stderr and Claude stderr may contain
   secrets, and this writes them to disk inside the sandbox. That disk is only
-  reachable by an operator who can already `xagent shell` into the sandbox (the
+  reachable by an operator who can already `gritz shell` into the sandbox (the
   same trust boundary as running the agent), so the exposure is arguably
   unchanged — but it should be an explicit, accepted decision, not implicit.

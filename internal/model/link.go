@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -23,8 +23,8 @@ type Link struct {
 }
 
 // Proto converts a Link to its protobuf representation.
-func (l *Link) Proto() *xagentv1.TaskLink {
-	return &xagentv1.TaskLink{
+func (l *Link) Proto() *gritzv1.TaskLink {
+	return &gritzv1.TaskLink{
 		Id:         l.ID,
 		TaskId:     l.TaskID,
 		Relevance:  l.Relevance,
@@ -51,7 +51,7 @@ func (l *Link) EventPayload() *LinkPayload {
 }
 
 // LinkFromProto converts a protobuf TaskLink to a model Link.
-func LinkFromProto(pb *xagentv1.TaskLink) *Link {
+func LinkFromProto(pb *gritzv1.TaskLink) *Link {
 	var createdAt time.Time
 	if pb.CreatedAt != nil {
 		createdAt = pb.CreatedAt.AsTime()

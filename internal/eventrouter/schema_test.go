@@ -3,7 +3,7 @@ package eventrouter
 import (
 	"testing"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )
@@ -49,7 +49,7 @@ func TestSchemaRegistryValidate(t *testing.T) {
 			rule: model.RoutingRule{
 				Source:     "test",
 				Type:       "comment",
-				Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}},
+				Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}},
 				Wakeup:     true,
 			},
 		},
@@ -72,7 +72,7 @@ func TestSchemaRegistryValidate(t *testing.T) {
 		{
 			name: "empty type is rejected",
 			rule: model.RoutingRule{
-				Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}},
+				Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}},
 			},
 			wantErr: true,
 		},
@@ -90,7 +90,7 @@ func TestSchemaRegistryValidate(t *testing.T) {
 				Source: "test",
 				Type:   "opened",
 				Conditions: []model.Condition{
-					{Attr: "url", Op: "contains", Value: "icholy/xagent"},
+					{Attr: "url", Op: "contains", Value: "icholy/gritz"},
 					{Attr: "body", Op: "contains", Value: "hi"},
 				},
 			},

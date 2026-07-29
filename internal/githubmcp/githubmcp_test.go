@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/x/mcptest"
-	"github.com/icholy/xagent/internal/xagentclient"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/x/mcptest"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gotest.tools/v3/assert"
@@ -54,9 +54,9 @@ func TestServer_SwapInjectsBearerToken(t *testing.T) {
 	var seen atomic.Pointer[string]
 	url := startAuthedUpstream(t, map[string]bool{"ghs_test_token": true}, &seen)
 
-	client := &xagentclient.ClientMock{
-		CreateGitHubTokenFunc: func(_ context.Context, _ *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
-			return &xagentv1.CreateGitHubTokenResponse{
+	client := &gritzclient.ClientMock{
+		CreateGitHubTokenFunc: func(_ context.Context, _ *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
+			return &gritzv1.CreateGitHubTokenResponse{
 				Token:     "ghs_test_token",
 				ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
 			}, nil
@@ -80,8 +80,8 @@ func TestServer_SwapInjectsBearerToken(t *testing.T) {
 }
 
 func TestServer_SwapPropagatesTokenError(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		CreateGitHubTokenFunc: func(_ context.Context, _ *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+	client := &gritzclient.ClientMock{
+		CreateGitHubTokenFunc: func(_ context.Context, _ *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
 			return nil, errors.New("boom")
 		},
 	}

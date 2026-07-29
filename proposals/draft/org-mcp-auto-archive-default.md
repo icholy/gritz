@@ -1,10 +1,10 @@
 # Org-level default auto-archive for the HTTP MCP
 
-Issue: https://github.com/icholy/xagent/issues/948
+Issue: https://github.com/icholy/gritz/issues/948
 
 ## Problem
 
-The local stdio MCP bridge (`xagent mcp`) accepts an `--auto-archive` flag that
+The local stdio MCP bridge (`gritz mcp`) accepts an `--auto-archive` flag that
 sets the default auto-archive timeout for tasks it creates via `create_task`
 when the call omits the `auto_archive` param (`internal/command/mcp.go`,
 wired through `mcpserver.WithDefaultAutoArchive`). MCP clients that don't pass a
@@ -90,7 +90,7 @@ func (s *Store) SetOrgMCPAutoArchive(ctx context.Context, tx *sql.Tx, orgID int6
 ### Proto / API
 
 Surface the setting on the existing org-settings RPCs
-(`proto/xagent/v1/xagent.proto`):
+(`proto/gritz/v1/gritz.proto`):
 
 ```proto
 message GetOrgSettingsResponse {
@@ -114,7 +114,7 @@ message SetMCPAutoArchiveResponse {
   optional google.protobuf.Duration mcp_auto_archive = 1;
 }
 
-service XAgentService {
+service GritzService {
   // ...
   rpc SetMCPAutoArchive(SetMCPAutoArchiveRequest) returns (SetMCPAutoArchiveResponse);
 }
@@ -151,7 +151,7 @@ a constant resolver so both paths share one code path:
 
 ```go
 func (h *handlers) createTask(ctx context.Context, _ *mcp.CallToolRequest, input createTaskInput) (...) {
-    req := &xagentv1.CreateTaskRequest{ /* ... */ }
+    req := &gritzv1.CreateTaskRequest{ /* ... */ }
     if input.AutoArchive != "" {
         d, err := time.ParseDuration(input.AutoArchive)
         if err != nil { return errorResult(...), nil, nil }
@@ -168,9 +168,9 @@ in request context (the caller/org is on `r.Context()` via `apiauth.Caller`), so
 the resolver reads the org default through the service the handler already holds:
 
 ```go
-func Handler(service xagentv1connect.XAgentServiceHandler) http.Handler {
+func Handler(service gritzv1connect.GritzServiceHandler) http.Handler {
     server := NewServer(service, WithDefaultAutoArchiveFunc(func(ctx context.Context) *durationpb.Duration {
-        resp, err := service.GetOrgSettings(ctx, &xagentv1.GetOrgSettingsRequest{})
+        resp, err := service.GetOrgSettings(ctx, &gritzv1.GetOrgSettingsRequest{})
         if err != nil {
             return nil // fail open: behave as no org default
         }

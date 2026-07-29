@@ -1,6 +1,6 @@
 # Bedrock AgentCore Backend for the Runner
 
-Issue: https://github.com/icholy/xagent/issues/943
+Issue: https://github.com/icholy/gritz/issues/943
 
 ## Problem
 
@@ -57,7 +57,7 @@ Three facts about AgentCore Runtime drive the whole design.
 The mismatch with the other backends: Docker/Firecracker sandboxes run
 *independently* of the runner and are *observed* (die events, pidfd). An
 AgentCore microVM is driven by an HTTP request the runner makes. The driver
-process xagent wants to run is not a thing AgentCore launches — it is the body
+process gritz wants to run is not a thing AgentCore launches — it is the body
 of an `/invocations` handler. The design below bridges that gap with a small
 in-image HTTP shim and leans hard on the driver-owned-events invariant for exit
 reporting.
@@ -71,13 +71,13 @@ against the AWS SDK for Go v2 (`bedrockagentcorecontrol` + `bedrockagentcore`).
 Selection follows the existing seam:
 
 ```
-xagent runner --backend agent-core
+gritz runner --backend agent-core
 ```
 
 Per task, the backend:
 
 1. Ensures an **agent runtime resource** exists for the workspace's image
-   (cached by image digest + xagent version), creating it via
+   (cached by image digest + gritz version), creating it via
    `CreateAgentRuntime` on first use.
 2. Builds an **invocation payload** from `backend.Spec` (cmd, env, files) — the
    AgentCore analog of the Docker backend's tar copy and the Firecracker
@@ -97,11 +97,11 @@ the socket-proxy elimination and driver-owned-events prerequisites.
 AgentCore has no file-injection phase (you cannot tar-copy into a session
 microVM) and requires the container's entrypoint to be an HTTP server. So, like
 the Firecracker backend bakes the driver into the rootfs and boots
-`xagent tool vm-init` as PID 1, the AgentCore image bakes the xagent binary in
+`gritz tool vm-init` as PID 1, the AgentCore image bakes the gritz binary in
 and runs a new hidden subcommand as its entrypoint:
 
 ```
-xagent tool agentcore-shim      # beside `tool agent-mcp` and `tool vm-init`
+gritz tool agentcore-shim      # beside `tool agent-mcp` and `tool vm-init`
 ```
 
 `agentcore-shim` is a minimal HTTP server implementing the AgentCore contract:
@@ -127,7 +127,7 @@ type invocation struct {
 ```
 
 Files are provisioned only on the first invocation of a session and skipped on
-re-invocation of the same (sticky) microVM — gated by a `/xagent/.provisioned`
+re-invocation of the same (sticky) microVM — gated by a `/gritz/.provisioned`
 marker, reproducing the Docker backend's provision-at-create-only semantics so a
 restart never clobbers the driver's `SetupCommandsCompleted`/`Started` markers
 in `agent.ConfigPath(taskID)`.
@@ -135,11 +135,11 @@ in `agent.ConfigPath(taskID)`.
 Because the entrypoint must be the shim and the binary must already be present,
 **AgentCore images must be purpose-built** — unlike the Docker and Firecracker
 backends, which consume an unmodified workspace image. The image is
-`<workspace base image>` + the host-arch (`linux/arm64`) xagent binary at
-`backend.BinaryPath` + `ENTRYPOINT ["xagent","tool","agentcore-shim"]`. xagent
+`<workspace base image>` + the host-arch (`linux/arm64`) gritz binary at
+`backend.BinaryPath` + `ENTRYPOINT ["gritz","tool","agentcore-shim"]`. gritz
 ships a published base image and a `Dockerfile` fragment to make this a
 two-line build; full auto-build/push is an open question. The cache key for the
-agent runtime resource therefore includes the xagent version, since the image
+agent runtime resource therefore includes the gritz version, since the image
 embeds the driver binary (same reasoning as the Firecracker rootfs cache).
 
 ### Workspace config
@@ -152,8 +152,8 @@ proposed `firecracker:`:
 workspaces:
   pets-workshop:
     agent_core:
-      image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/xagent-workspace:latest
-      execution_role: arn:aws:iam::123456789012:role/xagent-agentcore
+      image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/gritz-workspace:latest
+      execution_role: arn:aws:iam::123456789012:role/gritz-agentcore
       region: us-east-1            # default: AWS SDK resolution
       network_mode: PUBLIC         # PUBLIC | VPC (default PUBLIC)
       runtime_arn: ""              # optional: use a pre-created runtime, skip CreateAgentRuntime
@@ -209,7 +209,7 @@ and ≥33 chars:
 
 ```go
 func sessionID(runnerID string, taskID int64) string {
-	// e.g. "xagent-<runner>-<task>" padded/hashed to a stable ≥33-char id
+	// e.g. "gritz-<runner>-<task>" padded/hashed to a stable ≥33-char id
 }
 ```
 
@@ -252,11 +252,11 @@ exercises it more than Docker does.
 ### State directory
 
 The backend keeps minimal local state under a per-runner directory (default
-`/var/lib/xagent/agent-core/<runner-id>`), since AgentCore holds the heavy state:
+`/var/lib/gritz/agent-core/<runner-id>`), since AgentCore holds the heavy state:
 
 ```
 <state-dir>/
-├── runtimes/<image-digest>-<xagent-version>.json   # cached agent-runtime ARN per image
+├── runtimes/<image-digest>-<gritz-version>.json   # cached agent-runtime ARN per image
 └── sessions/<task-id>.json                          # sessionId, runtime ARN, started-at
 ```
 
@@ -277,18 +277,18 @@ operator can set `--concurrency 0` (unlimited) to defer entirely to AgentCore.
 ### CLI
 
 ```
-xagent runner --backend agent-core \
-  [--agent-core-state-dir /var/lib/xagent/agent-core] \
+gritz runner --backend agent-core \
+  [--agent-core-state-dir /var/lib/gritz/agent-core] \
   [--agent-core-region us-east-1]
 ```
 
-All flags have `XAGENT_AGENT_CORE_*` env sources; AWS credentials/region also
+All flags have `GRITZ_AGENT_CORE_*` env sources; AWS credentials/region also
 resolve through the standard SDK chain. `internal/command/runner.go`'s backend
 switch gains an `agent-core` case constructing
 `agentcore.New(agentcore.Options{RunnerID, Region, StateDir, Log})`.
 
-`xagent download` is not extended — there is no host kernel or firecracker
-binary to fetch; the AWS SDK is compiled in. Instead, `xagent` publishes the
+`gritz download` is not extended — there is no host kernel or firecracker
+binary to fetch; the AWS SDK is compiled in. Instead, `gritz` publishes the
 AgentCore base image and build fragment (see image contract above).
 
 ### Package layout

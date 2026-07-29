@@ -3,11 +3,11 @@ package microvmshim
 import (
 	"sync"
 
-	"github.com/icholy/xagent/internal/runner/backend/lambdamicrovm"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/runner/backend/lambdamicrovm"
+	"github.com/icholy/gritz/internal/x/sse"
 )
 
-// lifecycle is the in-shim broadcaster for the /xagent/lifecycle SSE stream. It
+// lifecycle is the in-shim broadcaster for the /gritz/lifecycle SSE stream. It
 // fans events out to current subscribers and keeps the last driver-exited
 // "sticky" so a fresh connection replays it immediately — delivering an exit
 // that happened while the runner was disconnected rather than losing it.

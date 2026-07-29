@@ -7,7 +7,7 @@
 // the live mcp.Connection and lets callers inject typed channel
 // notifications alongside the SDK's own writes.
 //
-// The package is xagent-agnostic: it knows only the Claude Code
+// The package is gritz-agnostic: it knows only the Claude Code
 // channel protocol and the MCP SDK.
 package mcpchannel
 

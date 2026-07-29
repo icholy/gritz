@@ -1,5 +1,5 @@
-const TOKEN_KEY = 'xagent_token'
-const ORG_ID_KEY = 'xagent_org_id'
+const TOKEN_KEY = 'gritz_token'
+const ORG_ID_KEY = 'gritz_org_id'
 
 // Sentinel returned by getOrgId() when no org is selected (pre-login or
 // after clearToken). The backend's ResolveOrg treats org_id=0 as "use

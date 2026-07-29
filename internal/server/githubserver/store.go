@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 )
 
 // Store is the subset of store.Store used by the GitHub webhook handler.

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@connectrpc/connect-query'
-import { getEventTypes, listWorkspaces } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { getEventTypes, listWorkspaces } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'

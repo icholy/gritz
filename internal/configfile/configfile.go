@@ -7,21 +7,21 @@ import (
 	"path/filepath"
 )
 
-// Dir returns the xagent config directory.
-// It checks XAGENT_CONFIG_DIR first, then falls back to
-// os.UserConfigDir()/xagent (e.g. ~/.config/xagent on Linux).
+// Dir returns the gritz config directory.
+// It checks GRITZ_CONFIG_DIR first, then falls back to
+// os.UserConfigDir()/gritz (e.g. ~/.config/gritz on Linux).
 func Dir() (string, error) {
-	if dir := os.Getenv("XAGENT_CONFIG_DIR"); dir != "" {
+	if dir := os.Getenv("GRITZ_CONFIG_DIR"); dir != "" {
 		return dir, nil
 	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("config directory: %w", err)
 	}
-	return filepath.Join(dir, "xagent"), nil
+	return filepath.Join(dir, "gritz"), nil
 }
 
-// Path returns the path to the xagent config file.
+// Path returns the path to the gritz config file.
 func Path() (string, error) {
 	dir, err := Dir()
 	if err != nil {
@@ -97,7 +97,7 @@ func Save(f *File) error {
 	return os.WriteFile(p, data, 0600)
 }
 
-// File stores the xagent configuration.
+// File stores the gritz configuration.
 type File struct {
 	Token string `json:"token"`
 }

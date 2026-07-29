@@ -1,6 +1,6 @@
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import type { Duration } from '@bufbuild/protobuf/wkt'
-import type { Task, TaskLink } from '@/gen/xagent/v1/xagent_pb'
+import type { Task, TaskLink } from '@/gen/gritz/v1/gritz_pb'
 import type { TaskTab } from '@/lib/task'
 import {
   canArchiveTask,

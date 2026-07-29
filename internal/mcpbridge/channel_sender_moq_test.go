@@ -5,7 +5,7 @@ package mcpbridge
 
 import (
 	"context"
-	"github.com/icholy/xagent/internal/x/mcpchannel"
+	"github.com/icholy/gritz/internal/x/mcpchannel"
 	"sync"
 )
 

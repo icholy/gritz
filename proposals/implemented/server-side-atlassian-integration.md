@@ -1,10 +1,10 @@
 # Server-Side Jira Integration
 
-Issue: https://github.com/icholy/xagent/issues/327
+Issue: https://github.com/icholy/gritz/issues/327
 
 ## Problem
 
-xagent has a GitHub integration that lets users link their GitHub accounts and receive webhook events routed to tasks. There is no equivalent Jira integration. Users who track work in Jira cannot receive webhook-driven notifications on their tasks when Jira issues are commented on or updated.
+gritz has a GitHub integration that lets users link their GitHub accounts and receive webhook events routed to tasks. There is no equivalent Jira integration. Users who track work in Jira cannot receive webhook-driven notifications on their tasks when Jira issues are commented on or updated.
 
 ## Design
 
@@ -82,11 +82,11 @@ func (u *User) HasAtlassian() bool {
     return u.AtlassianAccountID != ""
 }
 
-func (u *User) AtlassianAccountProto() *xagentv1.AtlassianAccount {
+func (u *User) AtlassianAccountProto() *gritzv1.AtlassianAccount {
     if !u.HasAtlassian() {
         return nil
     }
-    return &xagentv1.AtlassianAccount{
+    return &gritzv1.AtlassianAccount{
         AtlassianAccountId: u.AtlassianAccountID,
         CreatedAt:          timestamppb.New(u.CreatedAt),
     }
@@ -109,10 +109,10 @@ type Org struct {
 
 ### 4. Proto Definitions
 
-Add to `proto/xagent/v1/xagent.proto`:
+Add to `proto/gritz/v1/gritz.proto`:
 
 ```protobuf
-// In service XAgentService:
+// In service GritzService:
 rpc UnlinkAtlassianAccount(UnlinkAtlassianAccountRequest) returns (UnlinkAtlassianAccountResponse);
 rpc GetAtlassianWebhookSecret(GetAtlassianWebhookSecretRequest) returns (GetAtlassianWebhookSecretResponse);
 rpc GenerateAtlassianWebhookSecret(GenerateAtlassianWebhookSecretRequest) returns (GenerateAtlassianWebhookSecretResponse);
@@ -172,7 +172,7 @@ Key differences from `ghauth`:
 - **OAuth endpoint:** `https://auth.atlassian.com/authorize` / `https://auth.atlassian.com/oauth/token` (Atlassian OAuth 2.0 3LO)
 - **Scopes:** `read:me` (to fetch account ID)
 - **User fetch:** After token exchange, call `GET https://api.atlassian.com/me` with Bearer token to get `account_id`
-- **State cookie:** `xagent_atlassian_state` (same TTL and security flags as GitHub)
+- **State cookie:** `gritz_atlassian_state` (same TTL and security flags as GitHub)
 - **Routes:** `/login` and `/callback` (mounted at `/atlassian/`)
 - **OnSuccess callback:** Passes `accountID string` instead of `*github.User`
 
@@ -209,7 +209,7 @@ Processing steps:
 3. Verify HMAC-SHA256 signature using `X-Hub-Signature` header (Jira Cloud uses the same `X-Hub-Signature` header format as GitHub)
 4. Parse the webhook payload JSON
 5. Extract event details (comment body, author account ID, issue URL)
-6. Enforce `xagent:` prefix on comment body (same pattern as GitHub)
+6. Enforce `gritz:` prefix on comment body (same pattern as GitHub)
 7. Look up user by `atlassian_account_id` using `GetUserByAtlassianAccountID`
 8. If not found, ignore (user hasn't linked their Atlassian account)
 9. Call `findLinksByOrg()` to find matching notify links (reuse the same pattern from `github.go`)
@@ -292,12 +292,12 @@ Add to `internal/command/server.go`:
 &cli.StringFlag{
     Name:    "atlassian-client-id",
     Usage:   "Atlassian OAuth client ID (for Jira account linking)",
-    Sources: cli.EnvVars("XAGENT_ATLASSIAN_CLIENT_ID"),
+    Sources: cli.EnvVars("GRITZ_ATLASSIAN_CLIENT_ID"),
 },
 &cli.StringFlag{
     Name:    "atlassian-client-secret",
     Usage:   "Atlassian OAuth client secret",
-    Sources: cli.EnvVars("XAGENT_ATLASSIAN_CLIENT_SECRET"),
+    Sources: cli.EnvVars("GRITZ_ATLASSIAN_CLIENT_SECRET"),
 },
 ```
 
@@ -373,7 +373,7 @@ Atlassian uses a single `account_id` across all their products (Jira, Confluence
 
 ### No username caching for Jira
 
-GitHub webhooks include the username, which xagent caches for display. Jira webhook payloads include `displayName` but it's less commonly used as an identifier. The current design stores only `atlassian_account_id`. Display name could be added later if needed.
+GitHub webhooks include the username, which gritz caches for display. Jira webhook payloads include `displayName` but it's less commonly used as an identifier. The current design stores only `atlassian_account_id`. Display name could be added later if needed.
 
 ### Shared vs duplicated webhook routing logic
 
@@ -383,6 +383,6 @@ The `findLinksByOrg` and `routeEventToLinks` methods on `GitHubHandler` could be
 
 1. **Jira webhook event types:** The design covers `comment_created` and `comment_updated`. Should `issue_updated` (status changes, assignee changes) also trigger events? This could be added incrementally.
 
-2. **xagent: prefix requirement:** GitHub webhooks require an `xagent:` prefix in comments to avoid noise. Should Jira follow the same convention, or is there a better filtering mechanism for Jira (e.g. mentioning a specific user, using a JQL filter)?
+2. **gritz: prefix requirement:** GitHub webhooks require an `gritz:` prefix in comments to avoid noise. Should Jira follow the same convention, or is there a better filtering mechanism for Jira (e.g. mentioning a specific user, using a JQL filter)?
 
 3. **Jira issue URL matching:** Jira issue URLs vary by instance (e.g. `https://mycompany.atlassian.net/browse/PROJ-123`). The existing `FindNotifyLinksByURLForUser` query does exact URL matching. Should we normalize Jira URLs or support pattern matching?

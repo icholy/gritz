@@ -16,24 +16,24 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=webui /app/internal/server/webui ./internal/server/webui
-ENV LDFLAGS="-X github.com/icholy/xagent/internal/version.Version=$VERSION"
-RUN CGO_ENABLED=0 GOARCH=$TARGETARCH go build -ldflags "$LDFLAGS" -o xagent ./cmd/xagent
-RUN CGO_ENABLED=0 GOARCH=amd64 go build -ldflags "$LDFLAGS" -o prebuilt/xagent-linux-amd64 ./cmd/xagent
-RUN CGO_ENABLED=0 GOARCH=arm64 go build -ldflags "$LDFLAGS" -o prebuilt/xagent-linux-arm64 ./cmd/xagent
+ENV LDFLAGS="-X github.com/icholy/gritz/internal/version.Version=$VERSION"
+RUN CGO_ENABLED=0 GOARCH=$TARGETARCH go build -ldflags "$LDFLAGS" -o gritz ./cmd/gritz
+RUN CGO_ENABLED=0 GOARCH=amd64 go build -ldflags "$LDFLAGS" -o prebuilt/gritz-linux-amd64 ./cmd/gritz
+RUN CGO_ENABLED=0 GOARCH=arm64 go build -ldflags "$LDFLAGS" -o prebuilt/gritz-linux-arm64 ./cmd/gritz
 
 # Server image
 FROM alpine:3.24 AS server
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
-COPY --from=builder /app/xagent .
+COPY --from=builder /app/gritz .
 EXPOSE 6464
-CMD ["./xagent", "server"]
+CMD ["./gritz", "server"]
 
 # Runner image
 FROM alpine:3.24 AS runner
 RUN apk add --no-cache ca-certificates docker-cli
 WORKDIR /app
-COPY --from=builder /app/xagent .
+COPY --from=builder /app/gritz .
 COPY --from=builder /app/prebuilt/ /app/prebuilt/
-ENV XAGENT_PREBUILT_DIR=/app/prebuilt
-CMD ["./xagent", "runner"]
+ENV GRITZ_PREBUILT_DIR=/app/prebuilt
+CMD ["./gritz", "runner"]

@@ -13,9 +13,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/icholy/xagent/internal/x/mcpswap"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/x/mcpswap"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -33,9 +33,9 @@ const retryBackoff = 30 * time.Second
 
 // Config configures a Server.
 type Config struct {
-	// Client is the xagent API client used to fetch GitHub App
+	// Client is the gritz API client used to fetch GitHub App
 	// installation tokens via CreateGitHubToken.
-	Client xagentclient.Client
+	Client gritzclient.Client
 	// URL is the upstream GitHub MCP endpoint. Defaults to DefaultURL.
 	URL string
 	// MinTTL is the minimum remaining lifetime on the active installation
@@ -50,7 +50,7 @@ type Config struct {
 // Server fronts the GitHub MCP server over stdio, hot-swapping its
 // upstream session as the GitHub App installation token rotates.
 type Server struct {
-	client   xagentclient.Client
+	client   gritzclient.Client
 	url      string
 	minTTL   time.Duration
 	logger   *slog.Logger
@@ -87,7 +87,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go s.rotate(ctx, expiresAt)
 
 	srv := mcp.NewServer(&mcp.Implementation{
-		Name:    "xagent-github-mcp",
+		Name:    "gritz-github-mcp",
 		Version: "1.0.0",
 	}, &mcp.ServerOptions{
 		HasTools:     true,
@@ -102,7 +102,7 @@ func (s *Server) Run(ctx context.Context) error {
 // upstream session with one connected using that token. Returns the new
 // token's expiry.
 func (s *Server) swap(ctx context.Context) (time.Time, error) {
-	resp, err := s.client.CreateGitHubToken(ctx, &xagentv1.CreateGitHubTokenRequest{})
+	resp, err := s.client.CreateGitHubToken(ctx, &gritzv1.CreateGitHubTokenRequest{})
 	if err != nil {
 		return time.Time{}, fmt.Errorf("create github token: %w", err)
 	}

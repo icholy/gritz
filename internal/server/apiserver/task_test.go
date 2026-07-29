@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"gotest.tools/v3/assert"
@@ -20,11 +20,11 @@ func TestGetTask(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Create a task using the API
-	createResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Test Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
-		Instructions: []*xagentv1.Instruction{
+		Instructions: []*gritzv1.Instruction{
 			{
 				Text: "Do something important",
 				Url:  "https://example.com/issue/1",
@@ -38,21 +38,21 @@ func TestGetTask(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Get the task via the API
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{
 		Id: createResp.Task.Id,
 	})
 	assert.NilError(t, err)
 
 	// Verify the task matches what we created. Instructions are no longer a task
 	// field — they are instruction events in the stream, asserted below.
-	expected := &xagentv1.Task{
+	expected := &gritzv1.Task{
 		Id:          createResp.Task.Id,
 		Name:        "Test Task",
 		Runner:      "test-runner",
 		Workspace:   "test-workspace",
-		Status:      xagentv1.TaskStatus_PENDING,
-		Command:     xagentv1.TaskCommand_START,
-		Actions:     &xagentv1.TaskActions{Cancel: true},
+		Status:      gritzv1.TaskStatus_PENDING,
+		Command:     gritzv1.TaskCommand_START,
+		Actions:     &gritzv1.TaskActions{Cancel: true},
 		Version:     1,
 		CreatedAt:   getResp.Task.CreatedAt, // Copy timestamps since we can't predict them
 		UpdatedAt:   getResp.Task.UpdatedAt,
@@ -62,9 +62,9 @@ func TestGetTask(t *testing.T) {
 	assert.DeepEqual(t, getResp.Task, expected, protocmp.Transform())
 
 	// The initial instructions are seeded into the stream as instruction events.
-	eventsResp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: createResp.Task.Id})
+	eventsResp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: createResp.Task.Id})
 	assert.NilError(t, err)
-	assert.DeepEqual(t, instructionPayloads(eventsResp.Events), []*xagentv1.InstructionPayload{
+	assert.DeepEqual(t, instructionPayloads(eventsResp.Events), []*gritzv1.InstructionPayload{
 		{Text: "Do something important", Url: "https://example.com/issue/1"},
 		{Text: "Do something else", Url: "https://example.com/issue/2"},
 	}, protocmp.Transform())
@@ -72,8 +72,8 @@ func TestGetTask(t *testing.T) {
 
 // instructionPayloads extracts the instruction-arm payloads from a stream, in
 // order — the brief's instruction projection.
-func instructionPayloads(events []*xagentv1.Event) []*xagentv1.InstructionPayload {
-	var out []*xagentv1.InstructionPayload
+func instructionPayloads(events []*gritzv1.Event) []*gritzv1.InstructionPayload {
+	var out []*gritzv1.InstructionPayload
 	for _, e := range events {
 		if inst := e.GetInstruction(); inst != nil {
 			out = append(out, inst)
@@ -90,7 +90,7 @@ func TestGetTask_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -98,8 +98,8 @@ func TestGetTask_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, errA := srv.GetTask(ctxA, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
-	_, errB := srv.GetTask(ctxB, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
+	_, errA := srv.GetTask(ctxA, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
+	_, errB := srv.GetTask(ctxB, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
 
 	// Assert
 	assert.NilError(t, errA)
@@ -114,11 +114,11 @@ func TestCreateTask(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "New Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
-		Instructions: []*xagentv1.Instruction{
+		Instructions: []*gritzv1.Instruction{
 			{
 				Text: "Do something",
 				Url:  "https://example.com/issue/1",
@@ -128,14 +128,14 @@ func TestCreateTask(t *testing.T) {
 
 	// Assert
 	assert.NilError(t, err)
-	expected := &xagentv1.Task{
+	expected := &gritzv1.Task{
 		Id:          resp.Task.Id,
 		Name:        "New Task",
 		Runner:      "test-runner",
 		Workspace:   "test-workspace",
-		Status:      xagentv1.TaskStatus_PENDING,
-		Command:     xagentv1.TaskCommand_START,
-		Actions:     &xagentv1.TaskActions{Cancel: true},
+		Status:      gritzv1.TaskStatus_PENDING,
+		Command:     gritzv1.TaskCommand_START,
+		Actions:     &gritzv1.TaskActions{Cancel: true},
 		Version:     1,
 		CreatedAt:   resp.Task.CreatedAt,
 		UpdatedAt:   resp.Task.UpdatedAt,
@@ -144,9 +144,9 @@ func TestCreateTask(t *testing.T) {
 	assert.DeepEqual(t, resp.Task, expected, protocmp.Transform())
 
 	// The initial instruction is seeded into the stream as an instruction event.
-	eventsResp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: resp.Task.Id})
+	eventsResp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: resp.Task.Id})
 	assert.NilError(t, err)
-	assert.DeepEqual(t, instructionPayloads(eventsResp.Events), []*xagentv1.InstructionPayload{
+	assert.DeepEqual(t, instructionPayloads(eventsResp.Events), []*gritzv1.InstructionPayload{
 		{Text: "Do something", Url: "https://example.com/issue/1"},
 	}, protocmp.Transform())
 }
@@ -157,13 +157,13 @@ func TestListTasks(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
-	_, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task 1",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	_, err = srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task 2",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -171,7 +171,7 @@ func TestListTasks(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{})
+	resp, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -185,25 +185,25 @@ func TestListTasks_IncludeArchived(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// One active task and one archived task in the same org.
-	_, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{Name: "active", Runner: "test-runner", Workspace: "test-workspace"})
+	_, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{Name: "active", Runner: "test-runner", Workspace: "test-workspace"})
 	assert.NilError(t, err)
 	assert.NilError(t, srv.store.CreateTask(ctx, nil, &model.Task{
 		Runner: "test-runner", Workspace: "test-workspace", Status: model.TaskStatusCompleted, OrgID: org.OrgID, Archived: true,
 	}))
 
 	// The default request (archived unset) returns active tasks only, unchanged.
-	def, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{})
+	def, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(def.Tasks), 1)
 	assert.Assert(t, !def.Tasks[0].Archived)
 
 	// Archived: false is likewise active-only.
-	off, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{Archived: false})
+	off, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{Archived: false})
 	assert.NilError(t, err)
 	assert.Equal(t, len(off.Tasks), 1)
 
 	// Archived: true returns active and archived rows together.
-	on, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{Archived: true})
+	on, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{Archived: true})
 	assert.NilError(t, err)
 	assert.Equal(t, len(on.Tasks), 2)
 }
@@ -215,9 +215,9 @@ func TestListTasks_ArchivedTokenMismatch(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Two active and two archived rows so each filter mints a next-page token.
-	_, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{Name: "active-1", Runner: "test-runner", Workspace: "test-workspace"})
+	_, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{Name: "active-1", Runner: "test-runner", Workspace: "test-workspace"})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{Name: "active-2", Runner: "test-runner", Workspace: "test-workspace"})
+	_, err = srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{Name: "active-2", Runner: "test-runner", Workspace: "test-workspace"})
 	assert.NilError(t, err)
 	assert.NilError(t, srv.store.CreateTask(ctx, nil, &model.Task{
 		Runner: "test-runner", Workspace: "test-workspace", Status: model.TaskStatusCompleted, OrgID: org.OrgID, Archived: true,
@@ -227,17 +227,17 @@ func TestListTasks_ArchivedTokenMismatch(t *testing.T) {
 	}))
 
 	// A token minted under archived=true, replayed under archived=false → invalid.
-	archivedPage, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{PageSize: 1, Archived: true})
+	archivedPage, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{PageSize: 1, Archived: true})
 	assert.NilError(t, err)
 	assert.Assert(t, archivedPage.NextPageToken != "")
-	_, err = srv.ListTasks(ctx, &xagentv1.ListTasksRequest{PageSize: 1, PageToken: archivedPage.NextPageToken, Archived: false})
+	_, err = srv.ListTasks(ctx, &gritzv1.ListTasksRequest{PageSize: 1, PageToken: archivedPage.NextPageToken, Archived: false})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 
 	// And the reverse: an active-minted token replayed under archived=true.
-	activePage, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{PageSize: 1, Archived: false})
+	activePage, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{PageSize: 1, Archived: false})
 	assert.NilError(t, err)
 	assert.Assert(t, activePage.NextPageToken != "")
-	_, err = srv.ListTasks(ctx, &xagentv1.ListTasksRequest{PageSize: 1, PageToken: activePage.NextPageToken, Archived: true})
+	_, err = srv.ListTasks(ctx, &gritzv1.ListTasksRequest{PageSize: 1, PageToken: activePage.NextPageToken, Archived: true})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 }
 
@@ -249,19 +249,19 @@ func TestListTasks_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	_, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task 1",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	_, err = srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task 2",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(ctxB, &xagentv1.CreateTaskRequest{
+	_, err = srv.CreateTask(ctxB, &gritzv1.CreateTaskRequest{
 		Name:      "User B's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -269,9 +269,9 @@ func TestListTasks_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	respA, err := srv.ListTasks(ctxA, &xagentv1.ListTasksRequest{})
+	respA, err := srv.ListTasks(ctxA, &gritzv1.ListTasksRequest{})
 	assert.NilError(t, err)
-	respB, err := srv.ListTasks(ctxB, &xagentv1.ListTasksRequest{})
+	respB, err := srv.ListTasks(ctxB, &gritzv1.ListTasksRequest{})
 	assert.NilError(t, err)
 
 	// Assert
@@ -285,20 +285,20 @@ func TestListTasks_Pagination(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	first, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{Name: "task-1", Runner: "test-runner", Workspace: "test-workspace"})
+	first, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{Name: "task-1", Runner: "test-runner", Workspace: "test-workspace"})
 	assert.NilError(t, err)
-	second, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{Name: "task-2", Runner: "test-runner", Workspace: "test-workspace"})
+	second, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{Name: "task-2", Runner: "test-runner", Workspace: "test-workspace"})
 	assert.NilError(t, err)
 
 	// The first page holds the newest task and a token for the next page.
-	page1, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{PageSize: 1})
+	page1, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{PageSize: 1})
 	assert.NilError(t, err)
 	assert.Equal(t, len(page1.Tasks), 1)
 	assert.Equal(t, page1.Tasks[0].Id, second.Task.Id)
 	assert.Assert(t, page1.NextPageToken != "")
 
 	// Passing that token back returns the next (older) task and no further pages.
-	page2, err := srv.ListTasks(ctx, &xagentv1.ListTasksRequest{PageSize: 1, PageToken: page1.NextPageToken})
+	page2, err := srv.ListTasks(ctx, &gritzv1.ListTasksRequest{PageSize: 1, PageToken: page1.NextPageToken})
 	assert.NilError(t, err)
 	assert.Equal(t, len(page2.Tasks), 1)
 	assert.Equal(t, page2.Tasks[0].Id, first.Task.Id)
@@ -313,7 +313,7 @@ func TestCreateTask_Namespace(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Namespaced Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -325,7 +325,7 @@ func TestCreateTask_Namespace(t *testing.T) {
 	assert.Equal(t, resp.Task.Namespace, "reviewbot")
 
 	// ...and it is persisted, readable back on the task.
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: resp.Task.Id})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: resp.Task.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Task.Namespace, "reviewbot")
 }
@@ -338,7 +338,7 @@ func TestCreateTask_DefaultNamespace(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act: no namespace set — the default (empty) namespace.
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Default Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -347,7 +347,7 @@ func TestCreateTask_DefaultNamespace(t *testing.T) {
 	// Assert: empty namespace behaves as today.
 	assert.NilError(t, err)
 	assert.Equal(t, resp.Task.Namespace, "")
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: resp.Task.Id})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: resp.Task.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Task.Namespace, "")
 }
@@ -358,7 +358,7 @@ func TestCreateTask_BadRunner(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Bad Task",
 		Runner:    "nonexistent-runner",
 		Workspace: "test-workspace",
@@ -372,7 +372,7 @@ func TestCreateTask_BadWorkspace(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Bad Task",
 		Runner:    "test-runner",
 		Workspace: "fake-workspace",
@@ -386,7 +386,7 @@ func TestUpdateTask(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
-	createResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Original Name",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -394,14 +394,14 @@ func TestUpdateTask(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:   createResp.Task.Id,
 		Name: "Updated Name",
 	})
 
 	// Assert
 	assert.NilError(t, err)
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Task.Name, "Updated Name")
 }
@@ -414,7 +414,7 @@ func TestUpdateTask_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -422,7 +422,7 @@ func TestUpdateTask_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.UpdateTask(ctxB, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctxB, &gritzv1.UpdateTaskRequest{
 		Id:   createResp.Task.Id,
 		Name: "Hijacked Name",
 	})
@@ -439,7 +439,7 @@ func TestArchiveTask_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -447,7 +447,7 @@ func TestArchiveTask_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.ArchiveTask(ctxB, &xagentv1.ArchiveTaskRequest{
+	_, err = srv.ArchiveTask(ctxB, &gritzv1.ArchiveTaskRequest{
 		Id: createResp.Task.Id,
 	})
 
@@ -463,7 +463,7 @@ func TestCancelTask_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -471,7 +471,7 @@ func TestCancelTask_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.CancelTask(ctxB, &xagentv1.CancelTaskRequest{
+	_, err = srv.CancelTask(ctxB, &gritzv1.CancelTaskRequest{
 		Id: createResp.Task.Id,
 	})
 
@@ -487,7 +487,7 @@ func TestRestartTask_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -495,7 +495,7 @@ func TestRestartTask_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.RestartTask(ctxB, &xagentv1.RestartTaskRequest{
+	_, err = srv.RestartTask(ctxB, &gritzv1.RestartTaskRequest{
 		Id: createResp.Task.Id,
 	})
 
@@ -510,7 +510,7 @@ func TestCreateTask_AutoArchive(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	want := 90 * time.Minute
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:        "With archive",
 		Runner:      "test-runner",
 		Workspace:   "test-workspace",
@@ -520,7 +520,7 @@ func TestCreateTask_AutoArchive(t *testing.T) {
 	assert.Assert(t, resp.Task.AutoArchive != nil, "AutoArchive should be set on response")
 	assert.Equal(t, resp.Task.AutoArchive.AsDuration(), want)
 
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: resp.Task.Id})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: resp.Task.Id})
 	assert.NilError(t, err)
 	assert.Assert(t, getResp.Task.AutoArchive != nil)
 	assert.Equal(t, getResp.Task.AutoArchive.AsDuration(), want)
@@ -532,7 +532,7 @@ func TestUpdateTask_AutoArchive(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	createResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "No archive",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -542,33 +542,33 @@ func TestUpdateTask_AutoArchive(t *testing.T) {
 
 	// Set a value via Update
 	want := 24 * time.Hour
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:          createResp.Task.Id,
 		AutoArchive: durationpb.New(want),
 	})
 	assert.NilError(t, err)
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 	assert.Assert(t, getResp.Task.AutoArchive != nil)
 	assert.Equal(t, getResp.Task.AutoArchive.AsDuration(), want)
 
 	// Omitting AutoArchive on Update leaves the existing value untouched.
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:   createResp.Task.Id,
 		Name: "just a rename",
 	})
 	assert.NilError(t, err)
-	getResp, err = srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
+	getResp, err = srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Task.AutoArchive.AsDuration(), want, "omitted AutoArchive preserves existing value")
 
 	// Setting to zero reverts to "never auto-archive" (omitted on the wire).
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:          createResp.Task.Id,
 		AutoArchive: durationpb.New(0),
 	})
 	assert.NilError(t, err)
-	getResp, err = srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
+	getResp, err = srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Task.AutoArchive.AsDuration(), time.Duration(0), "zero duration means never auto-archive")
 }
@@ -579,7 +579,7 @@ func TestUnarchiveTask_ClearsAutoArchive(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	createResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:        "Auto-archive task",
 		Runner:      "test-runner",
 		Workspace:   "test-workspace",
@@ -594,14 +594,14 @@ func TestUnarchiveTask_ClearsAutoArchive(t *testing.T) {
 	dbTask.Command = 0
 	assert.NilError(t, srv.store.UpdateTask(ctx, nil, dbTask))
 
-	_, err = srv.ArchiveTask(ctx, &xagentv1.ArchiveTaskRequest{Id: createResp.Task.Id})
+	_, err = srv.ArchiveTask(ctx, &gritzv1.ArchiveTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 
 	// Unarchive should clear auto_archive so the archiver doesn't immediately re-archive.
-	_, err = srv.UnarchiveTask(ctx, &xagentv1.UnarchiveTaskRequest{Id: createResp.Task.Id})
+	_, err = srv.UnarchiveTask(ctx, &gritzv1.UnarchiveTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: createResp.Task.Id})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: createResp.Task.Id})
 	assert.NilError(t, err)
 	assert.Assert(t, !getResp.Task.Archived, "task should be unarchived")
 	assert.Equal(t, getResp.Task.AutoArchive.AsDuration(), time.Duration(0), "AutoArchive should reset to 0 (never) on unarchive")

@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -18,8 +18,8 @@ type Workspace struct {
 }
 
 // Proto converts a Workspace to its protobuf representation.
-func (w *Workspace) Proto() *xagentv1.RegisteredWorkspace {
-	return &xagentv1.RegisteredWorkspace{
+func (w *Workspace) Proto() *gritzv1.RegisteredWorkspace {
+	return &gritzv1.RegisteredWorkspace{
 		Name:        w.Name,
 		RunnerId:    w.RunnerID,
 		Description: w.Description,
@@ -28,7 +28,7 @@ func (w *Workspace) Proto() *xagentv1.RegisteredWorkspace {
 }
 
 // WorkspaceFromProto converts a protobuf RegisteredWorkspace to a model Workspace.
-func WorkspaceFromProto(pb *xagentv1.RegisteredWorkspace) *Workspace {
+func WorkspaceFromProto(pb *gritzv1.RegisteredWorkspace) *Workspace {
 	return &Workspace{
 		Name:        pb.Name,
 		Description: pb.Description,

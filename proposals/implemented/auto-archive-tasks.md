@@ -1,12 +1,12 @@
 # Auto-Archive Tasks After Configurable Timeout
 
-Issue: https://github.com/icholy/xagent/issues/633
+Issue: https://github.com/icholy/gritz/issues/633
 
 ## Problem
 
 Tasks are increasingly being created automatically from workflows (Jira pollers, GitHub webhooks, routing rules, scheduled agents, parent tasks spawning children, etc.) rather than by humans in the UI. Nobody remembers to archive these because no human "owns" them — they reach a terminal status (`COMPLETED`, `FAILED`, `CANCELLED`) and then sit forever with `archived = false`.
 
-The runner's `Prune()` loop only removes containers for **archived** tasks (`internal/runner/runner.go`). Unarchived terminal tasks therefore keep their `xagent-{task-id}` containers around in Docker indefinitely. The result is a resource leak proportional to workflow volume.
+The runner's `Prune()` loop only removes containers for **archived** tasks (`internal/runner/runner.go`). Unarchived terminal tasks therefore keep their `gritz-{task-id}` containers around in Docker indefinitely. The result is a resource leak proportional to workflow volume.
 
 We need a per-task auto-archive timeout that lets the system reclaim these containers without anyone having to remember.
 
@@ -45,7 +45,7 @@ The partial index keeps the worker's scan touching only rows that are candidates
 
 ### Proto changes
 
-In `proto/xagent/v1/xagent.proto`:
+In `proto/gritz/v1/gritz.proto`:
 
 ```proto
 import "google/protobuf/duration.proto";
@@ -140,7 +140,7 @@ Each tick:
 3. Skips quietly on `ErrConcurrentUpdate` (the row was already archived or restarted between the list and the update) or `ErrNotFound`.
 4. Logs how many tasks were archived for visibility.
 
-Defaults: `interval = 1m`, `batchSize = 100`. Both exposed as `--archive-poll` and `--archive-batch` flags on `xagent server`. The 1-minute default keeps the deadline granularity well below the runner's 5-second prune cadence (so containers are reaped within ~1 minute of expiry) without putting meaningful load on the database — the partial index makes each scan a few microseconds of index-only access.
+Defaults: `interval = 1m`, `batchSize = 100`. Both exposed as `--archive-poll` and `--archive-batch` flags on `gritz server`. The 1-minute default keeps the deadline granularity well below the runner's 5-second prune cadence (so containers are reaped within ~1 minute of expiry) without putting meaningful load on the database — the partial index makes each scan a few microseconds of index-only access.
 
 Wired up from `internal/command/server.go` alongside the HTTP server using the existing context-cancellation shutdown path: the archiver goroutine exits on `ctx.Done()`.
 
@@ -159,11 +159,11 @@ The runner's `Prune()` loop is unchanged. Because the archiver writes `archived 
 
 ### CLI changes
 
-`xagent task create` and `xagent task update` accept `--archive-after <duration>` (e.g. `24h`, `30m`). Standard Go `time.ParseDuration` syntax. Omitted at create time = never auto-archive; `0` on update = clear the field.
+`gritz task create` and `gritz task update` accept `--archive-after <duration>` (e.g. `24h`, `30m`). Standard Go `time.ParseDuration` syntax. Omitted at create time = never auto-archive; `0` on update = clear the field.
 
-`xagent task list` already shows enough; we don't add new columns by default.
+`gritz task list` already shows enough; we don't add new columns by default.
 
-`xagent server` gains `--archive-poll` (default `1m`) and `--archive-batch` (default `100`).
+`gritz server` gains `--archive-poll` (default `1m`) and `--archive-batch` (default `100`).
 
 ### Web UI
 
@@ -173,7 +173,7 @@ The UI changes are minimal — most automated tasks set the value via the API at
 
 ### MCP changes
 
-The xagent MCP server's `create_child_task` tool gets an `archive_after` parameter (string, parsed as `time.Duration`). Agents creating ephemeral helper tasks should pass a short value (e.g. `1h`) so those tasks self-clean.
+The gritz MCP server's `create_child_task` tool gets an `archive_after` parameter (string, parsed as `time.Duration`). Agents creating ephemeral helper tasks should pass a short value (e.g. `1h`) so those tasks self-clean.
 
 The `update_my_task` tool also gets `archive_after`, so an agent that knows it's wrapping up can set a short timeout itself.
 

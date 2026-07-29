@@ -1,6 +1,6 @@
 # Task Pagination
 
-Issue: https://github.com/icholy/xagent/issues/1012
+Issue: https://github.com/icholy/gritz/issues/1012
 
 ## Problem
 
@@ -30,7 +30,7 @@ Keyset pagination (rather than `LIMIT`/`OFFSET`) is chosen because tasks are ord
 
 ### 1. Proto Definitions
 
-`proto/xagent/v1/xagent.proto` — replace the empty request and extend the response:
+`proto/gritz/v1/gritz.proto` — replace the empty request and extend the response:
 
 ```protobuf
 message ListTasksRequest {
@@ -245,14 +245,14 @@ The existing `ListTasks(ctx, tx, orgID)` method and its SQL query are retained f
 - `ListTasksForRunner` / runner reconciliation — needs all tasks for a runner, not a page.
 - Any background reconciliation or cleanup loops.
 
-Audit of `store.ListTasks` callers is part of implementation; the rule is: only the `XAgentService.ListTasks` RPC handler switches to `ListTasksPage`.
+Audit of `store.ListTasks` callers is part of implementation; the rule is: only the `GritzService.ListTasks` RPC handler switches to `ListTasksPage`.
 
 ### 6. Server Handler
 
 With the store owning pagination, the handler is pure plumbing: check the scope, pass the request fields through, map errors, convert to proto. It never sees a cursor, a limit, or a token's contents.
 
 ```go
-func (s *Server) ListTasks(ctx context.Context, req *xagentv1.ListTasksRequest) (*xagentv1.ListTasksResponse, error) {
+func (s *Server) ListTasks(ctx context.Context, req *gritzv1.ListTasksRequest) (*gritzv1.ListTasksResponse, error) {
     caller := apiauth.MustCaller(ctx)
     if !caller.Scopes.Allow(authscope.OpTaskRead) {
         return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list tasks"))
@@ -271,8 +271,8 @@ func (s *Server) ListTasks(ctx context.Context, req *xagentv1.ListTasksRequest) 
         return nil, connect.NewError(code, err)
     }
 
-    resp := &xagentv1.ListTasksResponse{
-        Tasks:         make([]*xagentv1.Task, len(page.Items)),
+    resp := &gritzv1.ListTasksResponse{
+        Tasks:         make([]*gritzv1.Task, len(page.Items)),
         NextPageToken: page.NextToken,
     }
     for i, t := range page.Items {

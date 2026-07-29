@@ -1,6 +1,6 @@
 # Maximum Orgs Per User
 
-Issue: https://github.com/icholy/xagent/issues/739
+Issue: https://github.com/icholy/gritz/issues/739
 
 ## Problem
 
@@ -86,7 +86,7 @@ Configurable rather than constant because:
 
 - Self-hosters may want it tighter (smaller team, stricter abuse posture) or looser (one shared instance for many internal teams).
 - It lets us raise it in production without a code release if we ever bump into the limit.
-- It matches the existing pattern in `internal/command/server.go` — every server tunable is a `cli` flag with `Sources: cli.EnvVars(...)`. Examples: `XAGENT_ARCHIVE_BATCH` (`server.go:130`), `XAGENT_ARCHIVE_POLL` (`server.go:124`).
+- It matches the existing pattern in `internal/command/server.go` — every server tunable is a `cli` flag with `Sources: cli.EnvVars(...)`. Examples: `GRITZ_ARCHIVE_BATCH` (`server.go:130`), `GRITZ_ARCHIVE_POLL` (`server.go:124`).
 
 Plumbing:
 
@@ -96,7 +96,7 @@ Plumbing:
     Name:    "max-orgs-per-user",
     Usage:   "Maximum number of orgs a single user can be a member of",
     Value:   apiserver.DefaultMaxOrgsPerUser, // 20
-    Sources: cli.EnvVars("XAGENT_MAX_ORGS_PER_USER"),
+    Sources: cli.EnvVars("GRITZ_MAX_ORGS_PER_USER"),
 },
 ```
 
@@ -142,7 +142,7 @@ GROUP BY user_id
 HAVING COUNT(*) > 20;
 ```
 
-Given the current product surface (one default org per user at signup, owner-added members), the realistic expectation is "zero users affected at cap = 20". If the query surfaces real over-limit users, raise the default or set `XAGENT_MAX_ORGS_PER_USER` higher in production for the rollout. This is a release-time check, not a design question — the design tolerates either answer.
+Given the current product surface (one default org per user at signup, owner-added members), the realistic expectation is "zero users affected at cap = 20". If the query surfaces real over-limit users, raise the default or set `GRITZ_MAX_ORGS_PER_USER` higher in production for the rollout. This is a release-time check, not a design question — the design tolerates either answer.
 
 ### 6. Error surfacing
 

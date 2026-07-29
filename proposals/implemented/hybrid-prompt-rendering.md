@@ -1,11 +1,11 @@
 # Hybrid Prompt Rendering: Converge Init/Wake, Render Events as Markdown
 
-Issue: https://github.com/icholy/xagent/issues/1408
+Issue: https://github.com/icholy/gritz/issues/1408
 
 Data-side companions:
-- https://github.com/icholy/xagent/issues/1406 (reshapes the `GetTaskDetails`
+- https://github.com/icholy/gritz/issues/1406 (reshapes the `GetTaskDetails`
   *data* to be event-native).
-- https://github.com/icholy/xagent/issues/1410 (persists `source`/`type` on
+- https://github.com/icholy/gritz/issues/1410 (persists `source`/`type` on
   `ExternalPayload`, which the renderer uses for the external-event label).
 
 This proposal is the **rendering** side: given the event-native data #1406 lands
@@ -100,13 +100,13 @@ header** plus the **raw event stream** plus links, with the flattened
 { "id": 43, "type": "instruction", "wake": true,
   "created_at": "2023-11-14T22:15:00Z",
   "text": "Implement the first-run brief.",
-  "url": "https://github.com/icholy/xagent/issues/1398" }
+  "url": "https://github.com/icholy/gritz/issues/1398" }
 ```
 
 The renderer keys off the arm discriminator (`Payload.Type()` —
 `instruction`/`external`/`report`/`lifecycle`/`link`, the constants in
 `internal/model/event.go`). Critically, **the renderer already reads this way
-today**: it walks `*xagentv1.Event` and switches on the set oneof arm. So the
+today**: it walks `*gritzv1.Event` and switches on the set oneof arm. So the
 renderer can be built against the *current* proto and needs no wire change —
 its only coupling to #1406 is that RenderBrief stops reading the flattened
 `instructions`/task-object fields and reads the thin header + stream instead.
@@ -180,7 +180,7 @@ the comment text as-is — and renders only the opaque `details` map as JSON:
     "source": "github",
     "type": "pull_request_review_comment",
     "description": "icholy commented on driver.go",
-    "url": "https://github.com/icholy/xagent/pull/1394#discussion_r512",
+    "url": "https://github.com/icholy/gritz/pull/1394#discussion_r512",
     "data": "This nil check needs a test before we merge — can you add one that covers the wake path?",
     "details": {
       "path": "internal/agent/driver.go",
@@ -197,7 +197,7 @@ the comment text as-is — and renders only the opaque `details` map as JSON:
 ~~~~
 ### icholy commented on driver.go — 2023-11-14 22:20 UTC
 GitHub · pull_request_review_comment
-Source: https://github.com/icholy/xagent/pull/1394#discussion_r512
+Source: https://github.com/icholy/gritz/pull/1394#discussion_r512
 
 This nil check needs a test before we merge — can you add one that covers the wake path?
 
@@ -289,7 +289,7 @@ Here is your task brief:
       "createdAt": "2023-11-14T22:15:00Z",
       "instruction": {
         "text": "Implement the first-run brief.",
-        "url": "https://github.com/icholy/xagent/issues/1398"
+        "url": "https://github.com/icholy/gritz/issues/1398"
       }
     },
     {
@@ -297,7 +297,7 @@ Here is your task brief:
       "createdAt": "2023-11-14T22:13:20Z",
       "external": {
         "description": "PR review requested",
-        "url": "https://github.com/icholy/xagent/pull/1394"
+        "url": "https://github.com/icholy/gritz/pull/1394"
       }
     }
   ],
@@ -305,20 +305,20 @@ Here is your task brief:
   "instructions": [
     {
       "text": "Implement the first-run brief.",
-      "url": "https://github.com/icholy/xagent/issues/1398"
+      "url": "https://github.com/icholy/gritz/issues/1398"
     }
   ],
   "links": [ { "id": "7", "taskId": "1302", "relevance": "the PR this task opened",
-      "url": "https://github.com/icholy/xagent/pull/1394", "title": "feat(agent): first-run brief",
+      "url": "https://github.com/icholy/gritz/pull/1394", "title": "feat(agent): first-run brief",
       "subscribe": true, "createdAt": "2023-11-14T22:14:10Z" } ],
   "name": "first-run-brief L2",
   "namespace": "team-core",
   "status": "RUNNING",
-  "url": "https://xagent.choly.ca/ui/tasks/1302",
-  "workspace": "xagent"
+  "url": "https://gritz.dev/ui/tasks/1302",
+  "workspace": "gritz"
 }
 
-If the task does not have a name, use xagent:update_my_task to set one.
+If the task does not have a name, use gritz:update_my_task to set one.
 ... (standing instructions) ...
 ```
 
@@ -327,16 +327,16 @@ If the task does not have a name, use xagent:update_my_task to set one.
 ```
 # Task 1302 · first-run-brief L2
 
-- Workspace: xagent · Namespace: team-core
-- Task: https://xagent.choly.ca/ui/tasks/1302
+- Workspace: gritz · Namespace: team-core
+- Task: https://gritz.dev/ui/tasks/1302
 
 ## How to work this task
-If the task does not have a name, use xagent:update_my_task to set one.
+If the task does not have a name, use gritz:update_my_task to set one.
 If you have questions, problems, or take no action, respond on the platform from the most recent instruction or event url, suffixing your message with (task 1302).
-When you create a resource (PR, issue, comment), record it with xagent:create_link and subscribe=true so you receive replies. Use subscribe=false only for reference links you didn't create.
+When you create a resource (PR, issue, comment), record it with gritz:create_link and subscribe=true so you receive replies. Use subscribe=false only for reference links you didn't create.
 Prefer web URLs a user can visit over API URLs.
-Use xagent:report to log important observations. Your text responses are not visible to users — only tool calls are.
-If you need to re-check for updates mid-run, call xagent:get_my_task.
+Use gritz:report to log important observations. Your text responses are not visible to users — only tool calls are.
+If you need to re-check for updates mid-run, call gritz:get_my_task.
 
 This is your first run on this task. Its full context is below — you already
 have everything you need and do not need to call get_my_task to begin.
@@ -345,16 +345,16 @@ have everything you need and do not need to call get_my_task to begin.
 
 ### PR review requested — 2023-11-14 22:13 UTC
 GitHub · pull_request_review
-Source: https://github.com/icholy/xagent/pull/1394
+Source: https://github.com/icholy/gritz/pull/1394
 
 ### Link: feat(agent): first-run brief — 2023-11-14 22:14 UTC
-The PR this task opened. https://github.com/icholy/xagent/pull/1394 (subscribed)
+The PR this task opened. https://github.com/icholy/gritz/pull/1394 (subscribed)
 
 ## Instructions
 
 ### Instruction — 2023-11-14 22:15 UTC
 Implement the first-run brief.
-Source: https://github.com/icholy/xagent/issues/1398
+Source: https://github.com/icholy/gritz/issues/1398
 ```
 
 The instruction now uses a fixed `### Instruction — {time}` header with the
@@ -376,7 +376,7 @@ The task received new events:
   "createdAt": "2023-11-14T22:13:20Z",
   "external": {
     "description": "PR review requested",
-    "url": "https://github.com/icholy/xagent/pull/1394"
+    "url": "https://github.com/icholy/gritz/pull/1394"
   }
 },
 {
@@ -384,7 +384,7 @@ The task received new events:
   "createdAt": "2023-11-14T22:15:00Z",
   "instruction": {
     "text": "keep going",
-    "url": "https://github.com/icholy/xagent/issues/2"
+    "url": "https://github.com/icholy/gritz/issues/2"
   }
 }
 ]
@@ -403,13 +403,13 @@ Since your last run, the task received new events:
 
 ### PR review requested — 2023-11-14 22:13 UTC
 GitHub · pull_request_review
-Source: https://github.com/icholy/xagent/pull/1394
+Source: https://github.com/icholy/gritz/pull/1394
 
 ## Instructions
 
 ### Instruction — 2023-11-14 22:15 UTC
 keep going
-Source: https://github.com/icholy/xagent/issues/2
+Source: https://github.com/icholy/gritz/issues/2
 
 Continue working on the task.
 ```
@@ -425,10 +425,10 @@ instruction sits. A wake with nothing pending keeps today's terse fallback
 
 `internal/agent/agentprompt` after:
 
-- `renderEvent(*xagentv1.Event) string` — the single arm-switch renderer above.
+- `renderEvent(*gritzv1.Event) string` — the single arm-switch renderer above.
   Replaces `RenderEvent`, `renderMessage`, and the JSON-normalization comment
   block. No more protojson-through-`encoding/json` round trip.
-- `renderHeader(*xagentv1.Task) string` (id/name + workspace/namespace/url, no
+- `renderHeader(*gritzv1.Task) string` (id/name + workspace/namespace/url, no
   status) and `renderLinks([]*TaskLink) string` — small helpers.
 - A partition helper splits a `[]*Event` into `(context, instructions)` by arm
   so both paths render `## Context` then `## Instructions` from the same code.

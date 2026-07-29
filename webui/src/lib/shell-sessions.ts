@@ -1,5 +1,5 @@
 import { createClient, type Client, type Transport } from '@connectrpc/connect'
-import { XAgentService } from '@/gen/xagent/v1/xagent_pb'
+import { GritzService } from '@/gen/gritz/v1/gritz_pb'
 import {
   SUBPROTOCOL,
   FrameType,
@@ -94,11 +94,11 @@ function exitMarker(code: number): Uint8Array {
 }
 
 export interface ShellSessionsOptions {
-  client: Client<typeof XAgentService>
+  client: Client<typeof GritzService>
 }
 
 export class ShellSessions {
-  private readonly client: Client<typeof XAgentService>
+  private readonly client: Client<typeof GritzService>
   private readonly entries = new Map<string, Entry>()
   private readonly stateListeners = new Map<string, Set<() => void>>()
   private readonly outputListeners = new Map<string, Set<(bytes: Uint8Array) => void>>()
@@ -107,10 +107,10 @@ export class ShellSessions {
     this.client = opts.client
   }
 
-  // fromTransport is the production constructor: it builds the XAgentService
+  // fromTransport is the production constructor: it builds the GritzService
   // client from the app's Connect transport (which carries the Bearer token).
   static fromTransport(transport: Transport): ShellSessions {
-    return new ShellSessions({ client: createClient(XAgentService, transport) })
+    return new ShellSessions({ client: createClient(GritzService, transport) })
   }
 
   // attach registers interest in a task's shell, ensuring an entry exists so the

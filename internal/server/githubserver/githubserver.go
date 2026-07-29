@@ -12,12 +12,12 @@ import (
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v88/github"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/oauthlink"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/store"
-	"github.com/icholy/xagent/internal/x/githubx"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/oauthlink"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/store"
+	"github.com/icholy/gritz/internal/x/githubx"
 	"golang.org/x/oauth2"
 	oauth2github "golang.org/x/oauth2/github"
 )

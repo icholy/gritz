@@ -1,7 +1,7 @@
 // Package lambdamicrovm implements the runner backend on AWS Lambda MicroVMs:
 // AWS-managed Firecracker microVMs with no host hypervisor, kernel, or
 // networking to operate. Each task runs in its own MicroVM launched from a
-// pre-built image; the in-VM `xagent tool microvm-shim` receives the lifecycle
+// pre-built image; the in-VM `gritz tool microvm-shim` receives the lifecycle
 // hooks, fetches the task's spec bundle, runs the driver, and notifies the
 // runner of the driver's exit over an SSE stream through AWS's managed proxy.
 //
@@ -24,29 +24,29 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/icholy/xagent/internal/runner/backend"
-	"github.com/icholy/xagent/internal/runner/workspace"
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/runner/backend"
+	"github.com/icholy/gritz/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/x/sse"
 )
 
 // HandleType is the backend.Handle.Type the backend stamps on its handles
 // (informational metadata persisted in the task record).
 const HandleType = "lambda-microvm"
 
-// shimPort is the port the in-VM shim's HTTP server (hooks + xagent control
+// shimPort is the port the in-VM shim's HTTP server (hooks + gritz control
 // surface) listens on; the proxy auth token is scoped to it.
 const shimPort = 8080
 
-// xagent control-surface paths the runner reaches over the managed proxy.
+// gritz control-surface paths the runner reaches over the managed proxy.
 const (
-	lifecyclePath = "/xagent/lifecycle"
-	stopPath      = "/xagent/stop"
+	lifecyclePath = "/gritz/lifecycle"
+	stopPath      = "/gritz/stop"
 )
 
 // EventDriverExited is the SSE event type the shim emits when the supervised
 // driver process exits. Its data is a JSON DriverExited. It is the only
-// load-bearing event on the /xagent/lifecycle stream; the runner ignores all
+// load-bearing event on the /gritz/lifecycle stream; the runner ignores all
 // others (keep-alives, etc.).
 const EventDriverExited = "driver-exited"
 
@@ -58,7 +58,7 @@ type DriverExited struct {
 
 // allIngressConnector is the Lambda-managed connector granting inbound
 // connectivity. Reaching the shim endpoint over AWS's managed auth-token proxy
-// (where the runner consumes the SSE lifecycle stream and POSTs /xagent/stop)
+// (where the runner consumes the SSE lifecycle stream and POSTs /gritz/stop)
 // requires an ingress connector — the managed proxy is not a path separate from
 // ingress connectors. This is the default when a workspace does not pin a
 // port-scoped connector; %s is the region. The proxy token is already
@@ -89,11 +89,11 @@ type Bundle struct {
 // handleData is the backend-defined Handle.Data: everything the backend needs
 // to reach and clean up a sandbox, but not for identity (the MicroVM id is the
 // Handle.ID). Most importantly it carries the VM Endpoint so the runner can mint
-// a token, open the SSE stream, POST /xagent/stop, and resume — without
+// a token, open the SSE stream, POST /gritz/stop, and resume — without
 // re-listing first. The runner persists it opaquely and hands it back on
 // Destroy / reuse.
 type handleData struct {
-	Endpoint    string `json:"endpoint"` // VM proxy endpoint, for SSE + /xagent/stop
+	Endpoint    string `json:"endpoint"` // VM proxy endpoint, for SSE + /gritz/stop
 	ImageARN    string `json:"image_arn"`
 	StageBucket string `json:"stage_bucket"` // staged spec bundle, cleaned on Destroy
 	StageKey    string `json:"stage_key"`
@@ -112,7 +112,7 @@ type Backend struct {
 type Options struct {
 	Cloud  Cloud
 	Stager Stager
-	// HTTPClient makes the proxy requests (SSE stream, /xagent/stop). It must
+	// HTTPClient makes the proxy requests (SSE stream, /gritz/stop). It must
 	// not impose a timeout that would cut the long-lived SSE stream; defaults to
 	// a timeout-free client.
 	HTTPClient *http.Client
@@ -315,7 +315,7 @@ func (b *Backend) Probe(ctx context.Context, h backend.Handle) (backend.State, e
 }
 
 // Signal gracefully stops the driver: over the managed proxy it POSTs the shim's
-// /xagent/stop endpoint (SIGTERM → grace → SIGKILL). The driver catches SIGTERM
+// /gritz/stop endpoint (SIGTERM → grace → SIGKILL). The driver catches SIGTERM
 // and owns its terminal report to the server; its exit then drives the suspend like
 // any other completion (Wait). It reports signalled=true if a running VM was
 // reached, and does NOT terminate or suspend — that is Destroy's / Wait's job.
@@ -396,7 +396,7 @@ func decodeData(raw []byte) (handleData, bool) {
 }
 
 // Wait blocks until the handle's MicroVM reaches a terminal outcome, returning
-// exactly once. It mints a proxy token and reads the /xagent/lifecycle SSE
+// exactly once. It mints a proxy token and reads the /gritz/lifecycle SSE
 // stream over the managed proxy: a clean driver-exited{code} event suspends the
 // VM (preserve state, stop compute) and returns (code, nil), so the orchestrator
 // sees an exited sandbox Docker-identically. A stream drop is arbitrated via

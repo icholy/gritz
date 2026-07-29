@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/x/atlassian"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/x/atlassian"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )
@@ -29,7 +29,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				WebhookEvent: "comment_created",
 				Comment: &atlassian.Comment{
 					ID:     "10001",
-					Body:   "xagent: do something",
+					Body:   "gritz: do something",
 					Author: atlassian.User{AccountID: "abc123", DisplayName: "Test User"},
 				},
 				Issue: &atlassian.Issue{
@@ -41,7 +41,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				Source:      "atlassian",
 				Type:        "comment_created",
 				Description: "Test User commented on PROJ-123",
-				Data:        "xagent: do something",
+				Data:        "gritz: do something",
 				URL:         "https://mycompany.atlassian.net/browse/PROJ-123?focusedCommentId=10001",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"abc123"}},
 				Meta:        AtlassianMeta{AuthorAccountID: "abc123", AuthorDisplayName: "Test User"},
@@ -72,7 +72,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 			},
 		},
 		{
-			name: "NoXAgentPrefix",
+			name: "NoGritzPrefix",
 			payload: atlassian.WebhookPayload{
 				WebhookEvent: "comment_created",
 				Comment: &atlassian.Comment{
@@ -111,7 +111,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 			payload: atlassian.WebhookPayload{
 				WebhookEvent: "comment_created",
 				Comment: &atlassian.Comment{
-					Body:   "xagent: test",
+					Body:   "gritz: test",
 					Author: atlassian.User{AccountID: "abc123", DisplayName: "Test User"},
 				},
 				Issue: nil,
@@ -130,7 +130,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 			payload: atlassian.WebhookPayload{
 				WebhookEvent: "comment_updated",
 				Comment: &atlassian.Comment{
-					Body:   "xagent: test",
+					Body:   "gritz: test",
 					Author: atlassian.User{AccountID: "abc123", DisplayName: "Test User"},
 				},
 				Issue: &atlassian.Issue{
@@ -146,7 +146,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				WebhookEvent: "comment_created",
 				Comment: &atlassian.Comment{
 					ID:     "20002",
-					Body:   "  xagent: trimmed",
+					Body:   "  gritz: trimmed",
 					Author: atlassian.User{AccountID: "abc123", DisplayName: "Test User"},
 				},
 				Issue: &atlassian.Issue{
@@ -158,7 +158,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				Source:      "atlassian",
 				Type:        "comment_created",
 				Description: "Test User commented on PROJ-1",
-				Data:        "xagent: trimmed",
+				Data:        "gritz: trimmed",
 				URL:         "https://mycompany.atlassian.net/browse/PROJ-1?focusedCommentId=20002",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"abc123"}},
 				Meta:        AtlassianMeta{AuthorAccountID: "abc123", AuthorDisplayName: "Test User"},
@@ -175,15 +175,15 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				},
 				Changelog: &atlassian.Changelog{
 					Items: []atlassian.ChangelogItem{
-						{Field: "labels", FromString: "bug", ToString: "bug xagent"},
+						{Field: "labels", FromString: "bug", ToString: "bug gritz"},
 					},
 				},
 			},
 			expected: &eventrouter.InputEvent{
 				Source:      "atlassian",
 				Type:        "label_added",
-				Description: `Test User added label(s) "xagent" to PROJ-7`,
-				Attrs:       eventrouter.Attrs{"label": {"xagent"}, "user": {"abc123"}},
+				Description: `Test User added label(s) "gritz" to PROJ-7`,
+				Attrs:       eventrouter.Attrs{"label": {"gritz"}, "user": {"abc123"}},
 				URL:         "https://mycompany.atlassian.net/browse/PROJ-7",
 				Meta:        AtlassianMeta{AuthorAccountID: "abc123", AuthorDisplayName: "Test User"},
 			},
@@ -199,15 +199,15 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				},
 				Changelog: &atlassian.Changelog{
 					Items: []atlassian.ChangelogItem{
-						{Field: "labels", FromString: "", ToString: "xagent urgent"},
+						{Field: "labels", FromString: "", ToString: "gritz urgent"},
 					},
 				},
 			},
 			expected: &eventrouter.InputEvent{
 				Source:      "atlassian",
 				Type:        "label_added",
-				Description: `Test User added label(s) "xagent", "urgent" to PROJ-8`,
-				Attrs:       eventrouter.Attrs{"label": {"xagent", "urgent"}, "user": {"abc123"}},
+				Description: `Test User added label(s) "gritz", "urgent" to PROJ-8`,
+				Attrs:       eventrouter.Attrs{"label": {"gritz", "urgent"}, "user": {"abc123"}},
 				URL:         "https://mycompany.atlassian.net/browse/PROJ-8",
 				Meta:        AtlassianMeta{AuthorAccountID: "abc123", AuthorDisplayName: "Test User"},
 			},
@@ -240,7 +240,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				},
 				Changelog: &atlassian.Changelog{
 					Items: []atlassian.ChangelogItem{
-						{Field: "labels", FromString: "bug xagent", ToString: "bug"},
+						{Field: "labels", FromString: "bug gritz", ToString: "bug"},
 					},
 				},
 			},
@@ -256,7 +256,7 @@ func TestToAtlassianInputEvents(t *testing.T) {
 				},
 				Changelog: &atlassian.Changelog{
 					Items: []atlassian.ChangelogItem{
-						{Field: "labels", FromString: "", ToString: "xagent"},
+						{Field: "labels", FromString: "", ToString: "gritz"},
 					},
 				},
 			},
@@ -312,7 +312,7 @@ func TestHandleAtlassianWebhookRoutesToTask(t *testing.T) {
 		WebhookEvent: "comment_created",
 		Comment: &atlassian.Comment{
 			ID:     "30003",
-			Body:   "xagent: please fix the tests",
+			Body:   "gritz: please fix the tests",
 			Author: atlassian.User{AccountID: accountID, DisplayName: "Test User"},
 		},
 		Issue: &atlassian.Issue{
@@ -332,7 +332,7 @@ func TestHandleAtlassianWebhookRoutesToTask(t *testing.T) {
 		Source:      "atlassian",
 		Type:        "comment_created",
 		Description: "Test User commented on PROJ-10",
-		Data:        "xagent: please fix the tests",
+		Data:        "gritz: please fix the tests",
 		URL:         "https://mycompany.atlassian.net/browse/PROJ-10?focusedCommentId=30003",
 		Attrs:       eventrouter.Attrs{"mention": nil, "user": {"atlassian-abc123"}},
 		UserID:      "user-1",
@@ -373,7 +373,7 @@ func TestHandleAtlassianWebhookRoutesLabelAdded(t *testing.T) {
 		},
 		Changelog: &atlassian.Changelog{
 			Items: []atlassian.ChangelogItem{
-				{Field: "labels", FromString: "bug", ToString: "bug xagent urgent"},
+				{Field: "labels", FromString: "bug", ToString: "bug gritz urgent"},
 			},
 		},
 	}
@@ -388,8 +388,8 @@ func TestHandleAtlassianWebhookRoutesLabelAdded(t *testing.T) {
 	assert.DeepEqual(t, router.RoutedInputs(), []eventrouter.InputEvent{{
 		Source:      "atlassian",
 		Type:        "label_added",
-		Description: `Test User added label(s) "xagent", "urgent" to PROJ-10`,
-		Attrs:       eventrouter.Attrs{"label": {"xagent", "urgent"}, "user": {"atlassian-abc123"}},
+		Description: `Test User added label(s) "gritz", "urgent" to PROJ-10`,
+		Attrs:       eventrouter.Attrs{"label": {"gritz", "urgent"}, "user": {"atlassian-abc123"}},
 		URL:         "https://mycompany.atlassian.net/browse/PROJ-10",
 		UserID:      "user-1",
 		Orgs:        []int64{1},
@@ -442,7 +442,7 @@ func TestHandleAtlassianWebhookUnlinkedActorRoutesViaOrg(t *testing.T) {
 	payload := atlassian.WebhookPayload{
 		WebhookEvent: "comment_created",
 		Comment: &atlassian.Comment{
-			Body:   "xagent: test",
+			Body:   "gritz: test",
 			Author: atlassian.User{AccountID: "unknown-account", DisplayName: "Unknown"},
 		},
 		Issue: &atlassian.Issue{

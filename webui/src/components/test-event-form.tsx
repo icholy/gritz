@@ -5,8 +5,8 @@ import {
   getEventTypes,
   getRoutingRules,
   testEvent,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { EventTypeDef, RoutingRule, TestEventResponse } from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { EventTypeDef, RoutingRule, TestEventResponse } from '@/gen/gritz/v1/gritz_pb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

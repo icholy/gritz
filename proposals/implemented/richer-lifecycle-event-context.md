@@ -1,6 +1,6 @@
 # Richer Lifecycle Event Context
 
-Issue: https://github.com/icholy/xagent/issues/1165
+Issue: https://github.com/icholy/gritz/issues/1165
 
 ## Problem
 
@@ -52,7 +52,7 @@ structured context later without a migration.
 
 ```
 driver.submit(RunnerEventFailed)                 internal/agent/driver.go
-  → SubmitRunnerEvents RPC (RunnerEvent proto)   proto/xagent/v1/xagent.proto:407
+  → SubmitRunnerEvents RPC (RunnerEvent proto)   proto/gritz/v1/gritz.proto:407
     → ApplyRunnerEvent (status fold)             internal/model/task.go:185
     → RunnerEvent.LifecycleEvent(task, from)     internal/model/task.go:282
         → LifecyclePayload{Kind: SANDBOX_FAILED, Message: "container failed"}
@@ -65,7 +65,7 @@ driver.submit(RunnerEventFailed)                 internal/agent/driver.go
 What already exists and needs **no change**:
 
 - `LifecyclePayload` has a `message` field in both the proto
-  (`proto/xagent/v1/xagent.proto:348`, `string message = 5`) and the Go model
+  (`proto/gritz/v1/gritz.proto:348`, `string message = 5`) and the Go model
   (`internal/model/event.go:180`).
 - The events table stores the payload as `jsonb`
   (`internal/store/sql/migrations/20260614000001_event_typed_payload.sql`), with
@@ -76,7 +76,7 @@ What already exists and needs **no change**:
   (`webui/src/lib/timeline.ts:122`) emit `Sandbox failed: <message>`.
 
 What is missing: the `RunnerEvent` message
-(`proto/xagent/v1/xagent.proto:407`) has only `task_id`, `event`, `version`,
+(`proto/gritz/v1/gritz.proto:407`) has only `task_id`, `event`, `version`,
 `reconcile` — no field to carry the reason from the driver/runner to the server.
 So `LifecycleEvent` has nothing to thread through and falls back to the constant.
 
@@ -123,8 +123,8 @@ caller build it. `submit` today constructs the event internally from a bare
 ```go
 func (d *Driver) submit(ctx context.Context, event model.RunnerEventType) error {
     re := model.RunnerEvent{TaskID: d.TaskID, Event: event}
-    _, err := d.Client.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-        Events: []*xagentv1.RunnerEvent{re.Proto()},
+    _, err := d.Client.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+        Events: []*gritzv1.RunnerEvent{re.Proto()},
     })
     // ...
 }
@@ -135,8 +135,8 @@ future field) rides on the value:
 
 ```go
 func (d *Driver) submit(ctx context.Context, re model.RunnerEvent) error {
-    _, err := d.Client.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-        Events: []*xagentv1.RunnerEvent{re.Proto()},
+    _, err := d.Client.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+        Events: []*gritzv1.RunnerEvent{re.Proto()},
     })
     // ...
 }
@@ -193,7 +193,7 @@ change — it already calls `event.LifecycleEvent(task, from)` and persists the
 result. `RunnerEventFromProto` now carries `Reason`, so it flows in for free.
 
 Optionally, the terminal `ChannelMessage` in the same handler could include the
-reason (`Task 42 failed: <reason>`) so `xagent notify` subscribers see it too.
+reason (`Task 42 failed: <reason>`) so `gritz notify` subscribers see it too.
 Recommended as a follow-up, not load-bearing for this proposal.
 
 ### 4. Sanitize and bound the reason
@@ -339,7 +339,7 @@ something needs to branch on the structure.
   before storing, or is a failing command's output considered already inside the
   trust boundary (the operator can see the container logs anyway)?
 - **`ChannelMessage` inclusion**: should terminal `failed` notifications
-  (`xagent notify`) include the reason, or keep them terse (`Task N failed.`) and
+  (`gritz notify`) include the reason, or keep them terse (`Task N failed.`) and
   make the reason timeline-only?
 - **Non-failure context**: `started` / `stopped` gain a `reason` field they never
   populate. Fine as an unused optional, or should the transport field be named

@@ -15,7 +15,7 @@ type Notification struct {
 	Runner string `json:"for_runner,omitempty"`
 	// TaskStatus carries the task's status after a runner-driven
 	// transition. It is populated only for terminal transitions
-	// (completed, failed, cancelled) so consumers like `xagent notify`
+	// (completed, failed, cancelled) so consumers like `gritz notify`
 	// can surface task outcomes without re-fetching the task. The zero
 	// value (unspecified) means this notification isn't a terminal task
 	// transition.

@@ -32,7 +32,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/creack/pty"
-	"github.com/icholy/xagent/internal/shell/shellwire"
+	"github.com/icholy/gritz/internal/shell/shellwire"
 )
 
 // exitReportTimeout bounds the best-effort send of the final exit frame once the
@@ -67,7 +67,7 @@ type ServeOptions struct {
 // Serve runs an interactive debug shell for a rendezvous session. It allocates a
 // PTY, spawns a login shell ($SHELL, else /bin/sh), dials the server's shell
 // relay WebSocket at GET {ServerURL}/shell/driver?session={Session} authenticating with
-// Token as a Bearer header, negotiates the xagent-shell.v1 subprotocol, and
+// Token as a Bearer header, negotiates the gritz-shell.v1 subprotocol, and
 // pipes the PTY over the WebSocket using the shellwire framing.
 //
 // Incoming data frames are written to the PTY master, resize frames are applied

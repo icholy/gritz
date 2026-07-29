@@ -1,22 +1,22 @@
 # Agent Skills Discovery
 
-Issue: https://github.com/icholy/xagent/issues/635
+Issue: https://github.com/icholy/gritz/issues/635
 
 ## Problem
 
-The repo carries a set of curated skills in `.claude/skills/` — `xagent-task`, `grpc`, `webui`, `testing`, `proposal` — that teach an agent how to drive xagent. The `xagent-task` skill in particular is consumer-facing: it documents how an agent creates and manages xagent tasks via the MCP tools. Today the only way for a user running their own Claude Code / Cursor / etc. against a deployed xagent to pick that knowledge up is to clone the repo and copy the SKILL.md by hand.
+The repo carries a set of curated skills in `.claude/skills/` — `gritz-task`, `grpc`, `webui`, `testing`, `proposal` — that teach an agent how to drive gritz. The `gritz-task` skill in particular is consumer-facing: it documents how an agent creates and manages gritz tasks via the MCP tools. Today the only way for a user running their own Claude Code / Cursor / etc. against a deployed gritz to pick that knowledge up is to clone the repo and copy the SKILL.md by hand.
 
-Cloudflare's [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) (v0.2.0) standardises this. A site advertises skills at `/.well-known/agent-skills/index.json`; tools like `npx skills add <url>` fetch that index, verify SHA-256 digests, and install the skills into the user's agent. If `https://xagent.choly.ca` served this endpoint, equipping an agent with the xagent skills would collapse to:
+Cloudflare's [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) (v0.2.0) standardises this. A site advertises skills at `/.well-known/agent-skills/index.json`; tools like `npx skills add <url>` fetch that index, verify SHA-256 digests, and install the skills into the user's agent. If `https://gritz.dev` served this endpoint, equipping an agent with the gritz skills would collapse to:
 
 ```
-npx skills add https://xagent.choly.ca
+npx skills add https://gritz.dev
 ```
 
 ## Design
 
 ### What we publish
 
-A curated subset of `.claude/skills/` is exposed. The initial subset is **just `xagent-task`** because that is the only one useful to consumers of a deployed xagent — the others (`grpc`, `webui`, `testing`, `proposal`) are workflow guidelines for contributors to this repo and would only add noise for downstream users.
+A curated subset of `.claude/skills/` is exposed. The initial subset is **just `gritz-task`** because that is the only one useful to consumers of a deployed gritz — the others (`grpc`, `webui`, `testing`, `proposal`) are workflow guidelines for contributors to this repo and would only add noise for downstream users.
 
 The curated list is an explicit allowlist in code, not a directory convention. Future skills opt in by being added to the list — this keeps internal-only guidelines from leaking out the discovery endpoint by accident.
 
@@ -38,7 +38,7 @@ internal/agentskills/
   agentskills.go              // package: published list, embed FS, index, handler
   agentskills_test.go         // tests for index building, digest, handler responses
   data/
-    xagent-task/SKILL.md      // mirrored from .claude/skills/xagent-task/SKILL.md
+    gritz-task/SKILL.md      // mirrored from .claude/skills/gritz-task/SKILL.md
 generate.go                   // existing file; add `go:generate` directive
 mise.toml                     // add `sync:skills` task that runs the mirror script
 ```
@@ -56,11 +56,11 @@ var skillsFS embed.FS
 // Published is the allowlist of skill names that are exposed over the
 // discovery endpoint. Order is the order they appear in the index.
 var Published = []string{
-    "xagent-task",
+    "gritz-task",
 }
 
 type Handler struct {
-    baseURL string          // e.g. "https://xagent.choly.ca"
+    baseURL string          // e.g. "https://gritz.dev"
     index   []byte          // pre-computed index.json bytes
     indexETag string        // strong ETag based on the index hash
     skills  map[string][]byte // name -> SKILL.md bytes
@@ -81,10 +81,10 @@ The handler produces JSON conforming to schema v0.2.0:
   "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
   "skills": [
     {
-      "name": "xagent-task",
+      "name": "gritz-task",
       "type": "skill-md",
-      "description": "Create xagent tasks using the MCP tools. Use when the user wants to create a task for the xagent system.",
-      "url": "/.well-known/agent-skills/xagent-task/SKILL.md",
+      "description": "Create gritz tasks using the MCP tools. Use when the user wants to create a task for the gritz system.",
+      "url": "/.well-known/agent-skills/gritz-task/SKILL.md",
       "digest": "sha256:<hex>"
     }
   ]
@@ -93,7 +93,7 @@ The handler produces JSON conforming to schema v0.2.0:
 
 Field sourcing per skill:
 
-- `name` — directory name (e.g. `xagent-task`).
+- `name` — directory name (e.g. `gritz-task`).
 - `description` — pulled from the SKILL.md YAML frontmatter `description:` field. This is the same field Claude Code uses for skill activation, so we get one source of truth.
 - `type` — hard-coded to `"skill-md"`. The current skills are single-file. If a skill ever grows scripts/resources we will switch its entry to `"archive"` and serve a `.tar.gz`; that is a follow-up, not v1.
 - `url` — path-absolute, served from the same origin. Easier to reason about than relative URLs and works from any base URL (production, local dev, fly preview).
@@ -138,15 +138,15 @@ The discovery endpoint is the only contract. We do not ship a custom CLI; users 
 
 ```
 # Hypothetical npx skills client (vercel-labs/skills supports URLs that point at index.json hosts)
-npx skills add https://xagent.choly.ca
+npx skills add https://gritz.dev
 
 # Manual fetch + install
-curl https://xagent.choly.ca/.well-known/agent-skills/index.json
-curl https://xagent.choly.ca/.well-known/agent-skills/xagent-task/SKILL.md \
-  -o ~/.claude/skills/xagent-task/SKILL.md
+curl https://gritz.dev/.well-known/agent-skills/index.json
+curl https://gritz.dev/.well-known/agent-skills/gritz-task/SKILL.md \
+  -o ~/.claude/skills/gritz-task/SKILL.md
 ```
 
-The README gains a short "Use xagent from your agent" section that documents the `npx skills add` form and the manual form.
+The README gains a short "Use gritz from your agent" section that documents the `npx skills add` form and the manual form.
 
 ### Tests
 
@@ -174,12 +174,12 @@ Wired into the existing `lint` / `test` job in `.github/workflows/`.
 - **Mirror vs. top-level embed.** Mirroring adds a sync step and a CI check, but it makes the published surface auditable in one place. A top-level embed would avoid duplication but blurs the line between "developer-only skills" and "published skills" — a contributor adding a SKILL.md under `.claude/skills/` would not expect it to be published. We pay the mirror cost to keep that line clear.
 - **Allowlist vs. opt-out marker.** An alternative is a `published: true` flag in each SKILL.md's frontmatter. Allowlist is simpler and avoids polluting the frontmatter that Claude Code already consumes. The cost is one extra place to edit when publishing a new skill — acceptable for the volume we expect.
 - **`skill-md` only, no archives in v1.** Archives let a skill ship supporting scripts and references. None of the current skills need that. Adding archive support upfront would force us to pick a packaging tool (tar+gzip) and a deterministic bundling strategy now, for zero current value. Deferred until a published skill actually needs more than one file.
-- **No signing.** The RFC's security section recommends digest verification (which we provide) plus client-side origin allowlists (which is the client's job). We are not setting up artifact signing at this stage; HTTPS + digest is the bar the RFC sets and is sufficient for the trust level here (skills come from the same origin as the xagent server the user is already trusting).
+- **No signing.** The RFC's security section recommends digest verification (which we provide) plus client-side origin allowlists (which is the client's job). We are not setting up artifact signing at this stage; HTTPS + digest is the bar the RFC sets and is sufficient for the trust level here (skills come from the same origin as the gritz server the user is already trusting).
 - **Public, unauthenticated endpoint.** The index reveals what skills the deployment publishes — that is the point. If a deployment ever needed to gate skills behind auth, we would expose a separate authenticated route; the public `.well-known/` is for things meant to be discovered.
 
 ## Open Questions
 
-- **Naming collisions.** `xagent-task` is fine as a global name today; if other projects publish a same-named skill, installers will conflict. Do we prefix (`xagent/xagent-task`)? The RFC does not mandate namespacing. Leaving as `xagent-task` for v1 and revisiting if a real collision shows up.
-- **Versioning published skills.** The RFC's discovery schema is versioned but individual skills are not. If we change `xagent-task` in a breaking way (renamed MCP tool, removed field), installed copies will diverge silently. Worth considering a `version` field on each skill entry — non-standard but additive — or simply documenting that skills are a moving target and clients should re-add periodically.
+- **Naming collisions.** `gritz-task` is fine as a global name today; if other projects publish a same-named skill, installers will conflict. Do we prefix (`gritz/gritz-task`)? The RFC does not mandate namespacing. Leaving as `gritz-task` for v1 and revisiting if a real collision shows up.
+- **Versioning published skills.** The RFC's discovery schema is versioned but individual skills are not. If we change `gritz-task` in a breaking way (renamed MCP tool, removed field), installed copies will diverge silently. Worth considering a `version` field on each skill entry — non-standard but additive — or simply documenting that skills are a moving target and clients should re-add periodically.
 - **Cache TTL.** `max-age=300` is a guess. Skill files change rarely; we could go higher (an hour, a day) and rely on digest changes flowing through. Lower keeps clients fresher. Pick one before merging.
 - **Should the runner's workspace skills also be published?** A workspace can ship its own SKILL.md set via mounted volumes. Out of scope for v1 (this proposal is about static, server-embedded skills) but worth flagging as a future direction: per-workspace `.well-known/agent-skills/`.

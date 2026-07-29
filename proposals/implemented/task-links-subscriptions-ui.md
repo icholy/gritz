@@ -1,6 +1,6 @@
 # Task links tab (read-only)
 
-Issue: https://github.com/icholy/xagent/issues/1158
+Issue: https://github.com/icholy/gritz/issues/1158
 
 > **Scope note (2026-07):** an earlier draft of this proposal also designed
 > *management* — add / remove / toggle-subscribe — backed by new `DeleteLink` and
@@ -84,7 +84,7 @@ the proto). The read-only tab never surfaces it.
 
 ### API surface that exists today — enough for a read-only view
 
-Proto (`proto/xagent/v1/xagent.proto`):
+Proto (`proto/gritz/v1/gritz.proto`):
 
 | RPC | Purpose | Notes |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ no toggles, no inputs.
 │ Timeline  ·  Shell  ·  Links 2                                      │  ← in-page tab bar
 ├────────────────────────────────────────────────────────────────────┤
 │  ○ fix: close operator shell leg                     [ subscribed ] │  ← github icon, title links to url
-│    github.com/icholy/xagent/pull/1149                               │
+│    github.com/icholy/gritz/pull/1149                               │
 │    Opened to resolve the exit hang                                  │  ← relevance, muted
 │                                                                     │
 │  ○ PROJ-42  Investigate flaky test                                  │  ← jira icon, no badge (not subscribed)

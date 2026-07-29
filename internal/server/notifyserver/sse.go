@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/x/sse"
 )
 
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {

@@ -8,21 +8,21 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/oauthflow"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/proto/xagent/v1/xagentv1connect"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/server/apiserver"
-	"github.com/icholy/xagent/internal/server/atlassianserver"
-	"github.com/icholy/xagent/internal/server/githubserver"
-	"github.com/icholy/xagent/internal/server/mcpserver"
-	"github.com/icholy/xagent/internal/server/notifyserver"
-	"github.com/icholy/xagent/internal/server/shellserver"
-	"github.com/icholy/xagent/internal/shell"
-	"github.com/icholy/xagent/internal/shell/shellrelay"
-	"github.com/icholy/xagent/internal/store"
-	"github.com/icholy/xagent/internal/x/otelx"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/oauthflow"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/proto/gritz/v1/gritzv1connect"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/server/apiserver"
+	"github.com/icholy/gritz/internal/server/atlassianserver"
+	"github.com/icholy/gritz/internal/server/githubserver"
+	"github.com/icholy/gritz/internal/server/mcpserver"
+	"github.com/icholy/gritz/internal/server/notifyserver"
+	"github.com/icholy/gritz/internal/server/shellserver"
+	"github.com/icholy/gritz/internal/shell"
+	"github.com/icholy/gritz/internal/shell/shellrelay"
+	"github.com/icholy/gritz/internal/store"
+	"github.com/icholy/gritz/internal/x/otelx"
 	"github.com/justinas/alice"
 )
 
@@ -115,7 +115,7 @@ func New(opts Options) *Server {
 }
 
 func (s *Server) Handler() http.Handler {
-	mux := otelx.NewMux("xagent")
+	mux := otelx.NewMux("gritz")
 	// App JWT token endpoint (cookie-authenticated)
 	mux.Handle("/auth/token", alice.New(s.auth.CheckAuth()).Then(s.auth.HandleToken()))
 	// Auth routes (login, callback, logout)
@@ -127,7 +127,7 @@ func (s *Server) Handler() http.Handler {
 	if err != nil {
 		s.log.Error("failed to create otelconnect interceptor", "err", err)
 	}
-	path, handler := xagentv1connect.NewXAgentServiceHandler(s.api,
+	path, handler := gritzv1connect.NewGritzServiceHandler(s.api,
 		connect.WithInterceptors(otelInterceptor, apiauth.RequireUserInterceptor(), apiauth.ObservabilityInterceptor()),
 	)
 	mux.Handle(path, alice.New(s.auth.CheckAuth()).Then(handler))

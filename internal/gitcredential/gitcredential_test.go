@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 )
 
 func TestParseInput(t *testing.T) {
-	input := "protocol=https\nhost=github.com\npath=icholy/xagent.git\n\n"
+	input := "protocol=https\nhost=github.com\npath=icholy/gritz.git\n\n"
 	fields := ParseInput(strings.NewReader(input))
 
 	if fields["protocol"] != "https" {
@@ -21,8 +21,8 @@ func TestParseInput(t *testing.T) {
 	if fields["host"] != "github.com" {
 		t.Errorf("expected host=github.com, got %q", fields["host"])
 	}
-	if fields["path"] != "icholy/xagent.git" {
-		t.Errorf("expected path=icholy/xagent.git, got %q", fields["path"])
+	if fields["path"] != "icholy/gritz.git" {
+		t.Errorf("expected path=icholy/gritz.git, got %q", fields["path"])
 	}
 }
 
@@ -38,9 +38,9 @@ func TestFormatOutput(t *testing.T) {
 }
 
 func TestRunGet(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		CreateGitHubTokenFunc: func(_ context.Context, _ *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
-			return &xagentv1.CreateGitHubTokenResponse{Token: "ghs_test_token"}, nil
+	client := &gritzclient.ClientMock{
+		CreateGitHubTokenFunc: func(_ context.Context, _ *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
+			return &gritzv1.CreateGitHubTokenResponse{Token: "ghs_test_token"}, nil
 		},
 	}
 
@@ -58,8 +58,8 @@ func TestRunGet(t *testing.T) {
 }
 
 func TestRunGetNonGitHub(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		CreateGitHubTokenFunc: func(_ context.Context, _ *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+	client := &gritzclient.ClientMock{
+		CreateGitHubTokenFunc: func(_ context.Context, _ *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
 			t.Fatal("CreateGitHubToken should not be called for non-GitHub hosts")
 			return nil, nil
 		},
@@ -78,8 +78,8 @@ func TestRunGetNonGitHub(t *testing.T) {
 }
 
 func TestRunGetNonHTTPS(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		CreateGitHubTokenFunc: func(_ context.Context, _ *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+	client := &gritzclient.ClientMock{
+		CreateGitHubTokenFunc: func(_ context.Context, _ *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
 			t.Fatal("CreateGitHubToken should not be called for non-HTTPS protocol")
 			return nil, nil
 		},
@@ -131,8 +131,8 @@ func TestRunUnknownAction(t *testing.T) {
 }
 
 func TestRunRPCError(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		CreateGitHubTokenFunc: func(_ context.Context, _ *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+	client := &gritzclient.ClientMock{
+		CreateGitHubTokenFunc: func(_ context.Context, _ *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
 			return nil, fmt.Errorf("no GitHub App installation linked to this org")
 		},
 	}

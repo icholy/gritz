@@ -1,6 +1,6 @@
 # Per-handle `Backend.Wait` (task-oriented exit observation)
 
-Issue: https://github.com/icholy/xagent/issues/1089
+Issue: https://github.com/icholy/gritz/issues/1089
 
 ## Problem
 
@@ -320,9 +320,9 @@ is the fall-through to `create` on the reuse path. `Launch` reuses a container
 **only** via the handle id recorded in the statefile — if that container exists it
 is adopted and (re)started; if it is gone, `Launch` returns `backend.ErrGone`
 instead of creating a fresh one. `create` runs only when `reuse == nil` (first
-start). The `xagent-{taskID}` name is still assigned at `create` (readability, and
+start). The `gritz-{taskID}` name is still assigned at `create` (readability, and
 a name conflict there *fails* the create, preventing a duplicate driver for a
-task whose sandbox the runner has lost track of), and the `xagent`/`xagent.runner`
+task whose sandbox the runner has lost track of), and the `gritz`/`gritz.runner`
 labels stay — but both now serve tooling and a future orphan-scanner, not
 adoption. Reclaiming a container leaked by a crash in the launch→persist window is
 explicitly out of scope (see Open Questions).
@@ -436,7 +436,7 @@ truly-gone sandboxes instead of re-`Probe`ing a 404 forever.
    preventing a duplicate driver), Lambda leaks a VM billed until `max_duration`
    (no id, no owner-scoped list — #1088). There is no good way to reclaim these
    safely inline, so it is left unhandled here. A future **orphan-scanner** —
-   enumerating leaked sandboxes (Docker by `xagent`/`xagent.runner` label; Lambda
+   enumerating leaked sandboxes (Docker by `gritz`/`gritz.runner` label; Lambda
    by `ListMicrovms` within a single-tenant scope) and reaping those with no
    statefile record — is the intended fix, tracked separately.
 

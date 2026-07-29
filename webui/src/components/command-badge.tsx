@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import { TaskCommand, TaskStatus, type Task } from '@/gen/xagent/v1/xagent_pb'
+import { TaskCommand, TaskStatus, type Task } from '@/gen/gritz/v1/gritz_pb'
 
 const commandStyles: Record<TaskCommand, string> = {
   [TaskCommand.NONE]: 'bg-gray-100 text-gray-600 border-gray-200',

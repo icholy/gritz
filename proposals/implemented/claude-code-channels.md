@@ -1,10 +1,10 @@
-# Claude Code Channels for a local xagent MCP bridge
+# Claude Code Channels for a local gritz MCP bridge
 
-Issue: https://github.com/icholy/xagent/issues/466
+Issue: https://github.com/icholy/gritz/issues/466
 
 ## Problem
 
-A common way to drive xagent is from a local Claude Code session: a developer runs `claude` on their workstation, and that session creates and supervises xagent tasks through xagent's user-facing MCP server. Today, after creating a task, the local Claude has no way to know when something changes — it must poll `get_task` or `list_tasks` to discover new logs, new instructions, status transitions, or completion. Polling wastes turns, delays reactions, and bloats the model's context with repeated reads.
+A common way to drive gritz is from a local Claude Code session: a developer runs `claude` on their workstation, and that session creates and supervises gritz tasks through gritz's user-facing MCP server. Today, after creating a task, the local Claude has no way to know when something changes — it must poll `get_task` or `list_tasks` to discover new logs, new instructions, status transitions, or completion. Polling wastes turns, delays reactions, and bloats the model's context with repeated reads.
 
 Claude Code Channels (research preview, v2.1.80+) provide exactly the primitive that's missing: an MCP server can push `notifications/claude/channel` events into a running session as `<channel>` tags in Claude's context, so the model reacts on the next turn without polling. The server already publishes structured change notifications for every task mutation; the gap is the transport that delivers them to the local Claude.
 
@@ -19,14 +19,14 @@ Sources: [code.claude.com/docs/en/channels](https://code.claude.com/docs/en/chan
 - **Transport is stdio-only**: a channel server must be a subprocess spawned by Claude Code. Streamable HTTP MCP servers cannot register as channels.
 - **Delivery is fire-and-forget**: the notification call resolves when the JSON-RPC frame is written to the transport, not when Claude processes it. If the session didn't load the server with `--channels`, or org policy blocks channels, events are dropped silently with no error returned. Guaranteed delivery requires a reply tool that the model can call back through.
 - **Queuing**: events are delivered in order, and multiple events arriving while Claude is mid-turn are batched onto the next turn.
-- **Allowlist constraint**: during the preview, `--channels` only accepts plugins on an Anthropic-curated allowlist. A custom server like `xagent` is not on it, so the session must launch with `--dangerously-load-development-channels server:xagent` (which prompts for confirmation per entry), or the org must add the server to the `allowedChannelPlugins` managed setting. Being listed in `.mcp.json` is necessary but not sufficient — the server must also be named in `--channels`.
+- **Allowlist constraint**: during the preview, `--channels` only accepts plugins on an Anthropic-curated allowlist. A custom server like `gritz` is not on it, so the session must launch with `--dangerously-load-development-channels server:gritz` (which prompts for confirmation per entry), or the org must add the server to the `allowedChannelPlugins` managed setting. Being listed in `.mcp.json` is necessary but not sufficient — the server must also be named in `--channels`.
 - **Auth/platform constraints**: channels require Anthropic auth via claude.ai or a Console API key. They are not available on Amazon Bedrock, Google Vertex AI, or Microsoft Foundry. Team/Enterprise orgs must enable `channelsEnabled` in managed settings.
 - **Channels are a notification layer, not a data layer**. The event says "task 42 updated" with small `meta` attributes; Claude then calls `get_task` for the full payload.
 
 An event arrives in Claude's context as:
 
 ```
-<channel source="xagent" action="updated" resource="task" id="42">
+<channel source="gritz" action="updated" resource="task" id="42">
 Task 42 was updated.
 </channel>
 ```
@@ -35,11 +35,11 @@ Task 42 was updated.
 
 ### Two MCP servers already exist
 
-The proposal hinges on distinguishing the two xagent MCP servers in the tree today:
+The proposal hinges on distinguishing the two gritz MCP servers in the tree today:
 
 1. **User-facing MCP server** (`internal/server/mcpserver/mcpserver.go`, backed by package `mcpserver`). Served as MCP **Streamable HTTP** via `mcp.NewStreamableHTTPHandler` with `Stateless: true`, mounted on the server HTTP API at `/mcp`. Exposes `list_workspaces`, `create_task`, `get_task`, `list_tasks`, `update_task`. This is what the developer's local Claude Code talks to today.
 
-2. **In-container agent MCP server** (`internal/command/mcp.go` — `McpCommand` — backed by `internal/agentmcp`). stdio transport. Spawned by the runner inside each task's container. Exposes `get_my_task`, `update_my_task`, `report`, `create_link`, and the child-task tools. (A separate task is moving this command out of the top-level `mcp` slot to `xagent tool agent-mcp`, freeing `xagent mcp` for the new bridge described below.)
+2. **In-container agent MCP server** (`internal/command/mcp.go` — `McpCommand` — backed by `internal/agentmcp`). stdio transport. Spawned by the runner inside each task's container. Exposes `get_my_task`, `update_my_task`, `report`, `create_link`, and the child-task tools. (A separate task is moving this command out of the top-level `mcp` slot to `gritz tool agent-mcp`, freeing `gritz mcp` for the new bridge described below.)
 
 This proposal only affects path (1): how the local Claude that drives the user-facing server receives push notifications. Pushing into in-container agents is explicitly out of scope (see "Future work").
 
@@ -52,12 +52,12 @@ The user-facing server is stateless Streamable HTTP. **Channels require stdio.**
 Introduce a new top-level subcommand:
 
 ```
-xagent mcp [--server URL] [--token TOKEN]
+gritz mcp [--server URL] [--token TOKEN]
 ```
 
 A local stdio MCP server that the developer's `.mcp.json` launches. It does two things:
 
-1. **Re-exposes the user-facing tools** (`list_workspaces`, `create_task`, `get_task`, `list_tasks`, `update_task`) over stdio, proxying each call to the server via `xagentclient.New(...)` (the existing Connect RPC client). For a CLI-driven setup this replaces the remote HTTP MCP entry, so the developer only needs **one** MCP entry instead of an HTTP endpoint plus a separate channel process.
+1. **Re-exposes the user-facing tools** (`list_workspaces`, `create_task`, `get_task`, `list_tasks`, `update_task`) over stdio, proxying each call to the server via `gritzclient.New(...)` (the existing Connect RPC client). For a CLI-driven setup this replaces the remote HTTP MCP entry, so the developer only needs **one** MCP entry instead of an HTTP endpoint plus a separate channel process.
 
 2. **Declares the `claude/channel` capability** and pushes `notifications/claude/channel` events for task changes by translating an SSE subscription to the existing notification stream.
 
@@ -68,9 +68,9 @@ The user-facing HTTP MCP endpoint at `/mcp` stays in place for hosted/web-driven
 ```
 Local Claude Code session
     ↕ stdio (MCP tools + notifications/claude/channel)
-xagent mcp  (NEW local bridge — proxies tools, translates SSE → channel)
+gritz mcp  (NEW local bridge — proxies tools, translates SSE → channel)
     ↕ HTTP: Connect RPC (tools)  +  SSE subscription (notifyserver)
-xagent server  (already publishes task notifications on every change)
+gritz server  (already publishes task notifications on every change)
 ```
 
 ### Reusing the existing notification pipeline
@@ -134,11 +134,11 @@ The bridge does **not** open new RPCs or read full task payloads. Claude does th
 To avoid duplicating the tool schemas between the HTTP handler and the new stdio bridge, extract the tool registrations currently inline in `mcpserver.Server.Handler()` (the five `mcp.AddTool(server, ...)` calls plus the input/output types) into a reusable function on the `mcpserver` package, roughly:
 
 ```go
-// AddTools registers the user-facing xagent tools on the given MCP server.
+// AddTools registers the user-facing gritz tools on the given MCP server.
 // Both the HTTP handler and the local stdio bridge call this so they share
 // schemas, descriptions, and behavior.
-func AddTools(server *mcp.Server, service xagentv1connect.XAgentServiceHandler, baseURL string) {
-    s := &Server{service: service, baseURL: cmp.Or(baseURL, xagentclient.DefaultURL)}
+func AddTools(server *mcp.Server, service gritzv1connect.GritzServiceHandler, baseURL string) {
+    s := &Server{service: service, baseURL: cmp.Or(baseURL, gritzclient.DefaultURL)}
     mcp.AddTool(server, &mcp.Tool{Name: "list_workspaces", /* ... */}, s.listWorkspaces)
     mcp.AddTool(server, &mcp.Tool{Name: "create_task",     /* ... */}, s.createTask)
     mcp.AddTool(server, &mcp.Tool{Name: "get_task",        /* ... */}, s.getTask)
@@ -147,28 +147,28 @@ func AddTools(server *mcp.Server, service xagentv1connect.XAgentServiceHandler, 
 }
 ```
 
-`mcpserver.Handler()` calls `AddTools(server, s.service, s.baseURL)` after constructing the server; the bridge calls the same function with a Connect-client-backed `service` (the existing `xagentclient.Client` type already satisfies the same `XAgentServiceHandler` interface used by `apiserver.Server`, since tool calls just forward to RPCs).
+`mcpserver.Handler()` calls `AddTools(server, s.service, s.baseURL)` after constructing the server; the bridge calls the same function with a Connect-client-backed `service` (the existing `gritzclient.Client` type already satisfies the same `GritzServiceHandler` interface used by `apiserver.Server`, since tool calls just forward to RPCs).
 
 The handler keeps its `Stateless: true` Streamable HTTP wrapper; the bridge wraps the same server with `mcp.StdioTransport` and additionally sets `Capabilities.Experimental["claude/channel"] = map[string]any{}` plus channel-specific `Instructions`.
 
-### `xagent mcp` skeleton
+### `gritz mcp` skeleton
 
 ```go
 var McpCommand = &cli.Command{
     Name:  "mcp",
-    Usage: "Local stdio MCP bridge: re-exposes xagent tools and pushes task change notifications as Claude Code channel events",
+    Usage: "Local stdio MCP bridge: re-exposes gritz tools and pushes task change notifications as Claude Code channel events",
     Flags: []cli.Flag{
-        &cli.StringFlag{Name: "server", Value: xagentclient.DefaultURL, Usage: "server URL"},
+        &cli.StringFlag{Name: "server", Value: gritzclient.DefaultURL, Usage: "server URL"},
         &cli.StringFlag{Name: "token",  Required: true,                 Usage: "API token"},
     },
     Action: func(ctx context.Context, cmd *cli.Command) error {
-        client := xagentclient.New(xagentclient.Options{
+        client := gritzclient.New(gritzclient.Options{
             BaseURL: cmd.String("server"),
             Token:   cmd.String("token"),
         })
 
         server := mcp.NewServer(&mcp.Implementation{
-            Name:    "xagent",
+            Name:    "gritz",
             Version: version.String(),
         }, &mcp.ServerOptions{
             Capabilities: &mcp.ServerCapabilities{
@@ -176,9 +176,9 @@ var McpCommand = &cli.Command{
                     "claude/channel": map[string]any{},
                 },
             },
-            Instructions: "Events from the xagent channel arrive as " +
-                "<channel source=\"xagent\" action=... resource=... id=...>. " +
-                "They notify you that an xagent task, log, link, or event " +
+            Instructions: "Events from the gritz channel arrive as " +
+                "<channel source=\"gritz\" action=... resource=... id=...>. " +
+                "They notify you that an gritz task, log, link, or event " +
                 "changed. Call get_task with the id for details before acting.",
         })
 
@@ -204,7 +204,7 @@ var McpCommand = &cli.Command{
 
 The repo currently vendors `github.com/modelcontextprotocol/go-sdk` **v1.4.1**; latest is **v1.6.1**. The relevant API surface is identical across those versions. Splitting the prior "SDK gap" into the two things it actually was:
 
-**Advertising `claude/channel` — already public API.** `ServerOptions.Capabilities.Experimental` is a public `map[string]any` (`protocol.go` ~ L1547 in v1.4.1) and is plumbed into the InitializeResult the server returns to Claude Code. Setting `Experimental: map[string]any{"claude/channel": map[string]any{}}` on stock SDK is sufficient to register the listener; **no patch, fork, or wrapper is needed** for the capability declaration shown in the `xagent mcp` skeleton above.
+**Advertising `claude/channel` — already public API.** `ServerOptions.Capabilities.Experimental` is a public `map[string]any` (`protocol.go` ~ L1547 in v1.4.1) and is plumbed into the InitializeResult the server returns to Claude Code. Setting `Experimental: map[string]any{"claude/channel": map[string]any{}}` on stock SDK is sufficient to register the listener; **no patch, fork, or wrapper is needed** for the capability declaration shown in the `gritz mcp` skeleton above.
 
 **Sending `notifications/claude/channel` — chosen path is a transport wrapper.** The SDK's public notification methods (`NotifyProgress`, `Log`, `ResourceUpdated`) only cover predefined MCP types, and there is no exported general-purpose `Server.Notify(method, params)`. However, the transport-level types are fully exported and sufficient:
 
@@ -230,7 +230,7 @@ The earlier draft of this proposal proposed:
 
 - A new `task_events` table for an incremental, channel-shaped event log.
 - A new `PollEventsRequest` / `PollEventsResponse` Connect RPC the agent process would poll every few seconds with a cursor.
-- A `channel/channel` capability bolted onto the in-container `xagent mcp` process so it could push events into the *in-container* Claude Code agent.
+- A `channel/channel` capability bolted onto the in-container `gritz mcp` process so it could push events into the *in-container* Claude Code agent.
 
 All three are superseded:
 
@@ -247,7 +247,7 @@ The prior draft rejected a TypeScript channel server because it would have dragg
 
 The transport-wrapper path described above closes it again, this time on its own merits:
 
-- **Go bridge** (`xagent mcp` subcommand): reuses `xagentclient`, `internal/x/sse`, the `mcpserver` tool definitions, and `model.Notification` directly. No code duplication, single static binary, ships through the existing release pipeline. The "no public arbitrary-notify API" cost that previously offset these gains is paid by ~30 lines of transport-wrapper code with 100% public-API surface.
+- **Go bridge** (`gritz mcp` subcommand): reuses `gritzclient`, `internal/x/sse`, the `mcpserver` tool definitions, and `model.Notification` directly. No code duplication, single static binary, ships through the existing release pipeline. The "no public arbitrary-notify API" cost that previously offset these gains is paid by ~30 lines of transport-wrapper code with 100% public-API surface.
 - **TS/Bun bridge**: the official `@modelcontextprotocol/sdk` server has first-class `notification()` support, so the channel-side problem is trivial — but the bridge would re-implement Connect-RPC tool proxying, auth token handling, and SSE parsing in TypeScript and introduce a second release artifact in a new language for the project to maintain.
 
 Once `Notify` is no longer a real engineering cost on the Go side, the TS bridge's only remaining argument is "native channel support," which the wrapper provides for free. **Go wins.** This trade-off is resolved here rather than left as an open question.
@@ -263,10 +263,10 @@ The notify SSE stream is per-org: a bridge subscribes once and sees every notifi
 ## Open Questions
 
 1. **Scope of forwarded notifications.** Should the bridge push every task notification on the org's SSE stream, or filter to tasks created by the same user (`Notification.UserID`) or even the same session (`Notification.ClientID`)? The `model.Notification` envelope carries both, so a filter is cheap; the policy choice (and the UX of "I created task 42 from this terminal — only tell me about it" vs. "tell me about everything in my org") is the question.
-2. **Bridge-as-everything vs. channel-only bridge.** Should `xagent mcp` re-expose the user-facing tools alongside the channel (one MCP entry for the local user, as proposed), or stay channel-only and let the user keep pointing Claude at the HTTP `/mcp` endpoint for tools (two entries, sharper layering)?
+2. **Bridge-as-everything vs. channel-only bridge.** Should `gritz mcp` re-expose the user-facing tools alongside the channel (one MCP entry for the local user, as proposed), or stay channel-only and let the user keep pointing Claude at the HTTP `/mcp` endpoint for tools (two entries, sharper layering)?
 3. **How rich should `content` be?** Channel `content` is the `<channel>` tag body. We could send a minimal `"Task 42 updated."` and rely on Claude calling `get_task`, or we could embed a short human-readable summary (status transition, instruction author) to save a round-trip. Richer `content` means the bridge fetches details before emitting, which costs an RPC per change.
-4. **Permission relay.** Two-way channels and the `claude/channel/permission` capability would let xagent prompt the local Claude for approvals (e.g. before running a destructive task action). Out of scope for v1; flagged because permission relay would need the receive-side story that [`go-sdk` #745](https://github.com/modelcontextprotocol/go-sdk/issues/745) is blocking on, so picking it up later is bounded by that upstream design.
+4. **Permission relay.** Two-way channels and the `claude/channel/permission` capability would let gritz prompt the local Claude for approvals (e.g. before running a destructive task action). Out of scope for v1; flagged because permission relay would need the receive-side story that [`go-sdk` #745](https://github.com/modelcontextprotocol/go-sdk/issues/745) is blocking on, so picking it up later is bounded by that upstream design.
 
 ## Future work: pushing into in-container agents
 
-The original framing — replacing the in-container `xagent mcp` process's reliance on the agent polling `get_my_task` with pushed channel events — is still achievable on top of this work. The transport wrapper used by the local bridge is reusable as-is inside the agent server, since the agent already runs over stdio. The design question is which agent-side state changes (child completions, parent instructions, routed external events, child logs) deserve a push, and whether the agent should subscribe to its own per-task slice of `model.Notification`s or get a curated stream. That work is deferred to a follow-up proposal so this one can ship the local-developer use case first.
+The original framing — replacing the in-container `gritz mcp` process's reliance on the agent polling `get_my_task` with pushed channel events — is still achievable on top of this work. The transport wrapper used by the local bridge is reusable as-is inside the agent server, since the agent already runs over stdio. The design question is which agent-side state changes (child completions, parent instructions, routed external events, child logs) deserve a push, and whether the agent should subscribe to its own per-task slice of `model.Notification`s or get a curated stream. That work is deferred to a follow-up proposal so this one can ship the local-developer use case first.

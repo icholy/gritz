@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/store"
 )
 
 // Attrs maps a dimension name to the event's values for that dimension.
@@ -111,8 +111,8 @@ type RouteMatch struct {
 // Proto renders the match as a TestEventMatch for the dry-run report. RuleIndex
 // reports the matched rule's position within the org's configured rules;
 // WouldWake/WouldCreate are derived from the matched rule alone.
-func (m RouteMatch) Proto() *xagentv1.TestEventMatch {
-	return &xagentv1.TestEventMatch{
+func (m RouteMatch) Proto() *gritzv1.TestEventMatch {
+	return &gritzv1.TestEventMatch{
 		OrgId:       m.OrgID,
 		RuleIndex:   int32(m.RuleIndex),
 		WouldWake:   m.Rule.Wakeup,

@@ -1,6 +1,6 @@
 # Add `update_task` tool to server MCP
 
-Issue: https://github.com/icholy/xagent/issues/405
+Issue: https://github.com/icholy/gritz/issues/405
 
 ## Problem
 
@@ -34,10 +34,10 @@ Fields:
 
 ```go
 func (s *Server) updateTask(ctx context.Context, req *mcp.CallToolRequest, input updateTaskInput) (*mcp.CallToolResult, any, error) {
-	_, err := s.service.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err := s.service.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:    input.ID,
 		Start: input.Start,
-		AddInstructions: []*xagentv1.Instruction{
+		AddInstructions: []*gritzv1.Instruction{
 			{Text: input.Instruction, Url: input.URL},
 		},
 	})
@@ -45,7 +45,7 @@ func (s *Server) updateTask(ctx context.Context, req *mcp.CallToolRequest, input
 		return errorResult("failed to update task: %v", err), nil, nil
 	}
 	// Fetch updated task to return current state
-	resp, err := s.service.GetTask(ctx, &xagentv1.GetTaskRequest{Id: input.ID})
+	resp, err := s.service.GetTask(ctx, &gritzv1.GetTaskRequest{Id: input.ID})
 	if err != nil {
 		return errorResult("failed to get updated task: %v", err), nil, nil
 	}

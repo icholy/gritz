@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/store/teststore"
 )
 
 func createCtx(t *testing.T, org *teststore.Org) context.Context {

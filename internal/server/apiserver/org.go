@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
-func (s *Server) CreateOrg(ctx context.Context, req *xagentv1.CreateOrgRequest) (*xagentv1.CreateOrgResponse, error) {
+func (s *Server) CreateOrg(ctx context.Context, req *gritzv1.CreateOrgRequest) (*gritzv1.CreateOrgResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgCreate) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot create org"))
@@ -44,10 +44,10 @@ func (s *Server) CreateOrg(ctx context.Context, req *xagentv1.CreateOrgRequest) 
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	s.log.InfoContext(ctx, "org created", "id", org.ID, "name", org.Name, "owner", caller.ID)
-	return &xagentv1.CreateOrgResponse{Org: org.Proto()}, nil
+	return &gritzv1.CreateOrgResponse{Org: org.Proto()}, nil
 }
 
-func (s *Server) ListOrgs(ctx context.Context, req *xagentv1.ListOrgsRequest) (*xagentv1.ListOrgsResponse, error) {
+func (s *Server) ListOrgs(ctx context.Context, req *gritzv1.ListOrgsRequest) (*gritzv1.ListOrgsResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list orgs"))
@@ -56,10 +56,10 @@ func (s *Server) ListOrgs(ctx context.Context, req *xagentv1.ListOrgsRequest) (*
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListOrgsResponse{Orgs: model.ProtoMap(orgs)}, nil
+	return &gritzv1.ListOrgsResponse{Orgs: model.ProtoMap(orgs)}, nil
 }
 
-func (s *Server) DeleteOrg(ctx context.Context, req *xagentv1.DeleteOrgRequest) (*xagentv1.DeleteOrgResponse, error) {
+func (s *Server) DeleteOrg(ctx context.Context, req *gritzv1.DeleteOrgRequest) (*gritzv1.DeleteOrgResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgDelete) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot delete org"))
@@ -85,10 +85,10 @@ func (s *Server) DeleteOrg(ctx context.Context, req *xagentv1.DeleteOrgRequest) 
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	s.log.InfoContext(ctx, "org archived", "id", req.Id, "owner", caller.ID)
-	return &xagentv1.DeleteOrgResponse{}, nil
+	return &gritzv1.DeleteOrgResponse{}, nil
 }
 
-func (s *Server) AddOrgMember(ctx context.Context, req *xagentv1.AddOrgMemberRequest) (*xagentv1.AddOrgMemberResponse, error) {
+func (s *Server) AddOrgMember(ctx context.Context, req *gritzv1.AddOrgMemberRequest) (*gritzv1.AddOrgMemberResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write org"))
@@ -127,8 +127,8 @@ func (s *Server) AddOrgMember(ctx context.Context, req *xagentv1.AddOrgMemberReq
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.AddOrgMemberResponse{
-		Member: &xagentv1.OrgMember{
+	return &gritzv1.AddOrgMemberResponse{
+		Member: &gritzv1.OrgMember{
 			OrgId:  member.OrgID,
 			UserId: member.UserID,
 			Email:  user.Email,
@@ -138,7 +138,7 @@ func (s *Server) AddOrgMember(ctx context.Context, req *xagentv1.AddOrgMemberReq
 	}, nil
 }
 
-func (s *Server) RemoveOrgMember(ctx context.Context, req *xagentv1.RemoveOrgMemberRequest) (*xagentv1.RemoveOrgMemberResponse, error) {
+func (s *Server) RemoveOrgMember(ctx context.Context, req *gritzv1.RemoveOrgMemberRequest) (*gritzv1.RemoveOrgMemberResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write org"))
@@ -165,10 +165,10 @@ func (s *Server) RemoveOrgMember(ctx context.Context, req *xagentv1.RemoveOrgMem
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.RemoveOrgMemberResponse{}, nil
+	return &gritzv1.RemoveOrgMemberResponse{}, nil
 }
 
-func (s *Server) ListOrgMembers(ctx context.Context, req *xagentv1.ListOrgMembersRequest) (*xagentv1.ListOrgMembersResponse, error) {
+func (s *Server) ListOrgMembers(ctx context.Context, req *gritzv1.ListOrgMembersRequest) (*gritzv1.ListOrgMembersResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read org"))
@@ -177,10 +177,10 @@ func (s *Server) ListOrgMembers(ctx context.Context, req *xagentv1.ListOrgMember
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListOrgMembersResponse{Members: model.ProtoMap(members)}, nil
+	return &gritzv1.ListOrgMembersResponse{Members: model.ProtoMap(members)}, nil
 }
 
-func (s *Server) GetOrgSettings(ctx context.Context, req *xagentv1.GetOrgSettingsRequest) (*xagentv1.GetOrgSettingsResponse, error) {
+func (s *Server) GetOrgSettings(ctx context.Context, req *gritzv1.GetOrgSettingsRequest) (*gritzv1.GetOrgSettingsResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read org"))
@@ -189,7 +189,7 @@ func (s *Server) GetOrgSettings(ctx context.Context, req *xagentv1.GetOrgSetting
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	resp := &xagentv1.GetOrgSettingsResponse{
+	resp := &gritzv1.GetOrgSettingsResponse{
 		McpUrl:               s.baseURL + "/mcp",
 		GithubInstallationId: org.GitHubInstallationID,
 	}
@@ -203,7 +203,7 @@ func (s *Server) GetOrgSettings(ctx context.Context, req *xagentv1.GetOrgSetting
 	return resp, nil
 }
 
-func (s *Server) GenerateAtlassianWebhookSecret(ctx context.Context, req *xagentv1.GenerateAtlassianWebhookSecretRequest) (*xagentv1.GenerateAtlassianWebhookSecretResponse, error) {
+func (s *Server) GenerateAtlassianWebhookSecret(ctx context.Context, req *gritzv1.GenerateAtlassianWebhookSecretRequest) (*gritzv1.GenerateAtlassianWebhookSecretResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write org"))
@@ -212,13 +212,13 @@ func (s *Server) GenerateAtlassianWebhookSecret(ctx context.Context, req *xagent
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.GenerateAtlassianWebhookSecretResponse{
+	return &gritzv1.GenerateAtlassianWebhookSecretResponse{
 		Secret:     secret,
 		WebhookUrl: s.atlassian.WebhookURL(caller.OrgID),
 	}, nil
 }
 
-func (s *Server) UnlinkGitHubAccount(ctx context.Context, req *xagentv1.UnlinkGitHubAccountRequest) (*xagentv1.UnlinkGitHubAccountResponse, error) {
+func (s *Server) UnlinkGitHubAccount(ctx context.Context, req *gritzv1.UnlinkGitHubAccountRequest) (*gritzv1.UnlinkGitHubAccountResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpAccountWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write account"))
@@ -227,10 +227,10 @@ func (s *Server) UnlinkGitHubAccount(ctx context.Context, req *xagentv1.UnlinkGi
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	s.log.InfoContext(ctx, "github account unlinked", "owner", caller.ID)
-	return &xagentv1.UnlinkGitHubAccountResponse{}, nil
+	return &gritzv1.UnlinkGitHubAccountResponse{}, nil
 }
 
-func (s *Server) UnlinkAtlassianAccount(ctx context.Context, req *xagentv1.UnlinkAtlassianAccountRequest) (*xagentv1.UnlinkAtlassianAccountResponse, error) {
+func (s *Server) UnlinkAtlassianAccount(ctx context.Context, req *gritzv1.UnlinkAtlassianAccountRequest) (*gritzv1.UnlinkAtlassianAccountResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpAccountWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write account"))
@@ -239,10 +239,10 @@ func (s *Server) UnlinkAtlassianAccount(ctx context.Context, req *xagentv1.Unlin
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	s.log.InfoContext(ctx, "atlassian account unlinked", "owner", caller.ID)
-	return &xagentv1.UnlinkAtlassianAccountResponse{}, nil
+	return &gritzv1.UnlinkAtlassianAccountResponse{}, nil
 }
 
-func (s *Server) GetRoutingRules(ctx context.Context, req *xagentv1.GetRoutingRulesRequest) (*xagentv1.GetRoutingRulesResponse, error) {
+func (s *Server) GetRoutingRules(ctx context.Context, req *gritzv1.GetRoutingRulesRequest) (*gritzv1.GetRoutingRulesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read org"))
@@ -251,14 +251,14 @@ func (s *Server) GetRoutingRules(ctx context.Context, req *xagentv1.GetRoutingRu
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	pb := make([]*xagentv1.RoutingRule, len(rules))
+	pb := make([]*gritzv1.RoutingRule, len(rules))
 	for i := range rules {
 		pb[i] = rules[i].Proto()
 	}
-	return &xagentv1.GetRoutingRulesResponse{Rules: pb}, nil
+	return &gritzv1.GetRoutingRulesResponse{Rules: pb}, nil
 }
 
-func (s *Server) SetRoutingRules(ctx context.Context, req *xagentv1.SetRoutingRulesRequest) (*xagentv1.SetRoutingRulesResponse, error) {
+func (s *Server) SetRoutingRules(ctx context.Context, req *gritzv1.SetRoutingRulesRequest) (*gritzv1.SetRoutingRulesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write org"))
@@ -274,9 +274,9 @@ func (s *Server) SetRoutingRules(ctx context.Context, req *xagentv1.SetRoutingRu
 	if err := s.store.SetOrgRoutingRules(ctx, nil, caller.OrgID, rules); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	pb := make([]*xagentv1.RoutingRule, len(rules))
+	pb := make([]*gritzv1.RoutingRule, len(rules))
 	for i := range rules {
 		pb[i] = rules[i].Proto()
 	}
-	return &xagentv1.SetRoutingRulesResponse{Rules: pb}, nil
+	return &gritzv1.SetRoutingRulesResponse{Rules: pb}, nil
 }

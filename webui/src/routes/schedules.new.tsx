@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation } from '@connectrpc/connect-query'
-import { createSchedule } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { createSchedule } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { Card, CardContent } from '@/components/ui/card'
 import { useOrgId } from '@/hooks/use-org-id'
 import {

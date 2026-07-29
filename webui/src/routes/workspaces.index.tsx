@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@connectrpc/connect-query'
-import { listWorkspaces, clearWorkspaces } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { listWorkspaces, clearWorkspaces } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import {
   Table,

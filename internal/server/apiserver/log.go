@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
 // reportLogType is the legacy logs.type value the agent's report tool uploads.
@@ -19,7 +19,7 @@ import (
 // the wire (UploadLogs) is unchanged until the agent surface lands.
 const reportLogType = "llm"
 
-func (s *Server) UploadLogs(ctx context.Context, req *xagentv1.UploadLogsRequest) (*xagentv1.UploadLogsResponse, error) {
+func (s *Server) UploadLogs(ctx context.Context, req *gritzv1.UploadLogsRequest) (*gritzv1.UploadLogsResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before the DB read (AllowOp ignores
 	// predicates); the instance check happens after the row is loaded.
@@ -61,5 +61,5 @@ func (s *Server) UploadLogs(ctx context.Context, req *xagentv1.UploadLogsRequest
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.UploadLogsResponse{}, nil
+	return &gritzv1.UploadLogsResponse{}, nil
 }

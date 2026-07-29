@@ -1,7 +1,7 @@
 package pubsub
 
 import (
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 )
 
 // PublishedNotifications returns every notification passed to Publish across all

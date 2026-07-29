@@ -1,5 +1,5 @@
 import { timestampDate } from '@bufbuild/protobuf/wkt'
-import type { TaskLink } from '@/gen/xagent/v1/xagent_pb'
+import type { TaskLink } from '@/gen/gritz/v1/gritz_pb'
 import { sourceFromUrl } from '@/lib/timeline'
 import { externalSourceStyle } from '@/components/external-source'
 import { Badge } from '@/components/ui/badge'

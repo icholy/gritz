@@ -6,8 +6,8 @@ import {
   getRoutingRules,
   listExternalEvents,
   setRoutingRules,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { Event, RoutingRule } from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { Event, RoutingRule } from '@/gen/gritz/v1/gritz_pb'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

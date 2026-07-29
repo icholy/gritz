@@ -4,7 +4,7 @@ Runs each task in an AWS-managed Lambda MicroVM (Firecracker) instead of a Docke
 container. See `proposals/draft/lambda-microvm-backend.md` for the full design.
 
 ```
-AWS_REGION=us-east-1 xagent runner --backend lambda-microvm
+AWS_REGION=us-east-1 gritz runner --backend lambda-microvm
 ```
 
 The runner resolves AWS credentials and region from the standard SDK chain
@@ -24,11 +24,11 @@ The guest holds **no** AWS credentials.
 - The runner launches a MicroVM per task with `run-microvm`, staging the task's
   spec bundle in S3 and passing a presigned GET URL as the run-hook payload (the
   16 KB payload is too small for an agent config).
-- The in-VM application is `xagent tool microvm-shim`, baked into the MicroVM
+- The in-VM application is `gritz tool microvm-shim`, baked into the MicroVM
   image. On `/run` it fetches the bundle, provisions the files once, and spawns
   the driver; on `/resume` it re-spawns the driver against the preserved disk
   (no re-provision). It supervises the driver and streams `driver-exited{code}`
-  on `GET /xagent/lifecycle` (SSE, sticky-replayed) over AWS's managed proxy.
+  on `GET /gritz/lifecycle` (SSE, sticky-replayed) over AWS's managed proxy.
 
 ### Two-port layout
 
@@ -38,7 +38,7 @@ caller cannot reach the AWS hooks on the ingress port:
 | Surface | Port (flag) | Reached by |
 |---|---|---|
 | AWS lifecycle hooks (`/aws/lambda-microvms/runtime/v1/*`: run/suspend/resume/terminate) | **9000** (`--hook-addr`, `awsmicrovm.HookPort`) | Lambda's control plane, control-plane-internal — **not** over the proxy |
-| xagent control surface (`GET /xagent/lifecycle` + `POST /xagent/stop`) | **8080** (`--addr`, `awsmicrovm.DefaultPort`) | the runner, over AWS's managed auth-token proxy |
+| gritz control surface (`GET /gritz/lifecycle` + `POST /gritz/stop`) | **8080** (`--addr`, `awsmicrovm.DefaultPort`) | the runner, over AWS's managed auth-token proxy |
 
 The hook port is control-plane-internal: it must **not** be reachable over the
 ingress proxy and must **not** be in the auth token's `AllowedPorts` (those are
@@ -50,7 +50,7 @@ match** the port declared to `create-microvm-image` via `--hooks port=9000`.
   arbitrated via `GetMicrovm` (the liveness authority): a running VM reconnects,
   a non-running one returns a report-lost outcome. The runner's boot-time `Load`
   probe re-attaches `Wait` to VMs still running after a restart.
-- `Signal` (graceful stop) POSTs `/xagent/stop` over the proxy (SIGTERM → grace →
+- `Signal` (graceful stop) POSTs `/gritz/stop` over the proxy (SIGTERM → grace →
   SIGKILL the driver); the resulting exit suspends the VM like any completion.
 - AWS control-plane calls go through the `Cloud`/`Stager` interfaces; the live
   implementation is `awsmicrovm.Client` + `awsmvm.S3Stager`. **The Lambda
@@ -63,16 +63,16 @@ match** the port declared to `create-microvm-image` via `--hooks port=9000`.
 workspaces:
   example:
     lambda_microvm:
-      image_identifier: arn:aws:lambda:us-east-1:123456789012:microvm-image/xagent-example
-      execution_role: arn:aws:iam::123456789012:role/xagent-microvm
+      image_identifier: arn:aws:lambda:us-east-1:123456789012:microvm-image/gritz-example
+      execution_role: arn:aws:iam::123456789012:role/gritz-microvm
       egress_connector: arn:aws:lambda:us-east-1:aws:network-connector:aws-network-connector:INTERNET_EGRESS
       # Optional. Grants inbound access so the runner can reach the in-VM shim
-      # over AWS's managed proxy (SSE lifecycle stream + /xagent/stop). Defaults
+      # over AWS's managed proxy (SSE lifecycle stream + /gritz/stop). Defaults
       # to the managed ALL_INGRESS connector; supply a port-scoped connector for
       # tighter, defense-in-depth security (the proxy auth token is already
       # scoped to the shim port).
       ingress_connector: arn:aws:lambda:us-east-1:aws:network-connector:aws-network-connector:ALL_INGRESS
-      staging_bucket: my-xagent-staging
+      staging_bucket: my-gritz-staging
       max_duration_seconds: 14400
       environment:
         CLAUDE_CODE_OAUTH_TOKEN: ${env:CLAUDE_CODE_OAUTH_TOKEN}
@@ -90,7 +90,7 @@ that authority lives only with the runner's credentials.
 
 A MicroVM image is built once per workspace and referenced by its snapshot ARN as
 `image_identifier`. MicroVMs are **ARM64-only** (`Architecture = ARM_64`), so the
-in-VM xagent binary must be `linux/arm64` and the container base must be arm64.
+in-VM gritz binary must be `linux/arm64` and the container base must be arm64.
 
 An image is a **zip of a `Dockerfile` + the app**, uploaded to S3 and built with
 `create-microvm-image`. Two distinct bases are involved:
@@ -102,7 +102,7 @@ An image is a **zip of a `Dockerfile` + the app**, uploaded to S3 and built with
   OS base** the snapshot boots on.
 
 The app is started via the Dockerfile `ENTRYPOINT`/`CMD` (our shim,
-`xagent tool microvm-shim`). The snapshot is gated by the **`/ready` build hook
+`gritz tool microvm-shim`). The snapshot is gated by the **`/ready` build hook
 returning 200**; `/validate` runs a health check. Hooks are declared **at image
 creation** via `--hooks port=9000` (must match `awsmicrovm.HookPort`), **not**
 baked into the Dockerfile. See `microvm.Dockerfile` for the container layer.
@@ -111,24 +111,24 @@ baked into the Dockerfile. See `microvm.Dockerfile` for the container layer.
 
 ```bash
 # 1. Build the linux/arm64 in-VM binary next to microvm.Dockerfile.
-GOOS=linux GOARCH=arm64 go build -o xagent ./cmd/xagent
+GOOS=linux GOARCH=arm64 go build -o gritz ./cmd/gritz
 
 # 2. Zip the app + Dockerfile and upload to S3. The Dockerfile MUST be named
 #    `Dockerfile` in the archive — create-microvm-image fails with "No Dockerfile
 #    was found in the artifact archive" otherwise — so rename it as you package.
 cp microvm.Dockerfile Dockerfile
-zip app.zip Dockerfile xagent
-aws s3 cp app.zip s3://my-xagent-staging/images/app.zip
+zip app.zip Dockerfile gritz
+aws s3 cp app.zip s3://my-gritz-staging/images/app.zip
 
 # 3. Build the image. --hooks declares the hook port and the per-hook timeouts.
 #    Image hooks (ready/validate) allow ≤3600s; microvm hooks
 #    (run/resume/suspend/terminate) allow ≤60s. Per-hook timeouts are REQUIRED
 #    for every enabled hook.
 aws lambda-microvms create-microvm-image \
-  --name xagent-shim \
-  --code-artifact uri=s3://my-xagent-staging/images/app.zip \
+  --name gritz-shim \
+  --code-artifact uri=s3://my-gritz-staging/images/app.zip \
   --base-image-arn arn:aws:lambda:us-east-1:aws:microvm-image:al2023-1 \
-  --build-role-arn arn:aws:iam::123456789012:role/xagent-microvm-build-role \
+  --build-role-arn arn:aws:iam::123456789012:role/gritz-microvm-build-role \
   --hooks '{
     "port": 9000,
     "microvmImageHooks": {
@@ -176,7 +176,7 @@ Permissions policy:
     {
       "Effect": "Allow",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::my-xagent-staging/images/app.zip"
+      "Resource": "arn:aws:s3:::my-gritz-staging/images/app.zip"
     },
     {
       "Effect": "Allow",

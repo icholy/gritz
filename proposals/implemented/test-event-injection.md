@@ -1,6 +1,6 @@
 # Test Event Injection for Routing Rules
 
-Issue: https://github.com/icholy/xagent/issues/1326
+Issue: https://github.com/icholy/gritz/issues/1326
 
 ## Problem
 
@@ -95,7 +95,7 @@ is the routing-side half of the permission scoping in §4.
 
 ### 2. Proto: the `TestEvent` RPC
 
-Add to `XAgentService` (`proto/xagent/v1/xagent.proto`, near the other event-routing
+Add to `GritzService` (`proto/gritz/v1/gritz.proto`, near the other event-routing
 RPCs at lines 50-52):
 
 ```protobuf
@@ -357,7 +357,7 @@ no real webhook could produce, testing fiction.
 
 **No `OnRouteOutcome` on fired events.** Firing real GitHub reactions against
 operator-typed URLs is both useless (no real comment) and dangerous (could react to the
-wrong thing). Omitting the callback keeps fire mode's side effects confined to xagent's
+wrong thing). Omitting the callback keeps fire mode's side effects confined to gritz's
 own state. The trade-off: fire mode does not exercise the reaction path itself — that
 remains only reachable via a real webhook, which is acceptable since reactions are a
 thin, separately-tested outbound.

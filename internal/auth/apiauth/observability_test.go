@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/x/logctx"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/x/logctx"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -26,7 +26,7 @@ func TestObservabilityInterceptor(t *testing.T) {
 		return nil, nil
 	}
 	// CreateLinkRequest carries a task id via GetTaskId.
-	req := connect.NewRequest(&xagentv1.CreateLinkRequest{TaskId: 11})
+	req := connect.NewRequest(&gritzv1.CreateLinkRequest{TaskId: 11})
 	_, err := ObservabilityInterceptor()(next)(ctx, req)
 	assert.NilError(t, err)
 	span.End()

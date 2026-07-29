@@ -10,12 +10,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/x/atlassian"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/auth/oauthlink"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/x/atlassian"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/auth/oauthlink"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/store"
 	"golang.org/x/oauth2"
 )
 

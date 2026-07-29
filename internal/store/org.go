@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store/sqlc"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store/sqlc"
 )
 
 func (s *Store) CreateOrg(ctx context.Context, tx *sql.Tx, org *model.Org) error {

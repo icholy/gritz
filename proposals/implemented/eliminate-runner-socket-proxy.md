@@ -1,6 +1,6 @@
 # Direct driver–server connection: eliminate the runner socket proxy
 
-Issue: https://github.com/icholy/xagent/issues/890
+Issue: https://github.com/icholy/gritz/issues/890
 
 Builds on: [`proposals/draft/scope-based-permissions.md`](../draft/scope-based-permissions.md)
 (the `authscope` engine and API-caller enforcement landed in #902/#905/#906).
@@ -8,10 +8,10 @@ Builds on: [`proposals/draft/scope-based-permissions.md`](../draft/scope-based-p
 ## Problem
 
 In-container agents never talk to the server directly. The runner stands up a
-Unix-socket proxy at `/xagent/socket` inside every container
-(`internal/runner/proxy.go`, `internal/xagentclient/unix.go`) and bind-mounts its
+Unix-socket proxy at `/gritz/socket` inside every container
+(`internal/runner/proxy.go`, `internal/gritzclient/unix.go`) and bind-mounts its
 parent directory into the container (`internal/runner/runner.go`). The driver and
-the injected `xagent` MCP server dial that socket; the runner terminates the
+the injected `gritz` MCP server dial that socket; the runner terminates the
 connection, authorizes it, and forwards upstream using its own org-scoped `xat_`
 key.
 
@@ -21,7 +21,7 @@ All authorization lives in the runner:
   per-task JWT signed with the **runner's** Ed25519 key — a key the **server never
   sees**.
 - `agentmcp.AgentFilter` (`internal/agentmcp/filter.go`) implements
-  `XAgentServiceHandler` and gates every RPC with `scopes.Allow(...)`, restricting a
+  `GritzServiceHandler` and gates every RPC with `scopes.Allow(...)`, restricting a
   container to its own task or, when the workspace enables it, its direct children.
 
 This man-in-the-middle proxy has real costs (verbatim from the issue): container
@@ -41,7 +41,7 @@ remarkably little new machinery, because the task token is just a narrow app JWT
 
 ## Design
 
-The driver and the injected `xagent` MCP server connect **directly to the server over
+The driver and the injected `gritz` MCP server connect **directly to the server over
 the network**, presenting a **server-minted app JWT with a reduced scope set** — an
 ordinary `apiauth` token, no new credential type. The server verifies it on the
 normal app-JWT path, gets a caller with `OrgID` + `Scopes` like any other, and the
@@ -67,7 +67,7 @@ Today the runner mints the token itself in `AgentProxy.TaskToken`
 purpose-built RPC the runner calls to have the **server** mint and sign the token:
 
 ```proto
-// proto/xagent/v1/xagent.proto, alongside the other runner-facing RPCs
+// proto/gritz/v1/gritz.proto, alongside the other runner-facing RPCs
 // (RegisterWorkspaces, ListRunnerTasks, SubmitRunnerEvents)
 rpc CreateTaskToken(CreateTaskTokenRequest) returns (CreateTaskTokenResponse);
 
@@ -91,7 +91,7 @@ row and derives `workspace`/`runner` from it, then mints the scopes via the
 
 ```go
 // apiserver handler sketch — the runner cannot choose the scopes
-func (s *Server) CreateTaskToken(ctx context.Context, req *xagentv1.CreateTaskTokenRequest) (*xagentv1.CreateTaskTokenResponse, error) {
+func (s *Server) CreateTaskToken(ctx context.Context, req *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
     caller := apiauth.MustCaller(ctx)
     if !caller.Scopes.AllowOp(authscope.OpTaskTokenCreate) { // capability-presence, no instance — see §5/§7
         return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot mint task tokens"))
@@ -227,7 +227,7 @@ Each task handler does **a single authoritative check after loading the row** �
 row it already loads to build its response:
 
 ```go
-func (s *Server) GetTask(ctx context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+func (s *Server) GetTask(ctx context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
     caller := apiauth.MustCaller(ctx)
     task, err := s.store.GetTask(ctx, nil, req.Id, caller.OrgID) // tenancy (org) as today
     if err != nil {
@@ -370,9 +370,9 @@ the direct path works the moment a backend exists, and that backend is
 The wiring already exists — only the values change. Today `internal/runner/runner.go`
 injects, per container:
 
-- the driver `Cmd`: `xagent driver --server <socket-url> --token <jwt>` plus
-  `XAGENT_SERVER`, `XAGENT_TOKEN`, `XAGENT_TASK_ID` env;
-- the `xagent` MCP server args: `xagent tool agent-mcp --server <socket-url>
+- the driver `Cmd`: `gritz driver --server <socket-url> --token <jwt>` plus
+  `GRITZ_SERVER`, `GRITZ_TOKEN`, `GRITZ_TASK_ID` env;
+- the `gritz` MCP server args: `gritz tool agent-mcp --server <socket-url>
   --token <jwt> ...`;
 - a bind mount of the socket directory.
 
@@ -380,21 +380,21 @@ After this change:
 
 - The runner calls `CreateTaskToken(task_id, ws.Capabilities)` on the server (replacing
   the local `r.proxy.TaskToken(task, ws.Capabilities)` call in `runner.create`) and
-  injects the **returned** app JWT as `--token` / `XAGENT_TOKEN`, unchanged in shape
+  injects the **returned** app JWT as `--token` / `GRITZ_TOKEN`, unchanged in shape
   from the driver/MCP point of view.
-- `--server` / `XAGENT_SERVER` becomes the **real server URL** instead of
-  `xagentclient.AgentSocketURL`. `xagentclient.New` already speaks both `unix://`
+- `--server` / `GRITZ_SERVER` becomes the **real server URL** instead of
+  `gritzclient.AgentSocketURL`. `gritzclient.New` already speaks both `unix://`
   and `http(s)://`; dropping the `unix://` branch is the only client change.
 - The **socket bind mount and the socket-existence preflight are deleted** from
   `runner.create`.
 
 **Network reachability & TLS.** The container must now reach the server over the network.
-The runner already knows the server URL (its own `--server` / `XAGENT_SERVER`); it passes
+The runner already knows the server URL (its own `--server` / `GRITZ_SERVER`); it passes
 that same URL to the container. For the common single-host dev setup the container
 needs that URL to resolve from inside its network namespace (e.g. the compose service
 name, or `host.docker.internal`), which is a workspace networking concern
 (`ws.Container.Networks`) rather than a protocol one. Production already terminates
-TLS at `xagent.choly.ca`, so direct connections are HTTPS by default and the token
+TLS at `gritz.dev`, so direct connections are HTTPS by default and the token
 rides in `Authorization: Bearer` over TLS exactly like every other caller — a strict
 improvement over the previously un-encrypted local Unix socket. How to default the
 in-container URL when the runner's own `--server` is loopback is Open Question #2.
@@ -487,9 +487,9 @@ Once Phase 3 completes:
 
 - `internal/runner/proxy.go` — the entire `AgentProxy` (socket lifecycle,
   `agentauth.Middleware` wiring, and `TaskToken` signing).
-- `internal/xagentclient/unix.go` — `UnixProxy`.
+- `internal/gritzclient/unix.go` — `UnixProxy`.
 - The `unix://` dial branch and `AgentSocketPath`/`AgentSocketURL` in
-  `internal/xagentclient/client.go`.
+  `internal/gritzclient/client.go`.
 - The socket bind mount and the socket-existence preflight in `runner.create`
   (`internal/runner/runner.go`), plus the `SocketPath` plumbing.
 - `internal/agentmcp/filter.go` — `AgentFilter` (its logic now lives in the
@@ -498,7 +498,7 @@ Once Phase 3 completes:
 - `internal/auth/agentauth/middleware.go` — `agentauth.Middleware`, plus the
   runner-side `SignToken`/`VerifyToken` and the `TaskClaims` type for task JWTs (the
   token is now an `apiauth.AppClaims`).
-- **The runner's task-JWT signing key**: the `--private-key` / `XAGENT_PRIVATE_KEY`
+- **The runner's task-JWT signing key**: the `--private-key` / `GRITZ_PRIVATE_KEY`
   Ed25519 seed (`internal/command/runner.go`, `configfile`) and
   `agentauth.CreatePrivateKey`. The runner no longer signs anything — it authenticates
   with its `xat_` key alone.

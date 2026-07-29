@@ -6,14 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/icholy/xagent/internal/x/atomicio"
+	"github.com/icholy/gritz/internal/x/atomicio"
 )
 
 // DefaultConfigStore is the in-sandbox location of the task config file. The
 // runner writes the file into the sandbox here and the driver reads and
 // rewrites it here; it is a fixed convention shared across the runner/driver
 // boundary, not runtime state.
-const DefaultConfigStore = ConfigStore("/tmp/xagent")
+const DefaultConfigStore = ConfigStore("/tmp/gritz")
 
 // ConfigStore reads and writes the per-task config file rooted at its directory.
 type ConfigStore string

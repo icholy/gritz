@@ -25,13 +25,13 @@ jobs:
       postgres:
         image: postgres:18-alpine
         env:
-          POSTGRES_USER: xagent
-          POSTGRES_PASSWORD: xagent
-          POSTGRES_DB: xagent
+          POSTGRES_USER: gritz
+          POSTGRES_PASSWORD: gritz
+          POSTGRES_DB: gritz
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U xagent"
+          --health-cmd "pg_isready -U gritz"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -52,14 +52,14 @@ jobs:
       - name: Build prebuilt binaries for runner tests
         run: |
           mkdir -p prebuilt
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o prebuilt/xagent-linux-amd64 ./cmd/xagent
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o prebuilt/gritz-linux-amd64 ./cmd/gritz
 
       - name: Run migrations
         env:
-          DATABASE_URL: postgres://xagent:xagent@localhost:5432/xagent?sslmode=disable
+          DATABASE_URL: postgres://gritz:gritz@localhost:5432/gritz?sslmode=disable
         run: go run ./cmd/migrate
 
       - name: Run tests
         env:
-          TEST_DATABASE_URL: postgres://xagent:xagent@localhost:5432/xagent?sslmode=disable
+          TEST_DATABASE_URL: postgres://gritz:gritz@localhost:5432/gritz?sslmode=disable
         run: go tool gotestsum --format github-actions -- -v ./...

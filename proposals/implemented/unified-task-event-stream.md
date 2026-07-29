@@ -1,6 +1,6 @@
 # Restructure tasks as a unified event stream
 
-Issue: https://github.com/icholy/xagent/issues/947
+Issue: https://github.com/icholy/gritz/issues/947
 
 ## Problem
 
@@ -15,7 +15,7 @@ together:
 - **Logs** are their own table (`logs`: `id, task_id, type, content,
   created_at`) written through `UploadLogs` / `store.CreateLog`. The `type`
   column already overloads five distinct meanings: `llm` (the agent's `report`
-  tool, `agentmcp/xmcp.go:133`), `mcp` (short breadcrumbs the `xagent` MCP tools
+  tool, `agentmcp/xmcp.go:133`), `mcp` (short breadcrumbs the `gritz` MCP tools
   write — "created link: …", "updated child task: …" — `agentmcp/xmcp.go:43`),
   `audit` (task mutations, `apiserver/task.go`), `info` (container lifecycle,
   `apiserver/runner.go:105`), and `error`. All of it is low-volume; the agent's
@@ -221,14 +221,14 @@ The child-task tools (`create_child_task`, `update_child_task`,
 Those rows are the *stream operations* each remaining tool performs. The agent
 reaches the stream through its own identity-scoped surface (#939), not the
 general verbs; `CreateTask`/`UpdateTask`/`ListEvents` (defined under API / proto
-changes) are the **general** (`XAgentService`) surface. Who may append what —
+changes) are the **general** (`GritzService`) surface. Who may append what —
 and why the agent can't forge events — is the AuthZ section.
 
 ### AuthZ
 
 Two surfaces, two authorization models.
 
-**General surface (`XAgentService`).** `CreateTask` / `UpdateTask` /
+**General surface (`GritzService`).** `CreateTask` / `UpdateTask` /
 `ListEvents` serve admin, user, and API-key callers, authorized by the existing
 op-level `authscope` engine (`task.create` / `task.write` / `task.read`).
 Events reach the stream by riding `UpdateTask`'s `repeated Event` (or
@@ -266,7 +266,7 @@ an event-type home:
 - `audit` → `lifecycle` event (task mutations)
 - `info`  → `lifecycle` event (container lifecycle)
 - `error` → `lifecycle` payload field (container failures)
-- `mcp`   → *nothing new* — these were short breadcrumbs the `xagent` MCP tools
+- `mcp`   → *nothing new* — these were short breadcrumbs the `gritz` MCP tools
   wrote ("created link: …", "updated child task: …"), echoes of actions the
   stream now records as first-class `link` / `instruction` events (and the
   child-task ones retire with #940).
@@ -281,7 +281,7 @@ pre-build for output that isn't captured today.
 
 ### API / proto changes
 
-`proto/xagent/v1/xagent.proto` redefines `Event` as the stream row — its payload
+`proto/gritz/v1/gritz.proto` redefines `Event` as the stream row — its payload
 is a typed `oneof` over the five event shapes, not an opaque `Struct` — and
 reduces the **general** read/write surface to three RPCs: `CreateTask`
 (create the task + seed its stream), `UpdateTask` (update task fields + append a

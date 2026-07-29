@@ -3,22 +3,22 @@ package command
 import (
 	"context"
 
-	"github.com/icholy/xagent/internal/agentmcp"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/agentmcp"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/urfave/cli/v3"
 )
 
 var AgentMcpCommand = &cli.Command{
 	Name:  "agent-mcp",
-	Usage: "Run an MCP server that provides xagent tools",
+	Usage: "Run an MCP server that provides gritz tools",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
+			Value:   gritzclient.DefaultURL,
 		},
 		&cli.Int64Flag{
 			Name:     "task",
@@ -50,11 +50,11 @@ var AgentMcpCommand = &cli.Command{
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		server := mcp.NewServer(&mcp.Implementation{
-			Name:    "xagent",
+			Name:    "gritz",
 			Version: "1.0.0",
 		}, nil)
 
-		client := xagentclient.New(xagentclient.Options{BaseURL: cmd.String("server"), Token: cmd.String("token")})
+		client := gritzclient.New(gritzclient.Options{BaseURL: cmd.String("server"), Token: cmd.String("token")})
 		task := &model.Task{
 			ID:        cmd.Int64("task"),
 			Runner:    cmd.String("runner"),

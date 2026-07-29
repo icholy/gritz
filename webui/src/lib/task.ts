@@ -1,5 +1,5 @@
 import { timestampDate } from '@bufbuild/protobuf/wkt'
-import { TaskStatus, type Task } from '@/gen/xagent/v1/xagent_pb'
+import { TaskStatus, type Task } from '@/gen/gritz/v1/gritz_pb'
 import { durationToMillis } from '@/lib/duration'
 
 type TaskLike = Pick<Task, 'status' | 'actions' | 'archived'>

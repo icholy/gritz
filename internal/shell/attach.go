@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/coder/websocket"
-	"github.com/icholy/xagent/internal/shell/shellwire"
+	"github.com/icholy/gritz/internal/shell/shellwire"
 	"golang.org/x/term"
 )
 
@@ -29,7 +29,7 @@ type AttachOptions struct {
 
 // Attach runs the operator side of a debug-shell session. It dials the server's
 // shell relay WebSocket at GET {ServerURL}/shell/attach?session={Session} authenticating
-// with Token as a Bearer header, negotiates the xagent-shell.v1 subprotocol, puts
+// with Token as a Bearer header, negotiates the gritz-shell.v1 subprotocol, puts
 // the local terminal into raw mode, tracks its size (initial size plus SIGWINCH),
 // and pipes stdin/stdout through the WebSocket using the shellwire framing until
 // the shell exits. It returns the shell's exit code.

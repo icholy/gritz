@@ -8,7 +8,7 @@ import {
   unarchiveTask,
   cancelTask,
   restartTask,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useState, useRef, useLayoutEffect } from 'react'
 import type { TaskTab } from '@/lib/task'
 import { toTaskTab } from '@/lib/task'

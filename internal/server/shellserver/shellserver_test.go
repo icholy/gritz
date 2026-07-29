@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/server/shellserver"
-	"github.com/icholy/xagent/internal/shell/shellwire"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/server/shellserver"
+	"github.com/icholy/gritz/internal/shell/shellwire"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )
@@ -141,7 +141,7 @@ func TestAttachRejectsVersionMismatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	conn, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/shell/attach?session=s1", &websocket.DialOptions{
-		Subprotocols: []string{"xagent-shell.v99"},
+		Subprotocols: []string{"gritz-shell.v99"},
 	})
 	assert.NilError(t, err)
 	assert.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)

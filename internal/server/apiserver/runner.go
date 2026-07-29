@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
-func (s *Server) SubmitRunnerEvents(ctx context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
+func (s *Server) SubmitRunnerEvents(ctx context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate (AllowOp ignores predicates); each event
 	// is authorized per-instance inside its transaction against the row it loads.
@@ -81,7 +81,7 @@ func (s *Server) SubmitRunnerEvents(ctx context.Context, req *xagentv1.SubmitRun
 			// re-queue) don't carry enough context to say anything useful
 			// without re-deriving why, so we stay silent and let the
 			// eventual terminal event speak. The terminal status is also
-			// stamped on the notification so subscribers like `xagent notify`
+			// stamped on the notification so subscribers like `gritz notify`
 			// can filter to task outcomes that need attention.
 			switch task.Status {
 			case model.TaskStatusCompleted:
@@ -109,5 +109,5 @@ func (s *Server) SubmitRunnerEvents(ctx context.Context, req *xagentv1.SubmitRun
 		}
 		s.publish(notification)
 	}
-	return &xagentv1.SubmitRunnerEventsResponse{}, nil
+	return &gritzv1.SubmitRunnerEventsResponse{}, nil
 }

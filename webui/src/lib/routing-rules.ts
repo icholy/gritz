@@ -4,7 +4,7 @@ import {
   type EventTypeDef,
   type RoutingRule,
   RoutingRuleSchema,
-} from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz_pb'
 import { durationFromHours, hoursFromDuration } from '@/lib/duration'
 
 // The condition operators the backend understands. Op semantics are literal
@@ -52,7 +52,7 @@ export function legacyEventType(
 ): EventTypeDef | null {
   if (findEventType(eventTypes, source, type)) return null
   return {
-    $typeName: 'xagent.v1.EventTypeDef',
+    $typeName: 'gritz.v1.EventTypeDef',
     source,
     type,
     label: eventTypeLabel(eventTypes, source, type),
@@ -76,7 +76,7 @@ const FALLBACK_ATTRS: AttrDef[] = (
     ['user', 'User'],
   ] as const
 ).map(([key, label]) => ({
-  $typeName: 'xagent.v1.AttrDef',
+  $typeName: 'gritz.v1.AttrDef',
   key,
   label,
   help: '',

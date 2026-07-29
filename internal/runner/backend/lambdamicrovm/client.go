@@ -3,7 +3,7 @@ package lambdamicrovm
 import (
 	"context"
 
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
 )
 
 // Cloud is the subset of the AWS Lambda MicroVMs control plane the backend
@@ -27,7 +27,7 @@ type Cloud interface {
 // returns a URL the in-VM shim can GET without AWS credentials (a presigned S3
 // URL in the live implementation). The 16 KB run-hook payload is too small for
 // an agent config, so the backend passes this URL instead of the bundle. S3
-// staging is an xagent workaround for the payload limit — deliberately not part
+// staging is an gritz workaround for the payload limit — deliberately not part
 // of the awsmicrovm service model.
 type Stager interface {
 	// Stage stores data under key in bucket and returns a URL valid for

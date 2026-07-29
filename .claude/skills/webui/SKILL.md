@@ -99,7 +99,7 @@ navigate({ to: '/tasks/$id', params: { id: '123' } })
 **Fetching data with useQuery**:
 ```tsx
 import { useQuery } from '@connectrpc/connect-query'
-import { listTasks } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { listTasks } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 
 function TaskList() {
   const { data, isLoading, error } = useQuery(listTasks, {
@@ -122,7 +122,7 @@ function TaskList() {
 **Mutations with useMutation**:
 ```tsx
 import { useMutation, useQueryClient } from '@connectrpc/connect-query'
-import { createTask, listTasks } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { createTask, listTasks } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 
 function CreateTaskButton() {
   const queryClient = useQueryClient()
@@ -161,7 +161,7 @@ function CreateTaskButton() {
 
 **Do NOT copy v1 implementation** - Do not replicate v1's layout, styles, HTML structure, or templates. The v2 is a complete rewrite with modern components and UX patterns.
 
-**API Access** - The v2 UI will call the same Connect RPC API at `/xagent.v1.XAgentService/*` that the v1 UI uses.
+**API Access** - The v2 UI will call the same Connect RPC API at `/gritz.v1.GritzService/*` that the v1 UI uses.
 
 ## Component Organization
 

@@ -1,6 +1,6 @@
 # Server-side taskstate: durable task→sandbox-handle mapping
 
-Issue: https://github.com/icholy/xagent/issues/1160
+Issue: https://github.com/icholy/gritz/issues/1160
 
 Reconsiders decision #1 of
 [`proposals/draft/shared-runner-taskstate.md`](shared-runner-taskstate.md)
@@ -29,13 +29,13 @@ type Record struct {
 ```
 
 One atomic `<state-dir>/<id>.json` file per task (marshal → temp file → `fsync` →
-`os.Rename`), default `/var/lib/xagent/tasks`, configured by `--state-dir` /
-`XAGENT_STATE_DIR` and opened in `internal/command/runner.go` via
+`os.Rename`), default `/var/lib/gritz/tasks`, configured by `--state-dir` /
+`GRITZ_STATE_DIR` and opened in `internal/command/runner.go` via
 `taskstate.Open(...)`. The record is the decomposed form of a `backend.Handle`
 (`internal/runner/backend/backend.go`): `Type`/`ID`/`Data`. For the **Docker**
 backend `ID` is the container id and `Data` is nil; for the **lambda-microvm**
 backend `ID` is the MicroVM id and `Data` is `{endpoint, image_arn, stage_bucket,
-stage_key}` — the endpoint the runner needs to reach the VM for SSE + `/xagent/stop`
+stage_key}` — the endpoint the runner needs to reach the VM for SSE + `/gritz/stop`
 and resume, plus the staged-object references `Destroy` cleans up.
 
 **Lifecycle (every call site, `internal/runner/runner.go`).** The runner is the
@@ -77,7 +77,7 @@ either fail or, worse, spawn a duplicate.
 3. **Orphan leaks.** If the originating runner's disk does not survive, a running
    MicroVM (billed until its `max_duration` backstop) is leaked with nothing left
    that knows it exists. The docker case is self-healing via the deterministic
-   `xagent-{taskID}` container name; the cloud case is not.
+   `gritz-{taskID}` container name; the cloud case is not.
 
 The server already coordinates the runner on every poll and event, already owns
 the task's logical state in Postgres (`internal/store/`, `tasks` table), and
@@ -157,7 +157,7 @@ Four decisions frame the design.
      unusable. For Docker this is automatic: `docker.ensure` inspects the container
      by id, the id does not exist on the new daemon, `Launch` returns `ErrGone`, and
      the runner falls back to its self-healing path (deterministic
-     `xagent-{taskID}` name). For `lambda-microvm` the handle *is* portable, so a
+     `gritz-{taskID}` name). For `lambda-microvm` the handle *is* portable, so a
      replacement runner in the same region can `tryResume` it — this is the failover
      win. The distinction lives in the backend's `Launch`/`Probe`, unchanged; the
      server stays ignorant of it.
@@ -179,7 +179,7 @@ Four decisions frame the design.
 ### API changes
 
 A new opaque message and three RPCs, plus one field on `Task`.
-(`proto/xagent/v1/xagent.proto`.)
+(`proto/gritz/v1/gritz.proto`.)
 
 ```proto
 // Opaque, backend-defined sandbox handle. The server stores and returns it
@@ -213,7 +213,7 @@ message ListRunnerSandboxesResponse { repeated Sandbox sandboxes = 1; }
 ```
 
 ```proto
-service XAgentService {
+service GritzService {
   // ...
   rpc SetTaskSandbox(SetTaskSandboxRequest) returns (SetTaskSandboxResponse);
   rpc ClearTaskSandbox(ClearTaskSandboxRequest) returns (ClearTaskSandboxResponse);
@@ -407,7 +407,7 @@ explicitly not built now.
   where a crash between `Launch` and the state write leaves the same gap. The
   residual orphan window (crash after
   `Launch` but before the outbox `fsync` returns) is bounded exactly as today: Docker
-  self-heals on the next `Start` via the deterministic `xagent-{taskID}` name, and
+  self-heals on the next `Start` via the deterministic `gritz-{taskID}` name, and
   `lambda-microvm` leans on `max_duration` as the reaper (the same backstop
   `lambda-microvm-backend.md`/`shared-runner-taskstate.md` already document). Moving
   the store to the server does **not** widen this window; it narrows the *recovery*
@@ -451,7 +451,7 @@ internal/store/
     └── queries/sandbox.sql
 
 internal/server/apiserver/runner.go   + SetTaskSandbox/ClearTaskSandbox/ListRunnerSandboxes
-proto/xagent/v1/xagent.proto          + Sandbox, 3 RPCs, Task.sandbox
+proto/gritz/v1/gritz.proto          + Sandbox, 3 RPCs, Task.sandbox
 ```
 
 Nothing in `internal/runner/backend/` changes: backends still return a

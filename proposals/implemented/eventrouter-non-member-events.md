@@ -1,15 +1,15 @@
 # Eventrouter: support events from non-org-member users
 
-Issue: https://github.com/icholy/xagent/issues/1255
+Issue: https://github.com/icholy/gritz/issues/1255
 
 ## Problem
 
 The eventrouter only routes an external event when the user who performed the
 action (the GitHub commenter, the Jira commenter, the labeler, etc.) is an
-**oauth-linked member** of an xagent org. This falls out of two gates:
+**oauth-linked member** of an gritz org. This falls out of two gates:
 
 1. **Webhook handlers drop unlinked actors.** Both the GitHub and Atlassian
-   handlers resolve the acting user to an xagent user before routing —
+   handlers resolve the acting user to an gritz user before routing —
    `GetUserByGitHubUserID` (`internal/server/githubserver/webhook.go:53`) and
    `GetUserByAtlassianAccountID` (`internal/server/atlassianserver/webhook.go:81`).
    If the actor has no linked account, the handler logs `no linked account` and
@@ -22,9 +22,9 @@ action (the GitHub commenter, the Jira commenter, the labeler, etc.) is an
    orgs the actor belongs to (`internal/store/sql/queries/org.sql:89-93`).
 
 The result: to trigger a rule, the actor must have oauth-linked their GitHub and
-Jira accounts to xagent **and** be a member of the org. We want the option to
+Jira accounts to gritz **and** be a member of the org. We want the option to
 create rules that fire for **non-member** actors — for example, an external
-contributor commenting `@xagent-bot` on a PR, or an outside reporter labeling an
+contributor commenting `@gritz-bot` on a PR, or an outside reporter labeling an
 issue — without every such actor having to link accounts and join the org.
 
 Non-member routing must be **opt-in per rule**, so the change never widens who
@@ -73,7 +73,7 @@ linked actor at all.
 
 ### `RoutingRule.Public`
 
-**Proto** (`proto/xagent/v1/xagent.proto`). The next free field number is `11`
+**Proto** (`proto/gritz/v1/gritz.proto`). The next free field number is `11`
 (reserved: `3,4,6,7,8`; used: `1,2,5,9,10`):
 
 ```protobuf
@@ -209,7 +209,7 @@ Key properties:
   unflagged rule stays confined to the actor's member orgs — exactly the "all of
   them vs. just the user orgs" distinction the flag is meant to control.
 - **Member orgs keep today's semantics** — all rules apply, and the ruleless-org
-  `reg.DefaultRules()` fallback (the `xagent:` body-prefix wakeup defaults) still
+  `reg.DefaultRules()` fallback (the `gritz:` body-prefix wakeup defaults) still
   runs. The fallback is gated on `org.IsMember`, so a ruleless non-member org
   routes nothing; non-member routing always requires an explicit opt-in rule.
 - **Overlap resolves in favor of membership.** An org that is both a member org
@@ -246,7 +246,7 @@ routed, err := h.Router.Route(r.Context(), *input)
 ```
 
 **GitHub** (`internal/server/githubserver/webhook.go`). GitHub webhooks don't
-carry an xagent org, but they do carry the App installation, and orgs record
+carry an gritz org, but they do carry the App installation, and orgs record
 their `github_installation_id` (shared across orgs since migration
 `20260621000001_share_github_installation.sql`). Resolve the installation to org
 ids:

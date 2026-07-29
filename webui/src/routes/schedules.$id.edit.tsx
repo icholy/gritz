@@ -4,8 +4,8 @@ import {
   getSchedule,
   setScheduleEnabled,
   updateSchedule,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { Schedule } from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { Schedule } from '@/gen/gritz/v1/gritz_pb'
 import { Card, CardContent } from '@/components/ui/card'
 import { useOrgId } from '@/hooks/use-org-id'
 import { ScheduleForm, type ScheduleFormValues } from '@/components/schedule-form'

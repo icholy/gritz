@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
 // renderHeader renders the task header block: the `# Task {id} · {name}` title
@@ -18,7 +18,7 @@ import (
 // proposals/implemented/hybrid-prompt-rendering.md). The returned block has no
 // trailing newline; callers join blocks with blank lines. Nil-safe via the
 // proto getters.
-func renderHeader(task *xagentv1.Task) string {
+func renderHeader(task *gritzv1.Task) string {
 	var b strings.Builder
 	b.WriteString("# Task " + strconv.FormatInt(task.GetId(), 10) + " · " + task.GetName() + "\n\n")
 	b.WriteString("- Workspace: " + task.GetWorkspace() + " · Namespace: " + task.GetNamespace() + "\n")
@@ -31,7 +31,7 @@ func renderHeader(task *xagentv1.Task) string {
 // same link rendered inline as an event's link arm. Registered as the renderLink
 // template func; the init branch loops over Options.Links. Nil-safe via the
 // proto getters.
-func renderLink(link *xagentv1.TaskLink) string {
+func renderLink(link *gritzv1.TaskLink) string {
 	return linkBlock(
 		link.GetTitle(), formatEventTime(link.GetCreatedAt()),
 		link.GetRelevance(), link.GetUrl(), link.GetSubscribe())
@@ -61,19 +61,19 @@ type Options struct {
 	// the task the driver already fetched at the top of the run, so neither path
 	// needs an extra fetch. The proto getters are nil-safe, so a nil Task renders
 	// zero values rather than panicking.
-	Task *xagentv1.Task
+	Task *gritzv1.Task
 
 	// Events is the task's event stream, looped once by the shared template loop and
 	// rendered as markdown blocks via the renderEvent func. On a wake it is the
 	// instruction + external events drained since the saved cursor; on the first run
 	// it is the brief's full event stream. It is empty on a wake with nothing
 	// pending, in which case nothing is injected.
-	Events []*xagentv1.Event
+	Events []*gritzv1.Event
 
 	// Links are the task's standing links, rendered at the end of the first-run
 	// brief via the renderLink func. They are init-only: a wake resumes the same
 	// session, which already saw the links on its first turn.
-	Links []*xagentv1.TaskLink
+	Links []*gritzv1.TaskLink
 }
 
 // Render builds the bootstrap prompt sent to the agent from opts.

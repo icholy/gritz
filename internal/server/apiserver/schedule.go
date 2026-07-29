@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/server/scheduler"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/server/scheduler"
 )
 
 // Schedules are org-owned objects; permissions gate the API surface, not the
@@ -24,7 +24,7 @@ import (
 // (there is no task-delete tier — write is it). Listing and getting only require
 // org membership, expressed as the task-read capability every member holds.
 
-func (s *Server) CreateSchedule(ctx context.Context, req *xagentv1.CreateScheduleRequest) (*xagentv1.CreateScheduleResponse, error) {
+func (s *Server) CreateSchedule(ctx context.Context, req *gritzv1.CreateScheduleRequest) (*gritzv1.CreateScheduleResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// No row exists yet, so authorize directly on the request's target — the
 	// narrow create scope (workspace/runner) a privileged caller holds, exactly
@@ -87,10 +87,10 @@ func (s *Server) CreateSchedule(ctx context.Context, req *xagentv1.CreateSchedul
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.CreateScheduleResponse{Schedule: sched.Proto()}, nil
+	return &gritzv1.CreateScheduleResponse{Schedule: sched.Proto()}, nil
 }
 
-func (s *Server) GetSchedule(ctx context.Context, req *xagentv1.GetScheduleRequest) (*xagentv1.GetScheduleResponse, error) {
+func (s *Server) GetSchedule(ctx context.Context, req *gritzv1.GetScheduleRequest) (*gritzv1.GetScheduleResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpTaskRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read schedule"))
@@ -102,10 +102,10 @@ func (s *Server) GetSchedule(ctx context.Context, req *xagentv1.GetScheduleReque
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.GetScheduleResponse{Schedule: sched.Proto()}, nil
+	return &gritzv1.GetScheduleResponse{Schedule: sched.Proto()}, nil
 }
 
-func (s *Server) ListSchedules(ctx context.Context, req *xagentv1.ListSchedulesRequest) (*xagentv1.ListSchedulesResponse, error) {
+func (s *Server) ListSchedules(ctx context.Context, req *gritzv1.ListSchedulesRequest) (*gritzv1.ListSchedulesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpTaskRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list schedules"))
@@ -114,14 +114,14 @@ func (s *Server) ListSchedules(ctx context.Context, req *xagentv1.ListSchedulesR
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListSchedulesResponse{Schedules: model.ProtoMap(scheds)}, nil
+	return &gritzv1.ListSchedulesResponse{Schedules: model.ProtoMap(scheds)}, nil
 }
 
 // UpdateSchedule replaces the mutable template + spec fields wholesale (the
 // edit form sends the full desired state); enable/disable stays in
 // SetScheduleEnabled. Authorizing already forces the caller to supply the target
 // (workspace, runner), so the request is inherently a full specification.
-func (s *Server) UpdateSchedule(ctx context.Context, req *xagentv1.UpdateScheduleRequest) (*xagentv1.UpdateScheduleResponse, error) {
+func (s *Server) UpdateSchedule(ctx context.Context, req *gritzv1.UpdateScheduleRequest) (*gritzv1.UpdateScheduleResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Updating retargets a deferred CreateTask, so authorize the create scope on
 	// the new (workspace, runner) up front. This also denies an empty-scopes
@@ -194,10 +194,10 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *xagentv1.UpdateSchedul
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.UpdateScheduleResponse{Schedule: sched.Proto()}, nil
+	return &gritzv1.UpdateScheduleResponse{Schedule: sched.Proto()}, nil
 }
 
-func (s *Server) DeleteSchedule(ctx context.Context, req *xagentv1.DeleteScheduleRequest) (*xagentv1.DeleteScheduleResponse, error) {
+func (s *Server) DeleteSchedule(ctx context.Context, req *gritzv1.DeleteScheduleRequest) (*gritzv1.DeleteScheduleResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Deleting is a mutation, gated on task-write like ArchiveTask/DeleteEvent —
 	// a read-only caller must not be able to remove an org schedule.
@@ -218,10 +218,10 @@ func (s *Server) DeleteSchedule(ctx context.Context, req *xagentv1.DeleteSchedul
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.DeleteScheduleResponse{}, nil
+	return &gritzv1.DeleteScheduleResponse{}, nil
 }
 
-func (s *Server) SetScheduleEnabled(ctx context.Context, req *xagentv1.SetScheduleEnabledRequest) (*xagentv1.SetScheduleEnabledResponse, error) {
+func (s *Server) SetScheduleEnabled(ctx context.Context, req *gritzv1.SetScheduleEnabledRequest) (*gritzv1.SetScheduleEnabledResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Toggling a schedule is a mutation — and enabling resumes firing on a target
 	// the caller may not hold create scope for — so it is gated on task-write, the
@@ -272,7 +272,7 @@ func (s *Server) SetScheduleEnabled(ctx context.Context, req *xagentv1.SetSchedu
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.SetScheduleEnabledResponse{Schedule: sched.Proto()}, nil
+	return &gritzv1.SetScheduleEnabledResponse{Schedule: sched.Proto()}, nil
 }
 
 // RunSchedule fires a schedule immediately as a one-off, in addition to its cron
@@ -282,7 +282,7 @@ func (s *Server) SetScheduleEnabled(ctx context.Context, req *xagentv1.SetSchedu
 // the cadence. It works even on a disabled schedule (a disabled schedule only
 // means "don't fire automatically"), which is the primary "test right after
 // creating" use case.
-func (s *Server) RunSchedule(ctx context.Context, req *xagentv1.RunScheduleRequest) (*xagentv1.RunScheduleResponse, error) {
+func (s *Server) RunSchedule(ctx context.Context, req *gritzv1.RunScheduleRequest) (*gritzv1.RunScheduleResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate (AllowOp ignores predicates) so an
 	// empty-scopes caller is denied before any store access; the concrete
@@ -337,5 +337,5 @@ func (s *Server) RunSchedule(ctx context.Context, req *xagentv1.RunScheduleReque
 	// task. Fire built it with Runner set; stamp in the acting user for the SSE fan-out.
 	note.UserID, note.ClientID = caller.ID, caller.ClientID
 	s.publish(note)
-	return &xagentv1.RunScheduleResponse{Task: task.Proto(s.baseURL)}, nil
+	return &gritzv1.RunScheduleResponse{Task: task.Proto(s.baseURL)}, nil
 }

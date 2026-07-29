@@ -6,18 +6,18 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/proto/xagent/v1/xagentv1connect"
-	"github.com/icholy/xagent/internal/x/mcpx"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/proto/gritz/v1/gritzv1connect"
+	"github.com/icholy/gritz/internal/x/mcpx"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // Instructions is the prompt shown to MCP clients describing what the
-// xagent server offers.
-const Instructions = "xagent is an async agent orchestrator that runs AI coding agents in parallel inside Docker containers.\n" +
+// gritz server offers.
+const Instructions = "gritz is an async agent orchestrator that runs AI coding agents in parallel inside Docker containers.\n" +
 	"Use it to create and manage tasks that execute in isolated workspaces.\n" +
 	"Workspaces define the container image, volumes, environment variables, and MCP servers available to agents.\n" +
 	"Each task runs an AI coding agent with access to the codebase and configured tools.\n" +
@@ -36,12 +36,12 @@ func WithDefaultAutoArchive(d time.Duration) Option {
 	}
 }
 
-// NewServer builds an MCP server with the user-facing xagent tools
+// NewServer builds an MCP server with the user-facing gritz tools
 // registered. The same setup is used by the HTTP handler and by the
 // local stdio command.
-func NewServer(service xagentv1connect.XAgentServiceHandler, opts ...Option) *mcp.Server {
+func NewServer(service gritzv1connect.GritzServiceHandler, opts ...Option) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "xagent",
+		Name:    "gritz",
 		Version: "1.0.0",
 	}, &mcp.ServerOptions{
 		Instructions: Instructions,
@@ -50,11 +50,11 @@ func NewServer(service xagentv1connect.XAgentServiceHandler, opts ...Option) *mc
 	return server
 }
 
-// AddTools registers the user-facing xagent tools on the given MCP server.
+// AddTools registers the user-facing gritz tools on the given MCP server.
 // Tool handlers proxy to the supplied service, which can be either an
-// in-process XAgentServiceHandler (server-side) or the generated Connect
+// in-process GritzServiceHandler (server-side) or the generated Connect
 // client (remote) since both interfaces share the same method signatures.
-func AddTools(server *mcp.Server, service xagentv1connect.XAgentServiceHandler, opts ...Option) {
+func AddTools(server *mcp.Server, service gritzv1connect.GritzServiceHandler, opts ...Option) {
 	h := &handlers{service: service}
 	for _, opt := range opts {
 		opt(h)
@@ -103,7 +103,7 @@ func AddTools(server *mcp.Server, service xagentv1connect.XAgentServiceHandler, 
 // Handler returns an http.Handler that serves the MCP Streamable HTTP
 // protocol. The handler expects auth middleware to have set UserInfo in
 // the request context.
-func Handler(service xagentv1connect.XAgentServiceHandler) http.Handler {
+func Handler(service gritzv1connect.GritzServiceHandler) http.Handler {
 	server := NewServer(service)
 	return mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		if apiauth.Caller(r.Context()) == nil {
@@ -116,7 +116,7 @@ func Handler(service xagentv1connect.XAgentServiceHandler) http.Handler {
 }
 
 type handlers struct {
-	service xagentv1connect.XAgentServiceHandler
+	service gritzv1connect.GritzServiceHandler
 	// defaultAutoArchive is applied to create_task when the call omits the
 	// auto_archive param. nil means no default is sent (server behavior
 	// unchanged).
@@ -126,7 +126,7 @@ type handlers struct {
 type listWorkspacesInput struct{}
 
 func (h *handlers) listWorkspaces(ctx context.Context, req *mcp.CallToolRequest, input listWorkspacesInput) (*mcp.CallToolResult, any, error) {
-	resp, err := h.service.ListWorkspaces(ctx, &xagentv1.ListWorkspacesRequest{})
+	resp, err := h.service.ListWorkspaces(ctx, &gritzv1.ListWorkspacesRequest{})
 	if err != nil {
 		return mcpx.ErrorResult("failed to list workspaces: %v", err), nil, nil
 	}
@@ -155,11 +155,11 @@ type createTaskInput struct {
 }
 
 func (h *handlers) createTask(ctx context.Context, _ *mcp.CallToolRequest, input createTaskInput) (*mcp.CallToolResult, any, error) {
-	req := &xagentv1.CreateTaskRequest{
+	req := &gritzv1.CreateTaskRequest{
 		Name:      input.Name,
 		Workspace: input.Workspace,
 		Runner:    input.Runner,
-		Instructions: []*xagentv1.Instruction{
+		Instructions: []*gritzv1.Instruction{
 			{Text: input.Instruction},
 		},
 		AutoArchive: h.defaultAutoArchive,
@@ -188,15 +188,15 @@ func (h *handlers) getTask(ctx context.Context, req *mcp.CallToolRequest, input 
 	// instructions/logs projections are dropped — a caller wanting just the
 	// instruction arm or just the report/lifecycle activity filters the raw
 	// events itself, matching the webui timeline shape.
-	taskResp, err := h.service.GetTask(ctx, &xagentv1.GetTaskRequest{Id: input.ID})
+	taskResp, err := h.service.GetTask(ctx, &gritzv1.GetTaskRequest{Id: input.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to get task: %v", err), nil, nil
 	}
-	eventsResp, err := h.service.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: input.ID})
+	eventsResp, err := h.service.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: input.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to list events: %v", err), nil, nil
 	}
-	linksResp, err := h.service.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: input.ID})
+	linksResp, err := h.service.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: input.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to list links: %v", err), nil, nil
 	}
@@ -251,7 +251,7 @@ func (h *handlers) getTask(ctx context.Context, req *mcp.CallToolRequest, input 
 type listTasksInput struct{}
 
 func (h *handlers) listTasks(ctx context.Context, req *mcp.CallToolRequest, input listTasksInput) (*mcp.CallToolResult, any, error) {
-	resp, err := h.service.ListTasks(ctx, &xagentv1.ListTasksRequest{})
+	resp, err := h.service.ListTasks(ctx, &gritzv1.ListTasksRequest{})
 	if err != nil {
 		return mcpx.ErrorResult("failed to list tasks: %v", err), nil, nil
 	}
@@ -270,17 +270,17 @@ type updateTaskInput struct {
 }
 
 func (h *handlers) updateTask(ctx context.Context, req *mcp.CallToolRequest, input updateTaskInput) (*mcp.CallToolResult, any, error) {
-	_, err := h.service.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err := h.service.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:    input.ID,
 		Start: input.Start,
-		AddInstructions: []*xagentv1.Instruction{
+		AddInstructions: []*gritzv1.Instruction{
 			{Text: input.Instruction, Url: input.URL},
 		},
 	})
 	if err != nil {
 		return mcpx.ErrorResult("failed to update task: %v", err), nil, nil
 	}
-	resp, err := h.service.GetTask(ctx, &xagentv1.GetTaskRequest{Id: input.ID})
+	resp, err := h.service.GetTask(ctx, &gritzv1.GetTaskRequest{Id: input.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to get updated task: %v", err), nil, nil
 	}
@@ -292,13 +292,13 @@ type archiveTaskInput struct {
 }
 
 func (h *handlers) archiveTask(ctx context.Context, req *mcp.CallToolRequest, input archiveTaskInput) (*mcp.CallToolResult, any, error) {
-	_, err := h.service.ArchiveTask(ctx, &xagentv1.ArchiveTaskRequest{
+	_, err := h.service.ArchiveTask(ctx, &gritzv1.ArchiveTaskRequest{
 		Id: input.ID,
 	})
 	if err != nil {
 		return mcpx.ErrorResult("failed to archive task: %v", err), nil, nil
 	}
-	resp, err := h.service.GetTask(ctx, &xagentv1.GetTaskRequest{Id: input.ID})
+	resp, err := h.service.GetTask(ctx, &gritzv1.GetTaskRequest{Id: input.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to get archived task: %v", err), nil, nil
 	}
@@ -313,7 +313,7 @@ type taskSummary struct {
 	URL       string `json:"url,omitempty"`
 }
 
-func taskSummaryOf(t *xagentv1.Task) taskSummary {
+func taskSummaryOf(t *gritzv1.Task) taskSummary {
 	return taskSummary{
 		ID:        t.Id,
 		Name:      t.Name,

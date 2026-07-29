@@ -1,21 +1,21 @@
 # Org query param for deep linking
 
-Issue: https://github.com/icholy/xagent/issues/637
+Issue: https://github.com/icholy/gritz/issues/637
 
 ## Problem
 
-The active org is stored in `localStorage` (`xagent_org_id`) and baked into the JWT issued by `/auth/token?org_id=…`. Every API call filters by `caller.OrgID` from the token. Deep links like `/tasks/123` don't carry the org, so when a user has multiple orgs and lands on a link for a task in a different org than the one their token is currently scoped to, the backend returns `CodeNotFound` and the UI renders a generic "Task not found" page.
+The active org is stored in `localStorage` (`gritz_org_id`) and baked into the JWT issued by `/auth/token?org_id=…`. Every API call filters by `caller.OrgID` from the token. Deep links like `/tasks/123` don't carry the org, so when a user has multiple orgs and lands on a link for a task in a different org than the one their token is currently scoped to, the backend returns `CodeNotFound` and the UI renders a generic "Task not found" page.
 
 This breaks:
 - Server-generated URLs (`internal/model/task.go:85`, `internal/server/mcpserver/mcpserver.go:145,203,264,304`) shared via Slack, email, GitHub PR comments, MCP `report`, etc.
 - Sharing a task URL with a teammate whose last-selected org differs.
-- Any agent that surfaces a `https://xagent.choly.ca/tasks/N` URL to a human.
+- Any agent that surfaces a `https://gritz.dev/tasks/N` URL to a human.
 
 The only workaround today is to manually switch orgs in the navbar, by which point the user has lost the original deep link.
 
 ## Design
 
-Add an optional `?org=<id>` query parameter to **every** route. localStorage (`xagent_org_id`) remains the source of truth for the active org. A single root-level route guard compares the URL's `org` against localStorage; on mismatch it invokes the **same** code path the manual org-switcher dropdown uses. There is one canonical "switch org" function — the dropdown calls it, the guard calls it, no logic duplicated. Server URLs that point at a resource get the `org` query param appended at construction time.
+Add an optional `?org=<id>` query parameter to **every** route. localStorage (`gritz_org_id`) remains the source of truth for the active org. A single root-level route guard compares the URL's `org` against localStorage; on mismatch it invokes the **same** code path the manual org-switcher dropdown uses. There is one canonical "switch org" function — the dropdown calls it, the guard calls it, no logic duplicated. Server URLs that point at a resource get the `org` query param appended at construction time.
 
 ### Why every route (not just resource detail routes)
 
@@ -113,11 +113,11 @@ Both paths call `switchOrg(auth, queryClient, orgId)`. The switcher additionally
 
 ### Source of truth: localStorage
 
-`xagent_org_id` localStorage stays the source of truth for "the active org." The URL `?org` is an *advisory* signal — "the user wants to be on org X." The guard reconciles them.
+`gritz_org_id` localStorage stays the source of truth for "the active org." The URL `?org` is an *advisory* signal — "the user wants to be on org X." The guard reconciles them.
 
 After any successful `switchOrg`:
 - The token is for the new org.
-- `localStorage.xagent_org_id` is the new org (written by `storeToken`).
+- `localStorage.gritz_org_id` is the new org (written by `storeToken`).
 - The URL `?org=` is the new org (the switcher navigated; the guard ran because the URL already said so).
 
 All three are in sync. `getOrgId()` continues to read from localStorage as it does today, with no changes to `transport.ts`. `useOrgId()`, `useOrgLocalStorage`, and the `onOrgChange` event continue to behave exactly as they do today — no semantic shifts, no JWT-claim decoding, no new helpers.
@@ -175,7 +175,7 @@ URLs without `?org` keep working: the guard's early-return covers them and the u
 
 **Universal vs. selective `?org`**: This proposal applies `?org` to every route. The selective alternative — declaring it only on resource detail routes — has the appeal of "param only where it matters," but every route's active org is already implicit in the user's token, so making it explicit in the URL is *more* honest, not less. Universal placement also eliminates the per-route opt-in and the "did we remember to add it?" failure mode for new routes.
 
-**localStorage as source of truth vs. URL as source of truth**: We could make the URL authoritative and drop `xagent_org_id` entirely. That sounds cleaner but means changing `transport.ts` to read from `window.location`, decoding JWT claims to know "the current token's org," and shifting `useOrgId` semantics. Keeping localStorage as source of truth means **nothing in `transport.ts` changes** and the new URL param is purely an additional trigger for the existing org-switch flow — much smaller blast radius.
+**localStorage as source of truth vs. URL as source of truth**: We could make the URL authoritative and drop `gritz_org_id` entirely. That sounds cleaner but means changing `transport.ts` to read from `window.location`, decoding JWT claims to know "the current token's org," and shifting `useOrgId` semantics. Keeping localStorage as source of truth means **nothing in `transport.ts` changes** and the new URL param is purely an additional trigger for the existing org-switch flow — much smaller blast radius.
 
 **Shared `switchOrg` function vs. event-driven invalidation**: An earlier draft had the guard `clearToken()` and rely on a root-level `onOrgChange` listener to invalidate queries. That's clever but introduces two code paths that *look* different (switcher actively fetches; guard passively clears) even though they're meant to do the same thing. Funnelling both through one `switchOrg(auth, qc, orgId)` call is more direct: cache invalidation isn't duplicated *and* the two entry points are obviously the same operation.
 

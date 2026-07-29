@@ -3,8 +3,8 @@ package apiserver
 import (
 	"testing"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 
@@ -14,7 +14,7 @@ func TestCreateLink(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task with Link",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -22,7 +22,7 @@ func TestCreateLink(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	resp, err := srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId:    taskResp.Task.Id,
 		Relevance: "Related PR",
 		Url:       "https://github.com/example/repo/pull/123",
@@ -43,7 +43,7 @@ func TestCreateLink_AppendsLinkEvent(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task with Link",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -51,7 +51,7 @@ func TestCreateLink_AppendsLinkEvent(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	linkResp, err := srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	linkResp, err := srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId:    taskResp.Task.Id,
 		Relevance: "Related PR",
 		Url:       "https://github.com/example/repo/pull/123",
@@ -62,13 +62,13 @@ func TestCreateLink_AppendsLinkEvent(t *testing.T) {
 
 	// Assert - a link event mirroring the task_links row is appended to the
 	// task's stream (the timeline source of truth; task_links is the projection).
-	eventsResp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	eventsResp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskResp.Task.Id,
 	})
 	assert.NilError(t, err)
 	// The stream also carries the lifecycle CREATED event from task creation, so
 	// pick out the link event rather than asserting it is the only one.
-	var linkEvent *xagentv1.Event
+	var linkEvent *gritzv1.Event
 	for _, e := range eventsResp.Events {
 		if e.GetLink() != nil {
 			linkEvent = e
@@ -91,7 +91,7 @@ func TestCreateLink_DerivesRoutingKey(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task with Link",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -99,7 +99,7 @@ func TestCreateLink_DerivesRoutingKey(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act - no routing_key supplied, so the server derives it from url
-	resp, err := srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	resp, err := srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId: taskResp.Task.Id,
 		Url:    "https://github.com/example/repo/pull/123#issuecomment-9",
 	})
@@ -118,7 +118,7 @@ func TestCreateLink_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	taskResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -126,7 +126,7 @@ func TestCreateLink_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.CreateLink(ctxB, &xagentv1.CreateLinkRequest{
+	_, err = srv.CreateLink(ctxB, &gritzv1.CreateLinkRequest{
 		TaskId:    taskResp.Task.Id,
 		Relevance: "Sneaky link",
 		Url:       "https://github.com/example/repo/pull/123",
@@ -142,19 +142,19 @@ func TestListLinks(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task with Links",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	_, err = srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId:    taskResp.Task.Id,
 		Relevance: "Link 1",
 		Url:       "https://github.com/example/repo/pull/1",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	_, err = srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId:    taskResp.Task.Id,
 		Relevance: "Link 2",
 		Url:       "https://github.com/example/repo/pull/2",
@@ -162,7 +162,7 @@ func TestListLinks(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListLinks(ctx, &xagentv1.ListLinksRequest{
+	resp, err := srv.ListLinks(ctx, &gritzv1.ListLinksRequest{
 		TaskId: taskResp.Task.Id,
 	})
 
@@ -179,13 +179,13 @@ func TestListLinks_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	taskResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateLink(ctxA, &xagentv1.CreateLinkRequest{
+	_, err = srv.CreateLink(ctxA, &gritzv1.CreateLinkRequest{
 		TaskId:    taskResp.Task.Id,
 		Relevance: "User A's Link",
 		Url:       "https://github.com/example/repo/pull/1",
@@ -193,7 +193,7 @@ func TestListLinks_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListLinks(ctxB, &xagentv1.ListLinksRequest{
+	resp, err := srv.ListLinks(ctxB, &gritzv1.ListLinksRequest{
 		TaskId: taskResp.Task.Id,
 	})
 

@@ -1,6 +1,6 @@
 # Emoji Reactions for Matched GitHub Comments
 
-Issue: https://github.com/icholy/xagent/issues/691
+Issue: https://github.com/icholy/gritz/issues/691
 
 ## Problem
 
@@ -301,7 +301,7 @@ No migrations, no proto changes, no UI changes.
 
 **Async lives in the wiring, not the router or the logic.** Source API round-trips can be hundreds of milliseconds, so the reaction must not block the webhook response — but `eventrouter` stays policy-free (`Route` calls `OnRouteOutcome` synchronously with the request context) and `react` stays a pure, testable `func(...) error`. The concurrency/lifetime policy lives in one place: the `WebhookHandler` glue closure, which runs `react` in a goroutine with `context.WithoutCancel` + a timeout and logs the error. A missed reaction is a degraded experience, not a broken one.
 
-**Installation token, not OAuth user token.** Reactions posted via the installation token (obtained through `AppTokenCache.Client`) appear under the GitHub App's bot identity (e.g. `xagent-app[bot]`), which is the correct attribution — it's the bot acknowledging the comment, not the user who triggered it. OAuth tokens also tie to a specific linked user and would fail if that user un-links.
+**Installation token, not OAuth user token.** Reactions posted via the installation token (obtained through `AppTokenCache.Client`) appear under the GitHub App's bot identity (e.g. `gritz-app[bot]`), which is the correct attribution — it's the bot acknowledging the comment, not the user who triggered it. OAuth tokens also tie to a specific linked user and would fail if that user un-links.
 
 **Hardcoded emoji in v1.** 👀 is the most idiomatic "I see this and am working on it" reaction (used by github-actions[bot], Linear, many CI bots). Per-org or per-rule customization is easy to add later without breaking the v1 contract.
 
@@ -313,6 +313,6 @@ No migrations, no proto changes, no UI changes.
 
 2. **Should the reaction get removed/updated when the task finishes?** Some bots (e.g. github-actions) update reactions to reflect state: 👀 while running, 🎉 on success, 👎 on failure. Appealing, but it adds a lot of state management: we'd track the reaction ID per comment, plumb task-completion events back to the server, and handle deletion failures. Not worth it in v1; can be added later if there's demand.
 
-3. **What about "I matched but couldn't start the task" cases?** The callback fires once the org's wake/create branch runs to the bottom of the iteration — skipped only when the branch hits an early error `continue` (event creation failed, `create` failed) or the org matched a rule with no subscribed link and no create action. A per-task attach failure inside the wake loop is logged but still lets the reaction fire. So a reaction means "I matched and routing acted on it", not "every task started successfully" — acceptable, and errors are already logged and visible in xagent.
+3. **What about "I matched but couldn't start the task" cases?** The callback fires once the org's wake/create branch runs to the bottom of the iteration — skipped only when the branch hits an early error `continue` (event creation failed, `create` failed) or the org matched a rule with no subscribed link and no create action. A per-task attach failure inside the wake loop is logged but still lets the reaction fire. So a reaction means "I matched and routing acted on it", not "every task started successfully" — acceptable, and errors are already logged and visible in gritz.
 
 4. **Rate limits?** GitHub Apps get 5,000 requests/hour per installation, shared across all reads/writes. A reaction is one extra request per matched comment. At realistic comment volumes this is negligible, but worth keeping in mind if an org has a high-volume routing rule.

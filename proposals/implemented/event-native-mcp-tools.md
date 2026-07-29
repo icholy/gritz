@@ -1,6 +1,6 @@
 # Event-native MCP tool surfaces
 
-Issue: https://github.com/icholy/xagent/issues/971
+Issue: https://github.com/icholy/gritz/issues/971
 
 ## Problem
 
@@ -31,7 +31,7 @@ the legacy instructions / logs / links shape rebuilt on top of it:
   the stream already expresses.
 
 The downstream consumers inherit this. The n8n node
-(`n8n-node/nodes/XAgent/XAgentExecutor.ts`) carries an `activityLogs` helper
+(`n8n-node/nodes/Gritz/GritzExecutor.ts`) carries an `activityLogs` helper
 that re-projects the report/lifecycle arms into flat `{type, content}` rows
 precisely "because the logs table is gone" — reconstructing the legacy shape a
 second time on the client.
@@ -64,7 +64,7 @@ round trip) is deleted, not relocated.
 
 ### Tool output: a projection of `Event`, not raw `Event`
 
-The wire `xagentv1.Event` is a typed `oneof` (`internal/model/event.go`,
+The wire `gritzv1.Event` is a typed `oneof` (`internal/model/event.go`,
 `Event.payload`). Two options for what the tools emit:
 
 1. **Raw protojson of `Event`** — `{id, task_id, wake, created_at, payload:
@@ -99,7 +99,7 @@ most reliably and what a JSON consumer filters most simply:
 The discriminator is the existing `Payload.Type()` value (`instruction`,
 `external`, `report`, `lifecycle`, `link` — the constants in
 `internal/model/event.go`). The projection is a thin Go helper alongside the
-tool handlers (a function from `*xagentv1.Event` to `map[string]any`, switching
+tool handlers (a function from `*gritzv1.Event` to `map[string]any`, switching
 on the arm), mirroring how `taskDetailsToMap` switches today — but emitting one
 uniform list instead of three buckets.
 
@@ -123,8 +123,8 @@ becomes:
   "id": 869,
   "name": "Proposal: event-native MCP tools",
   "status": "RUNNING",
-  "workspace": "xagent",
-  "url": "https://xagent.choly.ca/ui/tasks/869",
+  "workspace": "gritz",
+  "url": "https://gritz.dev/ui/tasks/869",
   "events": [ /* brief: instruction + external arms, stream order, projected */ ],
   "links":  [ /* the task's links — see below */ ]
 }
@@ -162,7 +162,7 @@ flat projected list, replacing the `{instructions, logs, links}` triple:
 {
   "id": 869,
   "name": "…",
-  "workspace": "xagent",
+  "workspace": "gritz",
   "runner": "…",
   "status": "RUNNING",
   "url": "…",
@@ -359,7 +359,7 @@ bodies. The projection helper is the same either way.
   response for fewer round trips. Leaning toward keeping the lean summary
   (matches #947's `UpdateTask` returning task fields) and letting callers
   `get_*` when they want the stream, but worth confirming against n8n's
-  update-then-read pattern (`XAgentExecutor.update` already does a follow-up
+  update-then-read pattern (`GritzExecutor.update` already does a follow-up
   `getTaskDetails`).
 
 - **Does `get_my_task`'s brief include `external` events the agent hasn't seen,

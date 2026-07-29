@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/icholy/xagent/internal/x/atomicio"
+	"github.com/icholy/gritz/internal/x/atomicio"
 )
 
 // seqDigits is the zero-padded width of a uint64 Seq in a filename, so lexical

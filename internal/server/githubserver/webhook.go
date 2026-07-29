@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v88/github"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/x/githubx"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/x/githubx"
 )
 
 // WebhookHandler handles incoming GitHub App webhook events.
@@ -61,7 +61,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up the xagent user by GitHub user ID. A linked actor routes to their
+	// Look up the gritz user by GitHub user ID. A linked actor routes to their
 	// member orgs as before; an unlinked actor keeps an empty UserID and routes
 	// only via Public rules on the installation's orgs (input.Orgs).
 	user, err := h.Store.GetUserByGitHubUserID(r.Context(), nil, meta.AuthorID)

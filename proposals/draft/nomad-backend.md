@@ -1,6 +1,6 @@
 # Nomad Backend for the Runner
 
-Issue: https://github.com/icholy/xagent/issues/1146
+Issue: https://github.com/icholy/gritz/issues/1146
 
 ## Problem
 
@@ -31,13 +31,13 @@ workspace images run unchanged.
 ### Overview
 
 A new package `internal/runner/backend/nomad` implements `backend.Backend` by
-mapping each task to one **Nomad job** named `xagent-<task-id>`. The job has a
+mapping each task to one **Nomad job** named `gritz-<task-id>`. The job has a
 single group with a single task that runs the workspace image under Nomad's
 `docker` task driver, executes `spec.Cmd` (the driver), and reports the driver's
 exit code back through `backend.Wait`. Selection follows the existing seam:
 
 ```
-xagent runner --backend nomad
+gritz runner --backend nomad
 ```
 
 The runner talks only to the **Nomad server API**; Nomad schedules the
@@ -47,7 +47,7 @@ connects directly to the server with its task token and neither knows nor cares
 what runtime launched it.
 
 The decisive difference from every existing backend: the sandbox does not run on
-the runner's machine. One `xagent runner --backend nomad` fronts a whole cluster,
+the runner's machine. One `gritz runner --backend nomad` fronts a whole cluster,
 and task capacity is the cluster's capacity, not one host's.
 
 ### Nomad API client
@@ -62,7 +62,7 @@ cfg := api.DefaultConfig() // reads NOMAD_ADDR, NOMAD_TOKEN, NOMAD_NAMESPACE,
 client, err := api.NewClient(cfg)
 ```
 
-No xagent-specific connection flags are introduced; operators point at their
+No gritz-specific connection flags are introduced; operators point at their
 cluster with the standard `NOMAD_*` variables, exactly as they do with the
 `nomad` CLI. Namespace comes from `NOMAD_NAMESPACE` (resolved by
 `api.DefaultConfig()`), with an optional per-workspace `nomad.namespace`
@@ -78,7 +78,7 @@ reads `lambda_microvm:`). `workspace.Workspace` gains a `nomad:` section:
 workspaces:
   pets-workshop:
     nomad:
-      image: ghcr.io/icholy/xagent-workspace-debian:latest
+      image: ghcr.io/icholy/gritz-workspace-debian:latest
       datacenters: [dc1]        # default ["*"]
       namespace: default        # optional; else runner/NOMAD_NAMESPACE default
       cpu_mhz: 2000             # Nomad resource reservation, default 1000
@@ -165,7 +165,7 @@ backend solves by inspecting the image and Firecracker solves via host arch:
 ```hcl
 artifact {
   source      = "http://<runner-addr>/prebuilt/${attr.cpu.arch}"
-  destination = "local/bin/xagent"
+  destination = "local/bin/gritz"
   mode        = "file"
 }
 ```
@@ -188,7 +188,7 @@ Assembled per task with the `api` types (sketch):
 
 ```go
 job := &api.Job{
-	ID:          new("xagent-<task-id>"),
+	ID:          new("gritz-<task-id>"),
 	Type:        new("batch"),
 	Namespace:   new(ns),
 	Datacenters: ws.Nomad.Datacenters,
@@ -210,7 +210,7 @@ job := &api.Job{
 				"args":       spec.Cmd[1:],
 				"work_dir":   ws.Nomad.WorkingDir,
 				"privileged": ws.Nomad.Privileged,
-				"mounts":     mounts, // local/bin/xagent -> BinaryPath, config -> config path
+				"mounts":     mounts, // local/bin/gritz -> BinaryPath, config -> config path
 			},
 			Env:          envMap(ws.Nomad.Environment, spec.Env),
 			User:         ws.Nomad.User,
@@ -235,7 +235,7 @@ report.
 
 ### Backend method mapping
 
-The `Handle` the runner persists is `{Type: "nomad", ID: "xagent-<task-id>"}`.
+The `Handle` the runner persists is `{Type: "nomad", ID: "gritz-<task-id>"}`.
 ID is the Nomad job ID — unique, stable for the task's life, and enough to
 rediscover the current allocation via `client.Jobs().Allocations(jobID)`. `Data`
 stays empty: like the Docker backend rediscovering everything from the container
@@ -261,11 +261,11 @@ spurious `failed` if the driver did report before the alloc died.
 ### CLI
 
 ```
-xagent runner --backend nomad \
+gritz runner --backend nomad \
   [--nomad-artifact-addr http://<runner-ip>:<port>]
 ```
 
-`--nomad-artifact-addr` has an `XAGENT_NOMAD_ARTIFACT_ADDR` env source.
+`--nomad-artifact-addr` has an `GRITZ_NOMAD_ARTIFACT_ADDR` env source.
 Connection details (`NOMAD_ADDR`, `NOMAD_TOKEN`, `NOMAD_NAMESPACE`, TLS) all come
 from the standard `NOMAD_*` variables via `api.DefaultConfig()` — the backend
 introduces no flag for namespace or any other connection setting.
@@ -319,21 +319,21 @@ portable across a heterogeneous fleet. The cost is repeating image/env/user for
 workspaces that target multiple backends.
 
 **Serving the driver binary over HTTP vs. baking it into the image.** Requiring
-the workspace image to already contain the xagent binary at `backend.BinaryPath`
+the workspace image to already contain the gritz binary at `backend.BinaryPath`
 would drop the artifact server entirely and the client-reachability requirement
 with it. But it forks the artifact pipeline (every workspace image needs a second
-build target, kept in lockstep with the xagent version) and breaks portability
+build target, kept in lockstep with the gritz version) and breaks portability
 with the Docker/Firecracker backends, which inject the binary at runtime. Serving
 `prebuilt` over HTTP keeps images backend-agnostic; the cost is a small runner
 HTTP endpoint reachable from client nodes and node-arch interpolation in the
 artifact source.
 
 **One job per task vs. a dispatched parameterized job.** A single parameterized
-"xagent-agent" job dispatched per task would centralize the jobspec, but dispatch
+"gritz-agent" job dispatched per task would centralize the jobspec, but dispatch
 instances are awkward to address 1:1 for signal/stop/adopt and muddy the
 `Handle.ID` ↔ sandbox identity that the backend contract depends on. One
 named job per task keeps identity trivial (job id *is* the handle) and mirrors
-the `xagent-<task-id>` container-naming convention exactly.
+the `gritz-<task-id>` container-naming convention exactly.
 
 **Cluster scheduler vs. direct host control.** Unlike Docker/Firecracker, the
 runner does not directly observe processes — it observes Nomad's *view* via the

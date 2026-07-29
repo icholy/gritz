@@ -1,6 +1,6 @@
 # Richer tool-call log output
 
-Issue: https://github.com/icholy/xagent/issues/892
+Issue: https://github.com/icholy/gritz/issues/892
 
 ## Problem
 
@@ -25,7 +25,7 @@ The driver runs inside the task container and streams the CLI's output:
    and scans stdout line by line:
    - `ClaudeAgent.Prompt` — `claude --output-format stream-json ... --print`
      (`internal/agent/claude.go:33-98`)
-   - `CodexAgent.Prompt` — `codex exec --json ...` (`internal/agent/codex.go`)
+   - `Codegritz.Prompt` — `codex exec --json ...` (`internal/agent/codex.go`)
    - `CursorAgent.Prompt` — `cursor-agent --output-format stream-json ...`
      (`internal/agent/cursor.go`)
 3. For each line, the agent calls `handleStreamEvent(line []byte) bool`, which
@@ -226,7 +226,7 @@ arguments.
 ### MCP tools
 
 MCP tools require **no special handling**. The full tool name (whatever the
-provider emits, e.g. `mcp__xagent__create_link`) is already carried in the
+provider emits, e.g. `mcp__gritz__create_link`) is already carried in the
 `name` attribute and is perfectly readable as-is. The arguments are an ordinary
 input object and flow through `summarizeInput` like any other tool. There is no
 name parsing or `server/tool` splitting.
@@ -261,7 +261,7 @@ Before:
 tool name=Bash
 tool name=Read
 tool name=Grep
-tool name=mcp__xagent__create_link
+tool name=mcp__gritz__create_link
 ```
 
 After (generic `key=value` rendering, bulky fields pre-redacted by the
@@ -272,7 +272,7 @@ tool name=Bash summary="command=\"go test ./internal/agent/\" description=\"run 
 tool name=Read summary=file_path=internal/agent/claude.go
 tool name=Edit summary="file_path=internal/agent/claude.go new_string=<truncated> old_string=<truncated>"
 tool name=Grep summary="glob=*.go pattern=handleStreamEvent"
-tool name=mcp__xagent__create_link summary="subscribe=true title=\"Add summaries\" url=https://github.com/…"
+tool name=mcp__gritz__create_link summary="subscribe=true title=\"Add summaries\" url=https://github.com/…"
 ```
 
 ### Testing

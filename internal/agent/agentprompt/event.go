@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -18,18 +18,18 @@ import (
 // content body are prose markdown, while the opaque external details map is
 // emitted verbatim as an indented-JSON block. The returned block has no trailing
 // newline; callers join blocks with blank lines. An event with no set arm renders empty.
-func renderEvent(event *xagentv1.Event) string {
+func renderEvent(event *gritzv1.Event) string {
 	ts := formatEventTime(event.GetCreatedAt())
 	var b strings.Builder
 	switch arm := event.GetPayload().(type) {
-	case *xagentv1.Event_Instruction:
+	case *gritzv1.Event_Instruction:
 		p := arm.Instruction
 		b.WriteString("### Instruction — " + ts + "\n")
 		b.WriteString(p.GetText())
 		if p.GetUrl() != "" {
 			b.WriteString("\nSource: " + p.GetUrl())
 		}
-	case *xagentv1.Event_External:
+	case *gritzv1.Event_External:
 		p := arm.External
 		b.WriteString("### External Event — " + ts + "\n")
 		fmt.Fprintf(&b, "\nType: %s - %s", p.GetSource(), p.GetType())
@@ -45,12 +45,12 @@ func renderEvent(event *xagentv1.Event) string {
 		if len(p.GetDetails()) > 0 {
 			b.WriteString("\n\n```json\n" + renderDetails(p.GetDetails()) + "\n```")
 		}
-	case *xagentv1.Event_Lifecycle:
+	case *gritzv1.Event_Lifecycle:
 		b.WriteString("### " + lifecycleSummary(event) + " — " + ts)
-	case *xagentv1.Event_Link:
+	case *gritzv1.Event_Link:
 		p := arm.Link
 		b.WriteString(linkBlock(p.GetTitle(), ts, p.GetRelevance(), p.GetUrl(), p.GetSubscribe()))
-	case *xagentv1.Event_Report:
+	case *gritzv1.Event_Report:
 		b.WriteString("### Report — " + ts + "\n")
 		b.WriteString(arm.Report.GetContent())
 	default:
@@ -101,7 +101,7 @@ func renderDetails(details map[string]string) string {
 // (e.g. "Sandbox exited (Running -> Completed)"). It reuses
 // model.LifecyclePayload.Summary — the same line the timeline shows — so the
 // model needn't decode the lifecycle enum.
-func lifecycleSummary(event *xagentv1.Event) string {
+func lifecycleSummary(event *gritzv1.Event) string {
 	if p, ok := model.EventPayloadFromProto(event).(*model.LifecyclePayload); ok {
 		return p.Summary()
 	}

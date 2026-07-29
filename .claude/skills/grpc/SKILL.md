@@ -5,25 +5,25 @@ description: Guidelines for working with the Connect RPC (gRPC) API. Apply when 
 
 # gRPC API Development Guide
 
-XAGENT uses [Connect RPC](https://connectrpc.com/) for its API, providing protocol flexibility (gRPC, gRPC-Web, Connect protocol) over HTTP.
+GRITZ uses [Connect RPC](https://connectrpc.com/) for its API, providing protocol flexibility (gRPC, gRPC-Web, Connect protocol) over HTTP.
 
 ## Architecture Overview
 
-- **Proto definitions**: `proto/xagent/v1/xagent.proto`
-- **Generated Go code**: `internal/proto/xagent/v1/` (gitignored)
+- **Proto definitions**: `proto/gritz/v1/gritz.proto`
+- **Generated Go code**: `internal/proto/gritz/v1/` (gitignored)
 - **Generated TypeScript code**: `webui/src/gen/` (committed)
 - **Server implementation**: `internal/server/server.go`
-- **Go client package**: `internal/xagentclient/`
+- **Go client package**: `internal/gritzclient/`
 - **TypeScript client**: Uses `@connectrpc/connect-query` with TanStack Query
 
 ## Adding a New RPC
 
 ### 1. Define the proto messages and service method
 
-Edit `proto/xagent/v1/xagent.proto`:
+Edit `proto/gritz/v1/gritz.proto`:
 
 ```protobuf
-service XAgentService {
+service GritzService {
   // ... existing RPCs ...
   rpc MyNewMethod(MyNewRequest) returns (MyNewResponse);
 }
@@ -55,15 +55,15 @@ cd webui && pnpm run generate
 ```
 
 This generates:
-- `webui/src/gen/xagent/v1/xagent_pb.ts` - TypeScript types and message schemas
-- `webui/src/gen/xagent/v1/xagent-XAgentService_connectquery.ts` - Connect-Query method exports
+- `webui/src/gen/gritz/v1/gritz_pb.ts` - TypeScript types and message schemas
+- `webui/src/gen/gritz/v1/gritz-GritzService_connectquery.ts` - Connect-Query method exports
 
 ### 3. Implement the server handler
 
-The server embeds `UnimplementedXAgentServiceHandler`, which provides default "not implemented" responses for all RPCs. Override the method in `internal/server/server.go`:
+The server embeds `UnimplementedGritzServiceHandler`, which provides default "not implemented" responses for all RPCs. Override the method in `internal/server/server.go`:
 
 ```go
-func (s *Server) MyNewMethod(ctx context.Context, req *xagentv1.MyNewMethodRequest) (*xagentv1.MyNewMethodResponse, error) {
+func (s *Server) MyNewMethod(ctx context.Context, req *gritzv1.MyNewMethodRequest) (*gritzv1.MyNewMethodResponse, error) {
     // Validate input
     if req.Id == 0 {
         return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
@@ -76,7 +76,7 @@ func (s *Server) MyNewMethod(ctx context.Context, req *xagentv1.MyNewMethodReque
     }
 
     // Return response
-    return &xagentv1.MyNewMethodResponse{
+    return &gritzv1.MyNewMethodResponse{
         Success: true,
     }, nil
 }
@@ -103,32 +103,32 @@ connect.CodePermissionDenied // Authorization failure
 ### Creating a client
 
 ```go
-import "github.com/icholy/xagent/internal/xagentclient"
+import "github.com/icholy/gritz/internal/gritzclient"
 
 // HTTP client
-client := xagentclient.New("http://localhost:6464")
+client := gritzclient.New("http://localhost:6464")
 
 // Unix socket client (used inside containers)
-client := xagentclient.New("unix:///xagent/socket")
+client := gritzclient.New("unix:///gritz/socket")
 ```
 
 ### Making RPC calls
 
 ```go
-import xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+import gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 
 // Unary call
-resp, err := client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: 123})
+resp, err := client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: 123})
 if err != nil {
     // Handle error
 }
 task := resp.Task
 
 // Call with multiple fields
-resp, err := client.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+resp, err := client.CreateTask(ctx, &gritzv1.CreateTaskRequest{
     Name:      "My Task",
     Workspace: "default",
-    Instructions: []*xagentv1.Instruction{
+    Instructions: []*gritzv1.Instruction{
         {Text: "Do something", Url: "https://example.com"},
     },
 })
@@ -149,8 +149,8 @@ for i, inst := range req.Instructions {
 }
 
 // Store to proto (for responses)
-func taskToProto(t *store.Task) *xagentv1.Task {
-    return &xagentv1.Task{
+func taskToProto(t *store.Task) *gritzv1.Task {
+    return &gritzv1.Task{
         Id:        t.ID,
         Name:      t.Name,
         Status:    string(t.Status),
@@ -208,12 +208,12 @@ Connect RPC endpoints are accessible via HTTP POST with JSON:
 
 ```bash
 # List tasks
-curl -X POST http://localhost:6464/xagent.v1.XAgentService/ListTasks \
+curl -X POST http://localhost:6464/gritz.v1.GritzService/ListTasks \
   -H "Content-Type: application/json" \
   -d '{"statuses": ["pending", "running"]}'
 
 # Get task
-curl -X POST http://localhost:6464/xagent.v1.XAgentService/GetTask \
+curl -X POST http://localhost:6464/gritz.v1.GritzService/GetTask \
   -H "Content-Type: application/json" \
   -d '{"id": 123}'
 ```
@@ -227,13 +227,13 @@ URL pattern: `/{package}.{service}/{method}`
 Mock the client interface for testing:
 
 ```go
-//go:generate go tool moq -pkg mypackage -out client_moq_test.go ../xagentclient Client
+//go:generate go tool moq -pkg mypackage -out client_moq_test.go ../gritzclient Client
 
 func TestMyHandler(t *testing.T) {
     mockClient := &ClientMock{
-        GetTaskFunc: func(ctx context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-            return &xagentv1.GetTaskResponse{
-                Task: &xagentv1.Task{Id: req.Id, Name: "Test"},
+        GetTaskFunc: func(ctx context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+            return &gritzv1.GetTaskResponse{
+                Task: &gritzv1.Task{Id: req.Id, Name: "Test"},
             }, nil
         },
     }
@@ -286,7 +286,7 @@ if err != nil {
 
 ### Batch operations
 ```go
-func (s *Server) UploadLogs(ctx context.Context, req *xagentv1.UploadLogsRequest) (*xagentv1.UploadLogsResponse, error) {
+func (s *Server) UploadLogs(ctx context.Context, req *gritzv1.UploadLogsRequest) (*gritzv1.UploadLogsResponse, error) {
     for _, entry := range req.Entries {
         log := &model.Log{
             TaskID:  req.TaskId,
@@ -297,7 +297,7 @@ func (s *Server) UploadLogs(ctx context.Context, req *xagentv1.UploadLogsRequest
             return nil, connect.NewError(connect.CodeInternal, err)
         }
     }
-    return &xagentv1.UploadLogsResponse{}, nil
+    return &gritzv1.UploadLogsResponse{}, nil
 }
 ```
 
@@ -315,7 +315,7 @@ Import the generated method descriptor and use it with `useQuery` from `@connect
 
 ```tsx
 import { useQuery } from '@connectrpc/connect-query'
-import { listTasks } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { listTasks } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 
 function TaskList() {
   const { data, isLoading, error } = useQuery(listTasks, {
@@ -339,9 +339,9 @@ function TaskList() {
 
 ```tsx
 import { useMutation, useQueryClient } from '@connectrpc/connect-query'
-import { createTask, listTasks } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { createTask, listTasks } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { create } from '@bufbuild/protobuf'
-import { InstructionSchema } from '@/gen/xagent/v1/xagent_pb'
+import { InstructionSchema } from '@/gen/gritz/v1/gritz_pb'
 
 function CreateTaskButton() {
   const queryClient = useQueryClient()
@@ -384,10 +384,10 @@ const request = { id: task.id }  // OK - keeps bigint type
 
 ### TypeScript types
 
-The generated types are in `webui/src/gen/xagent/v1/xagent_pb.ts`:
+The generated types are in `webui/src/gen/gritz/v1/gritz_pb.ts`:
 
 ```tsx
-import type { Task, Event, TaskLink } from '@/gen/xagent/v1/xagent_pb'
+import type { Task, Event, TaskLink } from '@/gen/gritz/v1/gritz_pb'
 
 function TaskCard({ task }: { task: Task }) {
   return (

@@ -1,6 +1,6 @@
 # Run a Schedule Now (Manual Trigger)
 
-Issue: https://github.com/icholy/xagent/issues/1481
+Issue: https://github.com/icholy/gritz/issues/1481
 
 ## Problem
 
@@ -96,8 +96,8 @@ scheduled paths can't drift.
 
 ### API surface
 
-One new RPC on `XAgentService`, placed alongside the existing Schedule RPCs in
-`proto/xagent/v1/xagent.proto`:
+One new RPC on `GritzService`, placed alongside the existing Schedule RPCs in
+`proto/gritz/v1/gritz.proto`:
 
 ```proto
 rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
@@ -137,7 +137,7 @@ Because the manual path writes nothing back to the `schedules` row, the read nee
 transaction are the task and its events, both inside `scheduler.Fire`.
 
 ```go
-func (s *Server) RunSchedule(ctx context.Context, req *xagentv1.RunScheduleRequest) (*xagentv1.RunScheduleResponse, error) {
+func (s *Server) RunSchedule(ctx context.Context, req *gritzv1.RunScheduleRequest) (*gritzv1.RunScheduleResponse, error) {
     caller := apiauth.MustCaller(ctx)
     var (
         task *model.Task
@@ -186,7 +186,7 @@ func (s *Server) RunSchedule(ctx context.Context, req *xagentv1.RunScheduleReque
     // task. Fire built it with Runner set; stamp in the acting user for the SSE fan-out.
     note.UserID, note.ClientID = caller.ID, caller.ClientID
     s.publish(note)
-    return &xagentv1.RunScheduleResponse{Task: task.Proto(s.baseURL)}, nil
+    return &gritzv1.RunScheduleResponse{Task: task.Proto(s.baseURL)}, nil
 }
 ```
 

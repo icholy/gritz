@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icholy/xagent/internal/runner/backend"
-	"github.com/icholy/xagent/internal/runner/workspace"
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/runner/backend"
+	"github.com/icholy/gritz/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/x/sse"
 	"gotest.tools/v3/assert"
 )
 
@@ -48,10 +48,10 @@ func testSpec(taskID int64) *backend.Spec {
 		TaskID:    taskID,
 		Workspace: testWorkspace(),
 		Cmd:       []string{backend.BinaryPath, "driver", "--task", "1"},
-		Env:       []string{"XAGENT_TASK_ID=1"},
+		Env:       []string{"GRITZ_TASK_ID=1"},
 		Files: []backend.File{
-			{Path: "/tmp/xagent", Mode: 0777, Dir: true},
-			{Path: "/tmp/xagent/1.json", Data: []byte(`{"type":"claude"}`), Mode: 0666},
+			{Path: "/tmp/gritz", Mode: 0777, Dir: true},
+			{Path: "/tmp/gritz/1.json", Data: []byte(`{"type":"claude"}`), Mode: 0666},
 		},
 	}
 }
@@ -116,7 +116,7 @@ func TestLaunchFresh(t *testing.T) {
 	var b Bundle
 	assert.NilError(t, json.Unmarshal(raw, &b))
 	assert.DeepEqual(t, b.Cmd, testSpec(7).Cmd)
-	assert.DeepEqual(t, b.Env, []string{"FOO=bar", "XAGENT_TASK_ID=1"})
+	assert.DeepEqual(t, b.Env, []string{"FOO=bar", "GRITZ_TASK_ID=1"})
 	assert.Equal(t, len(b.Files), 2)
 }
 
@@ -238,7 +238,7 @@ func TestDestroyAbsentIsNoError(t *testing.T) {
 
 // --- Wait ---
 
-// sseTestServer serves /xagent/lifecycle, invoking handler with a per-connection
+// sseTestServer serves /gritz/lifecycle, invoking handler with a per-connection
 // counter so a test can drop the first connection and emit on the second.
 func sseTestServer(t *testing.T, handler func(conn int, sw *sse.ServerWriter, r *http.Request)) *httptest.Server {
 	t.Helper()

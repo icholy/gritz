@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/server/shellserver"
-	"github.com/icholy/xagent/internal/shell"
-	"github.com/icholy/xagent/internal/shell/shellwire"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/server/shellserver"
+	"github.com/icholy/gritz/internal/shell"
+	"github.com/icholy/gritz/internal/shell/shellwire"
 	"gotest.tools/v3/assert"
 )
 

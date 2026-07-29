@@ -1,6 +1,6 @@
 # Resume Setup From Failed Command
 
-Issue: https://github.com/icholy/xagent/issues/751
+Issue: https://github.com/icholy/gritz/issues/751
 
 ## Problem
 
@@ -26,7 +26,7 @@ if !cfg.Setup {
 }
 ```
 
-`cfg.Setup` is set to `true` **only** after every command in `cfg.Commands` returns zero. If command N fails, the flag stays `false` and the next run re-executes commands `0..N` from the top — re-running every already-succeeded, non-idempotent command. The failure trace in issue #751 (task 698) shows this exactly: run 1's `git clone` succeeded and `mise install` failed (transient 403); run 2's restart re-ran from index 0 and failed at `git clone` with `fatal: destination path 'xagent' already exists and is not an empty directory`. The real failure is never reached.
+`cfg.Setup` is set to `true` **only** after every command in `cfg.Commands` returns zero. If command N fails, the flag stays `false` and the next run re-executes commands `0..N` from the top — re-running every already-succeeded, non-idempotent command. The failure trace in issue #751 (task 698) shows this exactly: run 1's `git clone` succeeded and `mise install` failed (transient 403); run 2's restart re-ran from index 0 and failed at `git clone` with `fatal: destination path 'gritz' already exists and is not an empty directory`. The real failure is never reached.
 
 ## Design
 
@@ -34,7 +34,7 @@ if !cfg.Setup {
 
 Persist a per-command progress marker alongside the existing per-task config. Save it **after each successful command**, not just at the end. On (re)start, begin the loop at the saved resume point and skip already-completed commands. Set `cfg.Setup = true` only when the last command completes (unchanged semantics for the "fully done" state).
 
-The per-task config lives in the container's writable layer at `/tmp/xagent/<task-id>.json` (`internal/agent/config.go:13,68-70`) and is preserved across container restarts because a restart reuses the same container — see [Where progress is stored](#where-progress-is-stored) below. So the progress marker rides alongside the existing fields and survives exactly the same restart cycles that today's `cfg.Setup` survives.
+The per-task config lives in the container's writable layer at `/tmp/gritz/<task-id>.json` (`internal/agent/config.go:13,68-70`) and is preserved across container restarts because a restart reuses the same container — see [Where progress is stored](#where-progress-is-stored) below. So the progress marker rides alongside the existing fields and survives exactly the same restart cycles that today's `cfg.Setup` survives.
 
 ### Config schema
 
@@ -92,11 +92,11 @@ Key properties:
 
 ### Where progress is stored
 
-The progress marker rides in the same per-task JSON file (`/tmp/xagent/<task-id>.json`) that already carries `cfg.Setup`. A restart is a stop-and-start of the **same container**, not a removal — so the writable layer (including `/tmp/xagent/<task-id>.json`) survives:
+The progress marker rides in the same per-task JSON file (`/tmp/gritz/<task-id>.json`) that already carries `cfg.Setup`. A restart is a stop-and-start of the **same container**, not a removal — so the writable layer (including `/tmp/gritz/<task-id>.json`) survives:
 
 - `Runner.Kill` (`internal/runner/runner.go:348-382`) sends SIGTERM via `dockerx.ContainerKill` (`internal/x/dockerx/container.go:43-53`) and falls back to SIGKILL on timeout. Neither path calls `ContainerRemove`; the container is stopped, not deleted.
 - `Runner.Start` (`internal/runner/runner.go:482-518`) calls `r.find` first. On a hit (`ok == true`, line 489), it reuses the existing stopped container and just `ContainerStart`s it — no fresh `r.create`, no rewrite of the cfg.
-- `r.create` (`runner.go:384-480`) — the only path that writes a fresh cfg.json — runs **only** when `r.find` misses, i.e. when the container has been removed out-of-band (e.g. operator `docker rm xagent-<task-id>` or `Runner.Prune` of an archived task).
+- `r.create` (`runner.go:384-480`) — the only path that writes a fresh cfg.json — runs **only** when `r.find` misses, i.e. when the container has been removed out-of-band (e.g. operator `docker rm gritz-<task-id>` or `Runner.Prune` of an archived task).
 
 So #751's restart cycle is the container-reuse path: cfg.json persists, the workspace volume persists, and the resume index in `cfg.SetupCommandsCompleted` is exactly the right thing for the driver to pick up. The re-create branch is the genuinely-gone case where starting from `SetupCommandsCompleted: 0` is correct (because the cfg.json is freshly written by `r.create` with the zero value), so we don't need to handle it specially.
 

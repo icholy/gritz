@@ -12,7 +12,7 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"gotest.tools/v3/assert"
 
-	"github.com/icholy/xagent/internal/x/testx"
+	"github.com/icholy/gritz/internal/x/testx"
 )
 
 func TestOutbox_FIFO(t *testing.T) {

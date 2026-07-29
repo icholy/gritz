@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
-	"github.com/icholy/xagent/internal/x/testx"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
+	"github.com/icholy/gritz/internal/x/testx"
 	"gotest.tools/v3/assert"
 )
 
@@ -37,7 +37,7 @@ func TestLinkGitHubInstallation(t *testing.T) {
 	assert.NilError(t, srv.store.LinkGitHubAccount(t.Context(), nil, org.UserID, newGitHubUserID(), "owner"))
 	ctx := createCtx(t, org)
 
-	_, err := srv.LinkGitHubInstallation(ctx, &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(ctx, &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: installationID,
 	})
 	assert.NilError(t, err)
@@ -63,14 +63,14 @@ func TestLinkGitHubInstallation_Shared(t *testing.T) {
 
 	org1 := teststore.CreateOrg(t, srv.store, nil)
 	assert.NilError(t, srv.store.LinkGitHubAccount(t.Context(), nil, org1.UserID, newGitHubUserID(), "owner"))
-	_, err := srv.LinkGitHubInstallation(createCtx(t, org1), &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(createCtx(t, org1), &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: installationID,
 	})
 	assert.NilError(t, err)
 
 	org2 := teststore.CreateOrg(t, srv.store, nil)
 	assert.NilError(t, srv.store.LinkGitHubAccount(t.Context(), nil, org2.UserID, newGitHubUserID(), "owner"))
-	_, err = srv.LinkGitHubInstallation(createCtx(t, org2), &xagentv1.LinkGitHubInstallationRequest{
+	_, err = srv.LinkGitHubInstallation(createCtx(t, org2), &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: installationID,
 	})
 	assert.NilError(t, err)
@@ -93,7 +93,7 @@ func TestLinkGitHubInstallation_MissingID(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
 
-	_, err := srv.LinkGitHubInstallation(ctx, &xagentv1.LinkGitHubInstallationRequest{})
+	_, err := srv.LinkGitHubInstallation(ctx, &gritzv1.LinkGitHubInstallationRequest{})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 }
 
@@ -106,7 +106,7 @@ func TestLinkGitHubInstallation_Unauthenticated(t *testing.T) {
 		},
 	})
 
-	_, err := srv.LinkGitHubInstallation(context.Background(), &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(context.Background(), &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: newInstallationID(),
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeUnauthenticated)
@@ -119,7 +119,7 @@ func TestLinkGitHubInstallation_NotConfigured(t *testing.T) {
 	assert.NilError(t, srv.store.LinkGitHubAccount(t.Context(), nil, org.UserID, newGitHubUserID(), "owner"))
 	ctx := createCtx(t, org)
 
-	_, err := srv.LinkGitHubInstallation(ctx, &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(ctx, &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: newInstallationID(),
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeFailedPrecondition)
@@ -136,7 +136,7 @@ func TestLinkGitHubInstallation_NoLinkedGitHubAccount(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
 
-	_, err := srv.LinkGitHubInstallation(ctx, &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(ctx, &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: newInstallationID(),
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeFailedPrecondition)
@@ -157,7 +157,7 @@ func TestLinkGitHubInstallation_AccessDenied(t *testing.T) {
 	assert.NilError(t, srv.store.LinkGitHubAccount(t.Context(), nil, org.UserID, newGitHubUserID(), "owner"))
 	ctx := createCtx(t, org)
 
-	_, err := srv.LinkGitHubInstallation(ctx, &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(ctx, &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: newInstallationID(),
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
@@ -176,7 +176,7 @@ func TestCreateGitHubToken_Unimplemented(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateGitHubToken(ctx, &xagentv1.CreateGitHubTokenRequest{})
+	_, err := srv.CreateGitHubToken(ctx, &gritzv1.CreateGitHubTokenRequest{})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeUnimplemented)
 }
 
@@ -193,7 +193,7 @@ func TestStoreClearGitHubInstallation(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, nil)
 	assert.NilError(t, srv.store.LinkGitHubAccount(t.Context(), nil, org.UserID, newGitHubUserID(), "owner"))
 	ctx := createCtx(t, org)
-	_, err := srv.LinkGitHubInstallation(ctx, &xagentv1.LinkGitHubInstallationRequest{
+	_, err := srv.LinkGitHubInstallation(ctx, &gritzv1.LinkGitHubInstallationRequest{
 		InstallationId: installationID,
 	})
 	assert.NilError(t, err)

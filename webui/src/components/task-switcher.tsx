@@ -3,8 +3,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@connectrpc/connect-query'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { formatDistanceToNow } from 'date-fns'
-import { listTasks } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { Task } from '@/gen/xagent/v1/xagent_pb'
+import { listTasks } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { Task } from '@/gen/gritz/v1/gritz_pb'
 import {
   CommandDialog,
   CommandEmpty,

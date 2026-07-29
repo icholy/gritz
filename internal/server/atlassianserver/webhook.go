@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/x/atlassian"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/x/atlassian"
 )
 
 // WebhookHandler handles incoming Atlassian (Jira) webhook events.
@@ -82,7 +82,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// org can fire even when the actor is unlinked.
 	input.Orgs = []int64{orgID}
 
-	// Look up the xagent user by Atlassian account ID. A linked actor routes to
+	// Look up the gritz user by Atlassian account ID. A linked actor routes to
 	// their member orgs as before; an unlinked actor keeps an empty UserID and
 	// routes only via Public rules on input.Orgs.
 	user, err := h.Store.GetUserByAtlassianAccountID(r.Context(), nil, meta.AuthorAccountID)

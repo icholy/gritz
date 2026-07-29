@@ -1,7 +1,7 @@
 package githubserver
 
 import (
-	"github.com/icholy/xagent/internal/eventrouter"
+	"github.com/icholy/gritz/internal/eventrouter"
 )
 
 // init registers githubserver's schemas on the process-wide default registry.
@@ -27,7 +27,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Comment Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the comment text.",
 			},
 			{
@@ -58,7 +58,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Review Comment Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the inline review comment text.",
 			},
 			{
@@ -89,7 +89,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Review Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the review summary text.",
 			},
 			{
@@ -120,7 +120,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Issue Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the issue description text.",
 			},
 			{
@@ -151,7 +151,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "PR Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the pull request description text.",
 			},
 			{
@@ -182,7 +182,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "PR Description",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the description of the newly opened pull request.",
 			},
 			{
@@ -207,7 +207,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "PR Description",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the description of the closed pull request.",
 			},
 			{
@@ -238,7 +238,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Issue/PR Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the description of the labeled issue or PR.",
 			},
 			{
@@ -250,7 +250,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "label",
 				Label:       "Label",
-				Placeholder: "xagent",
+				Placeholder: "gritz",
 				Help:        "The label added to the issue or PR.",
 			},
 			{

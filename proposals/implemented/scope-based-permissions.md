@@ -1,10 +1,10 @@
 # Unified scope-based (capability) permission model
 
-Issue: https://github.com/icholy/xagent/issues/894
+Issue: https://github.com/icholy/gritz/issues/894
 
 ## Problem
 
-Authorization in xagent is split across two enforcement styles, and the server
+Authorization in gritz is split across two enforcement styles, and the server
 must know *which kind of caller* it is talking to before it can decide what that
 caller may do. There is still no single place that answers "is this caller
 allowed to do this?" for **API callers**, and no way to grant a user or API key
@@ -16,7 +16,7 @@ A generic scope-matching engine, `internal/auth/authscope`, is in the tree (it
 landed in PR #902). A caller holds an `authscope.Scopes` — a set of capability
 patterns — and `Scopes.Allow(op, attrs...)` decides a request. The **agent path
 already runs on it**: `internal/agentmcp.AgentFilter` implements
-`XAgentServiceHandler` and gates every agent RPC with `scopes.Allow(...)`,
+`GritzServiceHandler` and gates every agent RPC with `scopes.Allow(...)`,
 restricting an agent to its own task or, when the workspace enables it, its
 direct children. The task token carries those scopes in `TaskClaims.Scopes`
 (`internal/auth/agentauth/token.go`), minted by the runner from the workspace's
@@ -388,7 +388,7 @@ minter's responsibility and the handler stays domain-light.
 
 ### 7. RPC → required-permission mapping (API-caller surface)
 
-This section maps the **API-caller surface** of `XAgentService` — the methods as
+This section maps the **API-caller surface** of `GritzService` — the methods as
 called by users, `xat_` keys, app JWTs, and cookie sessions. The **agent-caller
 side is out of scope and unchanged**: `internal/agentmcp.AgentFilter`, the runner
 minter `agentauth.Scopes`, and the agent path's own-OR-child access via
@@ -574,7 +574,7 @@ Keeping state and role out of the grammar keeps `authscope` a pure function of
 data — no central interceptor and no RPC→target table:
 
 ```go
-func (s *Server) GetTask(ctx context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+func (s *Server) GetTask(ctx context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
     caller := apiauth.MustCaller(ctx)
     if !caller.Scopes.Allow(authscope.OpTaskRead, authscope.WithTaskID(req.Id)) {
         return nil, errPermissionDenied("cannot read task")
@@ -602,7 +602,7 @@ authorization next to the request fields it is built from.
 an interceptor there is no single chokepoint that fails closed on an unmapped
 method, so a newly added RPC that forgets its `Allow` ships **fail-open**
 (authorized for everyone). A required test closes that gap by enumerating every
-`XAgentService` method (via the generated service descriptor / handler interface)
+`GritzService` method (via the generated service descriptor / handler interface)
 and asserting, for each:
 
 1. **it performs a scope check** — a caller holding **empty scopes** is denied

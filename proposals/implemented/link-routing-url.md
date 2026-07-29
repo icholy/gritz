@@ -1,6 +1,6 @@
 # Link Routing URL
 
-Issue: https://github.com/icholy/xagent/issues/810
+Issue: https://github.com/icholy/gritz/issues/810
 
 ## Problem
 
@@ -61,7 +61,7 @@ Anything else: returned unchanged (matches by exact equality, as today).
 
 `routing_url` is **derived in the application/RPC layer, not in the store** — deriving it is domain logic, and the store should only persist what it is handed. So `store.CreateLink` / `store.CreateEvent` simply write the `RoutingURL` field as given.
 
-- **`xagent:create_link` (apiserver).** `Server.CreateLink` (`internal/server/apiserver/link.go`) sets the field when it builds the model:
+- **`gritz:create_link` (apiserver).** `Server.CreateLink` (`internal/server/apiserver/link.go`) sets the field when it builds the model:
 
   ```go
   link := &model.Link{
@@ -151,7 +151,7 @@ Only `task_links` gets the column. The existing `idx_task_links_url` / `idx_even
 Both lookups are dead code today and routing no longer needs them, so they are removed rather than carried forward:
 
 - **`FindEventsByURL`** (`store.FindEventsByURL` + the `event.sql` query) has no callers at all — no RPC, no CLI, no test.
-- **`FindLinksByURL`** has a store method, an `event`/`link.sql` query, an RPC (`FindLinksByURLRequest`/`Response` + the `apiserver` handler), and generated stubs — but nothing consumes the RPC (not the webui, the CLI, the n8n node, nor the `xagentclient` wrapper). Removing it also drops the `FindLinksByURL` RPC from `proto/xagent/v1/xagent.proto`.
+- **`FindLinksByURL`** has a store method, an `event`/`link.sql` query, an RPC (`FindLinksByURLRequest`/`Response` + the `apiserver` handler), and generated stubs — but nothing consumes the RPC (not the webui, the CLI, the n8n node, nor the `gritzclient` wrapper). Removing it also drops the `FindLinksByURL` RPC from `proto/gritz/v1/gritz.proto`.
 
 This leaves `FindSubscribedLinksForOrgs` (now matching on `routing_url`) as the only URL-based lookup, and removes the `idx_task_links_url` / `idx_events_url` indexes that backed the deleted queries.
 

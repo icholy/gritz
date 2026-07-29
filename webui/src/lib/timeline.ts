@@ -10,8 +10,8 @@
 //   report      -> Agent output (the report IS the agent's output)
 //   lifecycle   -> System
 //   link        -> Links
-import { LifecycleKind } from '@/gen/xagent/v1/xagent_pb'
-import type { Event, LifecyclePayload } from '@/gen/xagent/v1/xagent_pb'
+import { LifecycleKind } from '@/gen/gritz/v1/gritz_pb'
+import type { Event, LifecyclePayload } from '@/gen/gritz/v1/gritz_pb'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 
 // A coarse category for a lifecycle event, used only to pick an icon and tone.

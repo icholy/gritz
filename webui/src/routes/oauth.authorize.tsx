@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@connectrpc/connect-query'
-import { getProfile } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { getProfile } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useAuthTransport } from '@/lib/services'
 import { OAuthAuthorization } from '@/lib/oauth'
 import { useOrgId } from '@/hooks/use-org-id'

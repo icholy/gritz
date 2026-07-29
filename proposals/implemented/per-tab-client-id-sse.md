@@ -1,6 +1,6 @@
 # Per-Tab Client ID for SSE Notifications
 
-Issue: https://github.com/icholy/xagent/issues/529
+Issue: https://github.com/icholy/gritz/issues/529
 
 ## Problem
 
@@ -12,7 +12,7 @@ We need to identify the specific browser tab (not just the user) that originated
 
 ### 1. Client ID Generation (Frontend)
 
-Each tab generates a unique client ID using `crypto.randomUUID()` and stores it in `sessionStorage` under the key `xagent_client_id`.
+Each tab generates a unique client ID using `crypto.randomUUID()` and stores it in `sessionStorage` under the key `gritz_client_id`.
 
 **Why `sessionStorage` over in-memory:**
 - `sessionStorage` is scoped to a single tab and survives page refreshes within that tab.
@@ -24,10 +24,10 @@ Each tab generates a unique client ID using `crypto.randomUUID()` and stores it 
 
 ```typescript
 function getClientId(): string {
-  let clientId = sessionStorage.getItem("xagent_client_id");
+  let clientId = sessionStorage.getItem("gritz_client_id");
   if (!clientId) {
     clientId = crypto.randomUUID();
-    sessionStorage.setItem("xagent_client_id", clientId);
+    sessionStorage.setItem("gritz_client_id", clientId);
   }
   return clientId;
 }

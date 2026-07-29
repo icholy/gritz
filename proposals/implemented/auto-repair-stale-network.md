@@ -1,6 +1,6 @@
 # Auto-Repair Stale Container Network Attachment
 
-Issue: https://github.com/icholy/xagent/issues/661
+Issue: https://github.com/icholy/gritz/issues/661
 
 ## Problem
 
@@ -10,7 +10,7 @@ Starting an existing task container can fail with:
 failed to start container: Error response from daemon: failed to set up container networking: network <id> not found
 ```
 
-When the docker-compose stack is torn down and brought back up (`docker compose down && up`), the compose-managed network (e.g. `xagent-config_default`) is recreated and gets a **new** network ID. Any pre-existing `xagent-<task-id>` container still pins the **old** network ID in its `NetworkSettings.Networks[<name>].NetworkID`, even though the endpoint is keyed by network NAME. On the next `ContainerStart`, Docker tries to attach to the old ID, fails, and leaves the container in `Exited`. Every retry fails the same way until the container is manually removed — which throws away its logs and the files we copied into it at create time.
+When the docker-compose stack is torn down and brought back up (`docker compose down && up`), the compose-managed network (e.g. `gritz-config_default`) is recreated and gets a **new** network ID. Any pre-existing `gritz-<task-id>` container still pins the **old** network ID in its `NetworkSettings.Networks[<name>].NetworkID`, even though the endpoint is keyed by network NAME. On the next `ContainerStart`, Docker tries to attach to the old ID, fails, and leaves the container in `Exited`. Every retry fails the same way until the container is manually removed — which throws away its logs and the files we copied into it at create time.
 
 The runner today wraps the failure in `internal/runner/runner.go`:
 
@@ -124,7 +124,7 @@ func (r *Runner) Start(ctx context.Context, task *model.Task) error {
 
     var containerID string
     if ok {
-        r.log.Info("starting existing container", "task", task.ID, "name", fmt.Sprintf("xagent-%d", task.ID))
+        r.log.Info("starting existing container", "task", task.ID, "name", fmt.Sprintf("gritz-%d", task.ID))
         containerID = c.ID
 
         // Existing containers can have a stale network ID baked in after
@@ -170,7 +170,7 @@ Once we've detected the drift, two repair strategies are possible. The proposal 
 | Aspect | Reattach in place (proposed) | Remove and recreate |
 |---|---|---|
 | Container logs | Preserved | Lost |
-| Files copied at create (`/usr/local/bin/xagent`, agent config, prebuilt binary, directory perms — see `Runner.create` lines 451-456) | Preserved | Re-copied (extra work, ~5-30MB depending on prebuilt) |
+| Files copied at create (`/usr/local/bin/gritz`, agent config, prebuilt binary, directory perms — see `Runner.create` lines 451-456) | Preserved | Re-copied (extra work, ~5-30MB depending on prebuilt) |
 | New JWT minted? | No — existing token still valid | Yes — `r.proxy.TaskToken(task)` runs again |
 | Image pull if registry changed | No | Yes (`dockerx.ImageEnsure`) |
 | Concurrency cost | One disconnect + one connect per stale network (typically 1) | Full create path (create + copy files + start) |
@@ -204,7 +204,7 @@ If reattach itself fails (e.g. the network really is gone with no replacement) t
 
 - A `Warn` log when `RepairNetworks` returns a non-empty list (`repaired stale network attachments`) makes the repair visible in the runner logs without lifting it to `Error`. Should be rare in steady state; if it fires often it's an early signal of stack churn worth investigating.
 - No log on the happy path where `RepairNetworks` returns nothing.
-- No new metric is added in this proposal; if the repair turns out to fire often in production, adding a `xagent_runner_network_repairs_total` counter is a follow-up.
+- No new metric is added in this proposal; if the repair turns out to fire often in production, adding a `gritz_runner_network_repairs_total` counter is a follow-up.
 
 ### Tests
 

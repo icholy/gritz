@@ -1,10 +1,10 @@
 # Slack Integration
 
-Issue: https://github.com/icholy/xagent/issues/439
+Issue: https://github.com/icholy/gritz/issues/439
 
 ## Problem
 
-xagent has GitHub and Jira integrations that let users link their accounts and receive webhook events routed to tasks. There is no equivalent Slack integration. Users who coordinate work in Slack cannot receive notifications on their tasks when someone mentions xagent in a Slack channel or thread.
+gritz has GitHub and Jira integrations that let users link their accounts and receive webhook events routed to tasks. There is no equivalent Slack integration. Users who coordinate work in Slack cannot receive notifications on their tasks when someone mentions gritz in a Slack channel or thread.
 
 ## Design
 
@@ -20,7 +20,7 @@ Slack uses a single App with:
 - **Per-workspace bot tokens** issued when the app is installed to a Slack workspace
 - **Events API** delivering events to a single Request URL
 
-The signing secret is configured as a global server flag (same model as GitHub). The bot token from OAuth is stored per-org to map Slack workspaces to xagent orgs, but is not used by xagent itself — it exists only to establish the workspace-to-org mapping.
+The signing secret is configured as a global server flag (same model as GitHub). The bot token from OAuth is stored per-org to map Slack workspaces to gritz orgs, but is not used by gritz itself — it exists only to establish the workspace-to-org mapping.
 
 ### Database Migration
 
@@ -97,11 +97,11 @@ func (u *User) HasSlack() bool {
     return u.SlackUserID != ""
 }
 
-func (u *User) SlackAccountProto() *xagentv1.SlackAccount {
+func (u *User) SlackAccountProto() *gritzv1.SlackAccount {
     if !u.HasSlack() {
         return nil
     }
-    return &xagentv1.SlackAccount{
+    return &gritzv1.SlackAccount{
         SlackUserId: u.SlackUserID,
         CreatedAt:   timestamppb.New(u.CreatedAt),
     }
@@ -110,10 +110,10 @@ func (u *User) SlackAccountProto() *xagentv1.SlackAccount {
 
 ### Proto Definitions
 
-Add to `proto/xagent/v1/xagent.proto`:
+Add to `proto/gritz/v1/gritz.proto`:
 
 ```protobuf
-// In service XAgentService:
+// In service GritzService:
 rpc GetSlackAccount(GetSlackAccountRequest) returns (GetSlackAccountResponse);
 rpc UnlinkSlackAccount(UnlinkSlackAccountRequest) returns (UnlinkSlackAccountResponse);
 rpc GetSlackInstallation(GetSlackInstallationRequest) returns (GetSlackInstallationResponse);
@@ -174,7 +174,7 @@ Key differences from `ghauth`:
 - **OAuth endpoint:** `https://slack.com/oauth/v2/authorize` / `https://slack.com/api/oauth.v2.access`
 - **Scopes (bot):** `app_mentions:read`, `channels:history`
 - **User scopes:** None required (user identity comes from the `authed_user` field in the OAuth response)
-- **State cookie:** `xagent_slack_state` (same TTL and security flags as GitHub)
+- **State cookie:** `gritz_slack_state` (same TTL and security flags as GitHub)
 - **Routes:** `/login` and `/callback` (mounted at `/slack/`)
 - **Token response:** Slack's `oauth.v2.access` returns `team.id` and `authed_user.id` in a single response — no separate user fetch needed
 
@@ -219,7 +219,7 @@ if payload.Type == "url_verification" {
 1. Verify request signature
 2. Parse the outer envelope (`type`, `team_id`, `event`)
 3. Extract inner event (see supported events below)
-4. Enforce `xagent:` prefix on message text (same pattern as GitHub)
+4. Enforce `gritz:` prefix on message text (same pattern as GitHub)
 5. Look up user by `slack_user_id` using `GetUserBySlackUserID`
 6. If not found, ignore (user hasn't linked their Slack account)
 7. Call `findLinksByOrg()` to find matching notify links
@@ -227,8 +227,8 @@ if payload.Type == "url_verification" {
 
 **Supported Slack event types:**
 
-- `app_mention` — Someone mentioned @xagent in a channel. Extract `user` (Slack user ID), `text` (message body), and `channel` (channel ID). Construct the URL as `https://slack.com/archives/{channel}/p{ts}` (Slack message permalink format).
-- `message` (in threads only) — A reply in a thread where xagent was previously mentioned. Extract the same fields plus `thread_ts`.
+- `app_mention` — Someone mentioned @gritz in a channel. Extract `user` (Slack user ID), `text` (message body), and `channel` (channel ID). Construct the URL as `https://slack.com/archives/{channel}/p{ts}` (Slack message permalink format).
+- `message` (in threads only) — A reply in a thread where gritz was previously mentioned. Extract the same fields plus `thread_ts`.
 
 The `extractSlackEvent` function:
 
@@ -253,17 +253,17 @@ Add to `internal/command/server.go`:
 &cli.StringFlag{
     Name:    "slack-client-id",
     Usage:   "Slack App OAuth client ID",
-    Sources: cli.EnvVars("XAGENT_SLACK_CLIENT_ID"),
+    Sources: cli.EnvVars("GRITZ_SLACK_CLIENT_ID"),
 },
 &cli.StringFlag{
     Name:    "slack-client-secret",
     Usage:   "Slack App OAuth client secret",
-    Sources: cli.EnvVars("XAGENT_SLACK_CLIENT_SECRET"),
+    Sources: cli.EnvVars("GRITZ_SLACK_CLIENT_SECRET"),
 },
 &cli.StringFlag{
     Name:    "slack-signing-secret",
     Usage:   "Slack App signing secret (for webhook verification)",
-    Sources: cli.EnvVars("XAGENT_SLACK_SIGNING_SECRET"),
+    Sources: cli.EnvVars("GRITZ_SLACK_SIGNING_SECRET"),
 },
 ```
 
@@ -345,7 +345,7 @@ The alternative — supporting multiple Slack apps (one per org) — adds comple
 
 ### No built-in outbound messaging
 
-This proposal only handles inbound events (Slack to xagent). Outbound messaging (xagent to Slack) is left to workspace configuration — workspaces can add a Slack MCP server to give agents the ability to post messages. This keeps the server-side integration focused on the same concern as GitHub and Jira: routing external events to tasks via the link/event system.
+This proposal only handles inbound events (Slack to gritz). Outbound messaging (gritz to Slack) is left to workspace configuration — workspaces can add a Slack MCP server to give agents the ability to post messages. This keeps the server-side integration focused on the same concern as GitHub and Jira: routing external events to tasks via the link/event system.
 
 ### Event URL construction
 
@@ -355,12 +355,12 @@ An alternative is to call the `chat.getPermalink` API for each event, but this a
 
 ### Bot token not stored
 
-Since outbound messaging is handled by workspace MCP servers rather than the xagent server, there's no need to store the Slack bot token. The OAuth flow only needs the `team.id` (to map workspace to org) and `authed_user.id` (to link the user). The bot token from the OAuth response is discarded.
+Since outbound messaging is handled by workspace MCP servers rather than the gritz server, there's no need to store the Slack bot token. The OAuth flow only needs the `team.id` (to map workspace to org) and `authed_user.id` (to link the user). The bot token from the OAuth response is discarded.
 
 ## Open Questions
 
 1. **Slack user display name:** Should we cache the Slack display name on the user record (like `github_username`)? This would require parsing the OAuth response for additional user info.
 
-2. **Channel-level links vs message-level links:** Should tasks be linkable to entire channels (receive all `xagent:` prefixed messages in a channel) or only to specific message threads? Channel-level links would be simpler for users but noisier. Message-level links require the agent to already have a Slack permalink to link to.
+2. **Channel-level links vs message-level links:** Should tasks be linkable to entire channels (receive all `gritz:` prefixed messages in a channel) or only to specific message threads? Channel-level links would be simpler for users but noisier. Message-level links require the agent to already have a Slack permalink to link to.
 
 3. **Multiple workspace support:** Can a single org be connected to multiple Slack workspaces? The current design stores one `slack_team_id` per org. Supporting multiple workspaces would require a separate table.

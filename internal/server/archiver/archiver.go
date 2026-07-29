@@ -16,9 +16,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/store"
 )
 
 // DefaultInterval is how often the archiver tick fires when no override is set.

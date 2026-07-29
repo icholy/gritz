@@ -5,7 +5,7 @@ import { ConnectError, Code } from '@connectrpc/connect'
 import {
   getProfile,
   linkGitHubInstallation,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useOrgId } from '@/hooks/use-org-id'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

@@ -1,6 +1,6 @@
 # Run-Scoped Runner Events with Explicit Rejection
 
-Issue: https://github.com/icholy/xagent/issues/1052
+Issue: https://github.com/icholy/gritz/issues/1052
 
 > **Status: rejected.** The useful pieces landed through other proposals: §4's
 > version realignment via `task-run-versions.md` (PR #1293, in amended form —

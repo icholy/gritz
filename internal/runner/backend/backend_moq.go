@@ -5,7 +5,7 @@ package backend
 
 import (
 	"context"
-	"github.com/icholy/xagent/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/runner/workspace"
 	"sync"
 )
 

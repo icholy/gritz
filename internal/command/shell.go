@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/icholy/xagent/internal/configfile"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/shell"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/configfile"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/shell"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -28,8 +28,8 @@ var ShellCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
-			Sources: cli.EnvVars("XAGENT_SERVER"),
+			Value:   gritzclient.DefaultURL,
+			Sources: cli.EnvVars("GRITZ_SERVER"),
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -52,8 +52,8 @@ var ShellCommand = &cli.Command{
 
 		// Ask the server to open a shell session for the task. The org is derived
 		// from the token claims server-side; the operator leg is Bearer-only.
-		client := xagentclient.New(xagentclient.Options{BaseURL: serverURL, Token: cfg.Token})
-		resp, err := client.OpenShell(ctx, &xagentv1.OpenShellRequest{TaskId: taskID})
+		client := gritzclient.New(gritzclient.Options{BaseURL: serverURL, Token: cfg.Token})
+		resp, err := client.OpenShell(ctx, &gritzv1.OpenShellRequest{TaskId: taskID})
 		if err != nil {
 			return fmt.Errorf("failed to open shell: %w", err)
 		}

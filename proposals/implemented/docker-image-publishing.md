@@ -4,7 +4,7 @@ Issue: #399
 
 ## Problem
 
-The xagent server and runner have no published Docker images. The server is deployed to Fly.io via `fly deploy` (which builds locally from the Dockerfile), and the runner runs as a bare binary on the host. There is no way to pull a pre-built image from a registry.
+The gritz server and runner have no published Docker images. The server is deployed to Fly.io via `fly deploy` (which builds locally from the Dockerfile), and the runner runs as a bare binary on the host. There is no way to pull a pre-built image from a registry.
 
 Publishing images would allow deployment to any container platform and simplify running the runner in a containerized environment.
 
@@ -12,17 +12,17 @@ Publishing images would allow deployment to any container platform and simplify 
 
 ### Single Multi-Arch Image
 
-Since the server and runner are the same Go binary (different subcommands), publish a single image: `ghcr.io/icholy/xagent`.
+Since the server and runner are the same Go binary (different subcommands), publish a single image: `ghcr.io/icholy/gritz`.
 
 The image contains:
-- The `xagent` binary (statically linked, `CGO_ENABLED=0`)
-- Prebuilt binaries in `/app/prebuilt/` (`xagent-linux-amd64`, `xagent-linux-arm64`)
+- The `gritz` binary (statically linked, `CGO_ENABLED=0`)
+- Prebuilt binaries in `/app/prebuilt/` (`gritz-linux-amd64`, `gritz-linux-arm64`)
 - The embedded web UI (built into the binary)
 
 Usage:
 ```
-docker run ghcr.io/icholy/xagent server [flags]
-docker run -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/icholy/xagent runner [flags]
+docker run ghcr.io/icholy/gritz server [flags]
+docker run -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/icholy/gritz runner [flags]
 ```
 
 ### Dockerfile Changes
@@ -50,32 +50,32 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=webui /app/internal/server/webui ./internal/server/webui
-RUN CGO_ENABLED=0 go build -o xagent ./cmd/xagent
+RUN CGO_ENABLED=0 go build -o gritz ./cmd/gritz
 RUN mkdir -p prebuilt \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o prebuilt/xagent-linux-amd64 ./cmd/xagent \
-    && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o prebuilt/xagent-linux-arm64 ./cmd/xagent
+    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o prebuilt/gritz-linux-amd64 ./cmd/gritz \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o prebuilt/gritz-linux-arm64 ./cmd/gritz
 
 # Runtime
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
-COPY --from=builder /app/xagent .
+COPY --from=builder /app/gritz .
 COPY --from=builder /app/prebuilt ./prebuilt
-ENV XAGENT_PREBUILT_DIR=/app/prebuilt
+ENV GRITZ_PREBUILT_DIR=/app/prebuilt
 EXPOSE 6464
-ENTRYPOINT ["./xagent"]
+ENTRYPOINT ["./gritz"]
 CMD ["server"]
 ```
 
 Key changes from current Dockerfile:
 - Removed `gcc musl-dev` (no CGO)
 - Added cross-compilation of prebuilt binaries
-- Set `XAGENT_PREBUILT_DIR=/app/prebuilt` so the runner finds them without config
-- `ENTRYPOINT ["./xagent"]` + `CMD ["server"]` so `docker run <image> runner` works
+- Set `GRITZ_PREBUILT_DIR=/app/prebuilt` so the runner finds them without config
+- `ENTRYPOINT ["./gritz"]` + `CMD ["server"]` so `docker run <image> runner` works
 
 ### Prebuilt Binary Self-Reference
 
-When the image runs on `linux/amd64`, the `ReadBinary("amd64")` path in `internal/prebuilt/prebuilt.go` would use the running binary itself (the self-copy optimization at line 56). This works but means the runner would read its own executable into memory instead of using the prebuilt file on disk. Setting `XAGENT_PREBUILT_DIR` ensures the prebuilt files are found first via `BinaryPath()`, but `ReadBinary()` checks the self-copy path before consulting `BinaryPath()`. This is fine -- it's functionally equivalent -- but worth noting.
+When the image runs on `linux/amd64`, the `ReadBinary("amd64")` path in `internal/prebuilt/prebuilt.go` would use the running binary itself (the self-copy optimization at line 56). This works but means the runner would read its own executable into memory instead of using the prebuilt file on disk. Setting `GRITZ_PREBUILT_DIR` ensures the prebuilt files are found first via `BinaryPath()`, but `ReadBinary()` checks the self-copy path before consulting `BinaryPath()`. This is fine -- it's functionally equivalent -- but worth noting.
 
 ### GitHub Actions Workflow
 
@@ -116,8 +116,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/icholy/xagent:latest
-            ghcr.io/icholy/xagent:${{ steps.version.outputs.version }}
+            ghcr.io/icholy/gritz:latest
+            ghcr.io/icholy/gritz:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 ```
@@ -132,7 +132,7 @@ Alternatively, `fly.toml` could be updated to pull the published image instead o
 
 ```toml
 [build]
-  image = "ghcr.io/icholy/xagent:latest"
+  image = "ghcr.io/icholy/gritz:latest"
 ```
 
 This would remove the build step from `fly deploy` and use the CI-built image directly. This is optional and can be done separately.
@@ -144,7 +144,7 @@ Update the existing compose file to use the published image as an alternative to
 ```yaml
 services:
   server:
-    image: ghcr.io/icholy/xagent:latest
+    image: ghcr.io/icholy/gritz:latest
     command: ["server", "--no-auth"]
     # ... rest unchanged
 ```

@@ -5,12 +5,12 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
-func (s *Server) LinkGitHubInstallation(ctx context.Context, req *xagentv1.LinkGitHubInstallationRequest) (*xagentv1.LinkGitHubInstallationResponse, error) {
+func (s *Server) LinkGitHubInstallation(ctx context.Context, req *gritzv1.LinkGitHubInstallationRequest) (*gritzv1.LinkGitHubInstallationResponse, error) {
 	caller := apiauth.Caller(ctx)
 	if caller == nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("not authenticated"))
@@ -45,13 +45,13 @@ func (s *Server) LinkGitHubInstallation(ctx context.Context, req *xagentv1.LinkG
 	s.log.InfoContext(ctx, "github installation linked",
 		"installation_id", req.InstallationId,
 		"user_id", caller.ID)
-	return &xagentv1.LinkGitHubInstallationResponse{}, nil
+	return &gritzv1.LinkGitHubInstallationResponse{}, nil
 }
 
 // CreateGitHubToken is intentionally not implemented on the server. Minting
-// installation tokens from the xagent GitHub App granted runners too much
+// installation tokens from the gritz GitHub App granted runners too much
 // access to someone else's app, so the real implementation now lives in the
 // runner proxy using user-owned credentials. See issue #806.
-func (s *Server) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+func (s *Server) CreateGitHubToken(ctx context.Context, req *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("CreateGitHubToken is not implemented on the server; use the runner proxy"))
 }

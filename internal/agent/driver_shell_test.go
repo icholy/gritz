@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/server/shellserver"
-	"github.com/icholy/xagent/internal/shell/shellwire"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/server/shellserver"
+	"github.com/icholy/gritz/internal/shell/shellwire"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"gotest.tools/v3/assert"
 )
 
@@ -40,14 +40,14 @@ func TestRun_ForksIntoShell(t *testing.T) {
 	assert.NilError(t, reg.Seed("s1", 1, 1))
 
 	// A driver whose task carries the shell_session, pointed at the relay.
-	mock := &xagentclient.ClientMock{
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-			return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, ShellSession: "s1"}}, nil
+	mock := &gritzclient.ClientMock{
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+			return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, ShellSession: "s1"}}, nil
 		},
 	}
 	d := &Driver{TaskID: 1, Client: mock, Log: DiscardDriverLog, ServerURL: srv.URL, Token: "t"}
 
-	task := &xagentv1.Task{Id: 1, ShellSession: "s1"}
+	task := &gritzv1.Task{Id: 1, ShellSession: "s1"}
 	runErr := make(chan error, 1)
 	go func() { runErr <- d.run(t.Context(), task) }()
 

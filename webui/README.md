@@ -1,6 +1,6 @@
-# XAgent UI v2
+# Gritz UI v2
 
-Modern React + TypeScript + Vite + shadcn/ui frontend for XAgent.
+Modern React + TypeScript + Vite + shadcn/ui frontend for Gritz.
 
 ## Development
 

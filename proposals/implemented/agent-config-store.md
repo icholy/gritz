@@ -1,6 +1,6 @@
 # Inject the Agent Config Location via a `ConfigStore`
 
-Issue: https://github.com/icholy/xagent/issues/1301
+Issue: https://github.com/icholy/gritz/issues/1301
 
 ## Problem
 
@@ -8,11 +8,11 @@ Issue: https://github.com/icholy/xagent/issues/1301
 package-level variable:
 
 ```go
-var ConfigDir = "/tmp/xagent"
+var ConfigDir = "/tmp/gritz"
 ```
 
 `ConfigPath`, `LoadConfig`, and `SaveConfig` all read this global to derive the
-per-task path `"/tmp/xagent/{taskID}.json"`. Because the location is a mutable
+per-task path `"/tmp/gritz/{taskID}.json"`. Because the location is a mutable
 global, `setupDriver` in `internal/agent/driver_test.go` overrides it and
 restores it on cleanup:
 
@@ -56,7 +56,7 @@ Two constraints shape the fix:
      path via `LoadConfig`/`SaveConfig`.
 
    The two processes never share a live variable — they agree by both defaulting
-   to `/tmp/xagent`. Any fix must preserve that agreement: it is a fixed
+   to `/tmp/gritz`. Any fix must preserve that agreement: it is a fixed
    convention, not per-run runtime state to be threaded across the boundary.
 
 The only agent-package callers of `ConfigPath`/`LoadConfig`/`SaveConfig` are
@@ -80,7 +80,7 @@ In `internal/agent/config.go`:
 // runner writes the file into the sandbox here and the driver reads and
 // rewrites it here; it is a fixed convention shared across the runner/driver
 // boundary, not runtime state.
-const DefaultConfigDir = "/tmp/xagent"
+const DefaultConfigDir = "/tmp/gritz"
 
 // ConfigStore reads and writes the per-task config file rooted at Dir.
 type ConfigStore struct {
@@ -115,7 +115,7 @@ Add a field to `Driver` (`internal/agent/driver.go`):
 ```go
 type Driver struct {
     TaskID int64
-    Client xagentclient.Client
+    Client gritzclient.Client
     Log    *slog.Logger
     Config ConfigStore // where the task config file lives
     // ...ServerURL, Token unchanged...
@@ -141,7 +141,7 @@ per-command `Save` in `setup`, and the final `Save` in `runAgent`.
 ```go
 driver := &agent.Driver{
     TaskID: cmd.Int64("task"),
-    Client: xagentclient.New(/* ... */),
+    Client: gritzclient.New(/* ... */),
     Log:    slog.Default(),
     Config: agent.NewConfigStore(),
     // ...
@@ -186,11 +186,11 @@ this change rather than porting a dead method onto the store.
 `setupDriver` injects a per-test store and drops the global save/restore:
 
 ```go
-func setupDriver(t *testing.T, cfg *Config) (*Driver, *xagentclient.ClientMock) {
+func setupDriver(t *testing.T, cfg *Config) (*Driver, *gritzclient.ClientMock) {
     t.Helper()
     store := ConfigStore{Dir: t.TempDir()}
     assert.NilError(t, store.Save(1, cfg))
-    mock := &xagentclient.ClientMock{ /* unchanged */ }
+    mock := &gritzclient.ClientMock{ /* unchanged */ }
     return &Driver{TaskID: 1, Client: mock, Log: slog.Default(), Config: store}, mock
 }
 ```
@@ -227,7 +227,7 @@ change in the same PR.
 3. **Runner names the path via the store.** Delivers: `runner.go` using
    `agent.NewConfigStore().Path(task.ID)` instead of `agent.ConfigPath(task.ID)`
    for the two `backend.File` entries. Depends on: (1). Verifiable by: a runner
-   spec test asserts the two `Files` paths are `/tmp/xagent/{id}.json` and its
+   spec test asserts the two `Files` paths are `/tmp/gritz/{id}.json` and its
    parent dir — unchanged from today.
 
 4. **Remove the global and dead code.** Delivers: deletion of `var ConfigDir`,

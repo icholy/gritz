@@ -3,7 +3,7 @@ import { Archive, ArchiveRestore, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { autoArchiveDeadline, canArchiveTask, canUnarchiveTask } from '@/lib/task'
 import { formatCountdown } from '@/lib/duration'
-import type { Task } from '@/gen/xagent/v1/xagent_pb'
+import type { Task } from '@/gen/gritz/v1/gritz_pb'
 
 type ArchiveTask = Pick<Task, 'status' | 'actions' | 'archived' | 'autoArchive' | 'updatedAt'>
 

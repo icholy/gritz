@@ -1,6 +1,6 @@
 FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
-COPY xagent ./xagent
+COPY gritz ./gritz
 EXPOSE 6464
-CMD ["./xagent", "server"]
+CMD ["./gritz", "server"]

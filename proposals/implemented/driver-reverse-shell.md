@@ -1,11 +1,11 @@
 # Driver reverse shell
 
-Issue: https://github.com/icholy/xagent/issues/1110
+Issue: https://github.com/icholy/gritz/issues/1110
 
 ## Problem
 
-`xagent shell` talks directly to the local Docker daemon: it finds the task's
-container by the `xagent.task=<id>` label and `docker exec -it`
+`gritz shell` talks directly to the local Docker daemon: it finds the task's
+container by the `gritz.task=<id>` label and `docker exec -it`
 (`internal/command/shell.go`). That assumes the CLI runs on the same host as the
 daemon, the Docker naming/label convention, and a single backend. None of that
 survives hosted/remote runners or non-Docker backends (Lambda MicroVMs today,
@@ -48,7 +48,7 @@ the command is already gone.
 So commands stay exactly as they are (runner-only lifecycle), and we add a
 separate, persistent, nullable field the runner never touches:
 
-Proto (`proto/xagent/v1/xagent.proto`, `Task` message, next free field is 16):
+Proto (`proto/gritz/v1/gritz.proto`, `Task` message, next free field is 16):
 
 ```proto
 message Task {
@@ -187,7 +187,7 @@ parse it): **binary** WS frames, `[1-byte type][payload]`:
 - `0x03 ping`   — keepalive
 
 The subprotocol negotiates a version only:
-`Sec-WebSocket-Protocol: xagent-shell.v1`. Operator-leg auth is a Bearer token on
+`Sec-WebSocket-Protocol: gritz-shell.v1`. Operator-leg auth is a Bearer token on
 the request, not the subprotocol.
 
 Both legs use `github.com/coder/websocket`. The session registry is in-memory,
@@ -197,7 +197,7 @@ and when the server is horizontally scaled.
 
 ### CLI
 
-`xagent shell <task>` is reimplemented against the server: call `OpenShell`, connect
+`gritz shell <task>` is reimplemented against the server: call `OpenShell`, connect
 the `/attach` WebSocket, put the local terminal in raw mode, and pump frames. The
 Docker-direct implementation in `internal/command/shell.go` is removed. Result:
 one command that works for every backend and for remote runners.
@@ -230,7 +230,7 @@ v1 is CLI-only and authenticates the attach leg with a Bearer token. The wire
 contract is deliberately frozen so the browser can be added later as just another
 client: WS both legs, **binary** frames (terminal output isn't UTF-8-safe),
 language-neutral `[type][payload]` framing (no Go-specific codec), versioned
-`xagent-shell.v1`, and a relay/driver that never know who is attached. The
+`gritz-shell.v1`, and a relay/driver that never know who is attached. The
 browser's one wrinkle — it can't set an `Authorization` header on a WebSocket —
 has a known solution (cookie auth plus an org query parameter, as other endpoints
 already do), so the web terminal stays a straightforward later addition rather

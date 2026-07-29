@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -54,8 +54,8 @@ type CreateTaskAction struct {
 }
 
 // Proto converts a CreateTaskAction to its protobuf representation.
-func (a *CreateTaskAction) Proto() *xagentv1.CreateTaskAction {
-	return &xagentv1.CreateTaskAction{
+func (a *CreateTaskAction) Proto() *gritzv1.CreateTaskAction {
+	return &gritzv1.CreateTaskAction{
 		Workspace:   a.Workspace,
 		Runner:      a.Runner,
 		Prompt:      a.Prompt,
@@ -64,7 +64,7 @@ func (a *CreateTaskAction) Proto() *xagentv1.CreateTaskAction {
 }
 
 // CreateTaskActionFromProto converts a protobuf CreateTaskAction to the model type.
-func CreateTaskActionFromProto(pb *xagentv1.CreateTaskAction) *CreateTaskAction {
+func CreateTaskActionFromProto(pb *gritzv1.CreateTaskAction) *CreateTaskAction {
 	if pb == nil {
 		return nil
 	}
@@ -77,8 +77,8 @@ func CreateTaskActionFromProto(pb *xagentv1.CreateTaskAction) *CreateTaskAction 
 }
 
 // Proto converts a RoutingRule to its protobuf representation.
-func (r *RoutingRule) Proto() *xagentv1.RoutingRule {
-	pb := &xagentv1.RoutingRule{
+func (r *RoutingRule) Proto() *gritzv1.RoutingRule {
+	pb := &gritzv1.RoutingRule{
 		Source:    r.Source,
 		Type:      r.Type,
 		Wakeup:    r.Wakeup,
@@ -86,7 +86,7 @@ func (r *RoutingRule) Proto() *xagentv1.RoutingRule {
 		Namespace: r.Namespace,
 	}
 	for _, c := range r.Conditions {
-		pb.Conditions = append(pb.Conditions, &xagentv1.RuleCondition{
+		pb.Conditions = append(pb.Conditions, &gritzv1.RuleCondition{
 			Attr:  c.Attr,
 			Op:    c.Op,
 			Value: c.Value,
@@ -99,7 +99,7 @@ func (r *RoutingRule) Proto() *xagentv1.RoutingRule {
 }
 
 // RoutingRuleFromProto converts a protobuf RoutingRule to the model type.
-func RoutingRuleFromProto(pb *xagentv1.RoutingRule) RoutingRule {
+func RoutingRuleFromProto(pb *gritzv1.RoutingRule) RoutingRule {
 	rule := RoutingRule{
 		Source:    pb.Source,
 		Type:      pb.Type,

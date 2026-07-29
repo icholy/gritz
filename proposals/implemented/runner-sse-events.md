@@ -1,6 +1,6 @@
 # Runner SSE Subscription Instead of Polling
 
-Issue: https://github.com/icholy/xagent/issues/527
+Issue: https://github.com/icholy/gritz/issues/527
 
 ## Problem
 

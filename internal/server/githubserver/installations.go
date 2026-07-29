@@ -9,7 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/go-github/v88/github"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 )
 
 // VerifyInstallationAccess returns nil if the user is allowed to link the given

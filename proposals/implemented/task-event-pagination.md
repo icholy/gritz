@@ -1,6 +1,6 @@
 # Task Event Pagination
 
-Issue: https://github.com/icholy/xagent/issues/1325
+Issue: https://github.com/icholy/gritz/issues/1325
 
 ## Problem
 
@@ -96,7 +96,7 @@ both the forward and backward range scans, so **no new migration is required**.
 
 ### 1. Proto Definitions
 
-`proto/xagent/v1/xagent.proto` — extend the existing request/response. `task_id` stays field 1;
+`proto/gritz/v1/gritz.proto` — extend the existing request/response. `task_id` stays field 1;
 the pagination fields are additive, so existing callers are unaffected (see
 [Backward compatibility](#7-backward-compatibility)):
 
@@ -383,7 +383,7 @@ opted into pagination. `page_size == 0 && page_token == ""` preserves today's be
 events, ascending, no tokens); otherwise serve a bidirectional page.
 
 ```go
-func (s *Server) ListEventsByTask(ctx context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
+func (s *Server) ListEventsByTask(ctx context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
     caller := apiauth.MustCaller(ctx)
     // ... unchanged scope / instance checks ...
 
@@ -393,7 +393,7 @@ func (s *Server) ListEventsByTask(ctx context.Context, req *xagentv1.ListEventsB
         if err != nil {
             return nil, connect.NewError(connect.CodeInternal, err)
         }
-        return &xagentv1.ListEventsByTaskResponse{Events: model.ProtoMap(events)}, nil
+        return &gritzv1.ListEventsByTaskResponse{Events: model.ProtoMap(events)}, nil
     }
 
     // Paged path: bidirectional keyset page (empty token → newest page).
@@ -412,7 +412,7 @@ func (s *Server) ListEventsByTask(ctx context.Context, req *xagentv1.ListEventsB
     }
     // The primary (forward) walk goes toward older rows, so it is the timeline's
     // "previous" page; the reverse (backward) walk is the newer/live-follow "next".
-    return &xagentv1.ListEventsByTaskResponse{
+    return &gritzv1.ListEventsByTaskResponse{
         Events:        model.ProtoMap(page.Items),
         PrevPageToken: page.ForwardToken,
         NextPageToken: page.BackwardToken,

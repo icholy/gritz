@@ -61,40 +61,40 @@ func TestAddedLabels(t *testing.T) {
 			payload: WebhookPayload{
 				Changelog: &Changelog{
 					Items: []ChangelogItem{
-						{Field: "labels", FromString: "", ToString: "xagent"},
+						{Field: "labels", FromString: "", ToString: "gritz"},
 					},
 				},
 			},
-			expected: []string{"xagent"},
+			expected: []string{"gritz"},
 		},
 		{
 			name: "LabelAddedToExisting",
 			payload: WebhookPayload{
 				Changelog: &Changelog{
 					Items: []ChangelogItem{
-						{Field: "labels", FromString: "bug urgent", ToString: "bug urgent xagent"},
+						{Field: "labels", FromString: "bug urgent", ToString: "bug urgent gritz"},
 					},
 				},
 			},
-			expected: []string{"xagent"},
+			expected: []string{"gritz"},
 		},
 		{
 			name: "MultipleLabelsAdded",
 			payload: WebhookPayload{
 				Changelog: &Changelog{
 					Items: []ChangelogItem{
-						{Field: "labels", FromString: "bug", ToString: "bug xagent urgent"},
+						{Field: "labels", FromString: "bug", ToString: "bug gritz urgent"},
 					},
 				},
 			},
-			expected: []string{"xagent", "urgent"},
+			expected: []string{"gritz", "urgent"},
 		},
 		{
 			name: "LabelRemovedOnly",
 			payload: WebhookPayload{
 				Changelog: &Changelog{
 					Items: []ChangelogItem{
-						{Field: "labels", FromString: "bug xagent", ToString: "bug"},
+						{Field: "labels", FromString: "bug gritz", ToString: "bug"},
 					},
 				},
 			},

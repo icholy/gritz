@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@connectrpc/connect-query'
-import { getEvent } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { getEvent } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { RelativeTime } from '@/components/relative-time'
 import { useOrgId } from '@/hooks/use-org-id'

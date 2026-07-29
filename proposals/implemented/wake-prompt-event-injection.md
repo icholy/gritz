@@ -1,6 +1,6 @@
 # Inject New Events Into the Wake Prompt via a Saved Cursor
 
-Issue: https://github.com/icholy/xagent/issues/946
+Issue: https://github.com/icholy/gritz/issues/946
 
 ## Problem
 
@@ -9,7 +9,7 @@ driver resumes the agent's session with a fixed nudge and nothing else. The
 wake branch of the bootstrap template is literally:
 
 ```
-The task was updated. Check xagent:get_my_task and continue.
+The task was updated. Check gritz:get_my_task and continue.
 ```
 
 (`internal/agent/PROMPT.md`, rendered by `Config.prompt` in
@@ -47,7 +47,7 @@ adding a server-side delivery-tracking column.
 ### Where the token lives
 
 The driver already persists per-task state to a JSON config file in the
-sandbox: `ConfigStore` writes `/tmp/xagent/{taskID}.json` via atomic
+sandbox: `ConfigStore` writes `/tmp/gritz/{taskID}.json` via atomic
 write, and the `Config` struct already carries agent-managed state
 (`SetupCommandsCompleted`, `Started`) alongside the runner-provided fields
 (`internal/agent/config.go`). The token is one more agent-managed field:
@@ -225,7 +225,7 @@ call can no longer silently drop them.
    `Events` template field, the fetch/drain/filter/inject step in `runAgent`, and
    the post-run token advance. Depends on: (2). Verifiable by: updating
    `internal/agent/driver_test.go` — the two existing assertions that the wake
-   prompt equals `"The task was updated. Check xagent:get_my_task and
+   prompt equals `"The task was updated. Check gritz:get_my_task and
    continue."` become assertions that it contains the injected event JSON when
    events are pending, and the bare `"The task was updated. Continue."` fallback
    when none are.

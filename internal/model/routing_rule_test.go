@@ -18,9 +18,9 @@ func TestRoutingRuleProtoRoundTrip(t *testing.T) {
 				Source: "atlassian",
 				Type:   "label_added",
 				Conditions: []Condition{
-					{Attr: "body", Op: "prefix", Value: "xagent:"},
+					{Attr: "body", Op: "prefix", Value: "gritz:"},
 					{Attr: "mention", Op: "equals", Value: "abc123"},
-					{Attr: "label", Op: "equals", Value: "xagent"},
+					{Attr: "label", Op: "equals", Value: "gritz"},
 				},
 				Create: &CreateTaskAction{
 					Workspace:   "default",

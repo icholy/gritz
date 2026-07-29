@@ -3,7 +3,7 @@ package eventrouter
 import (
 	"testing"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 	"gotest.tools/v3/assert"
 )
 
@@ -61,13 +61,13 @@ func TestMatchRule(t *testing.T) {
 		// --- Prefix -> {body, prefix} ---
 		{
 			name:  "prefix match",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}},
-			event: InputEvent{Data: "xagent: fix the tests"},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}},
+			event: InputEvent{Data: "gritz: fix the tests"},
 			want:  true,
 		},
 		{
 			name:  "prefix mismatch",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}},
 			event: InputEvent{Data: "just a comment"},
 			want:  false,
 		},
@@ -156,42 +156,42 @@ func TestMatchRule(t *testing.T) {
 		{
 			name:  "empty url prefix (no condition) matches any url",
 			rule:  model.RoutingRule{},
-			event: InputEvent{URL: "https://github.com/icholy/xagent/pull/1"},
+			event: InputEvent{URL: "https://github.com/icholy/gritz/pull/1"},
 			want:  true,
 		},
 		{
 			name:  "url prefix match",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/xagent/"}}},
-			event: InputEvent{URL: "https://github.com/icholy/xagent/pull/1"},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/gritz/"}}},
+			event: InputEvent{URL: "https://github.com/icholy/gritz/pull/1"},
 			want:  true,
 		},
 		{
 			name:  "url prefix mismatch",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/xagent/"}}},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/gritz/"}}},
 			event: InputEvent{URL: "https://github.com/other/repo/pull/1"},
 			want:  false,
 		},
 		{
 			name:  "url prefix mismatch on empty url",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/xagent/"}}},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/gritz/"}}},
 			event: InputEvent{URL: ""},
 			want:  false,
 		},
 		{
 			name: "url prefix is independent of body",
-			rule: model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/xagent/"}}},
+			rule: model.RoutingRule{Conditions: []model.Condition{{Attr: "url", Op: "prefix", Value: "https://github.com/icholy/gritz/"}}},
 			event: InputEvent{
-				URL:  "https://github.com/icholy/xagent/issues/1",
-				Data: "no xagent: prefix here",
+				URL:  "https://github.com/icholy/gritz/issues/1",
+				Data: "no gritz: prefix here",
 			},
 			want: true,
 		},
 		{
 			name: "body prefix is independent of url",
-			rule: model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}},
+			rule: model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}},
 			event: InputEvent{
 				URL:  "https://example.com/whatever",
-				Data: "xagent: do the thing",
+				Data: "gritz: do the thing",
 			},
 			want: true,
 		},
@@ -199,32 +199,32 @@ func TestMatchRule(t *testing.T) {
 		// --- Value -> {label, equals} ---
 		{
 			name:  "label match",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "xagent"}}},
-			event: InputEvent{Attrs: Attrs{"label": {"xagent", "urgent"}}},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "gritz"}}},
+			event: InputEvent{Attrs: Attrs{"label": {"gritz", "urgent"}}},
 			want:  true,
 		},
 		{
 			name:  "label no match",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "xagent"}}},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "gritz"}}},
 			event: InputEvent{Attrs: Attrs{"label": {"bug", "urgent"}}},
 			want:  false,
 		},
 		{
 			name:  "no label condition is a wildcard",
 			rule:  model.RoutingRule{},
-			event: InputEvent{Attrs: Attrs{"label": {"xagent"}}},
+			event: InputEvent{Attrs: Attrs{"label": {"gritz"}}},
 			want:  true,
 		},
 		{
 			name:  "label condition with empty event labels no match",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "xagent"}}},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "gritz"}}},
 			event: InputEvent{Attrs: Attrs{"label": nil}},
 			want:  false,
 		},
 		{
 			name:  "label equals requires exact membership not substring",
 			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "agent"}}},
-			event: InputEvent{Attrs: Attrs{"label": {"xagent"}}},
+			event: InputEvent{Attrs: Attrs{"label": {"gritz"}}},
 			want:  false,
 		},
 
@@ -232,28 +232,28 @@ func TestMatchRule(t *testing.T) {
 		{
 			name: "multiple conditions AND together (all match)",
 			rule: model.RoutingRule{Conditions: []model.Condition{
-				{Attr: "body", Op: "prefix", Value: "xagent:"},
+				{Attr: "body", Op: "prefix", Value: "gritz:"},
 				{Attr: "label", Op: "equals", Value: "urgent"},
 			}},
-			event: InputEvent{Data: "xagent: do it", Attrs: Attrs{"label": {"urgent"}}},
+			event: InputEvent{Data: "gritz: do it", Attrs: Attrs{"label": {"urgent"}}},
 			want:  true,
 		},
 		{
 			name: "multiple conditions AND together (one fails)",
 			rule: model.RoutingRule{Conditions: []model.Condition{
-				{Attr: "body", Op: "prefix", Value: "xagent:"},
+				{Attr: "body", Op: "prefix", Value: "gritz:"},
 				{Attr: "label", Op: "equals", Value: "urgent"},
 			}},
-			event: InputEvent{Data: "xagent: do it", Attrs: Attrs{"label": {"backlog"}}},
+			event: InputEvent{Data: "gritz: do it", Attrs: Attrs{"label": {"backlog"}}},
 			want:  false,
 		},
 		{
 			name: "condition on a missing attr fails even when others match",
 			rule: model.RoutingRule{Conditions: []model.Condition{
-				{Attr: "body", Op: "prefix", Value: "xagent:"},
+				{Attr: "body", Op: "prefix", Value: "gritz:"},
 				{Attr: "assignee", Op: "equals", Value: "icholy-bot"},
 			}},
-			event: InputEvent{Data: "xagent: do it"},
+			event: InputEvent{Data: "gritz: do it"},
 			want:  false,
 		},
 		{
@@ -281,12 +281,12 @@ func TestMatchRule(t *testing.T) {
 			rule: model.RoutingRule{
 				Source:     "atlassian",
 				Type:       "label_added",
-				Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "xagent"}},
+				Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "gritz"}},
 			},
 			event: InputEvent{
 				Source: "atlassian",
 				Type:   "label_added",
-				Attrs:  Attrs{"label": {"xagent"}},
+				Attrs:  Attrs{"label": {"gritz"}},
 			},
 			want: true,
 		},
@@ -295,7 +295,7 @@ func TestMatchRule(t *testing.T) {
 			rule: model.RoutingRule{
 				Source:     "atlassian",
 				Type:       "label_added",
-				Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "xagent"}},
+				Conditions: []model.Condition{{Attr: "label", Op: "equals", Value: "gritz"}},
 			},
 			event: InputEvent{
 				Source: "atlassian",
@@ -336,8 +336,8 @@ func TestMatchRule(t *testing.T) {
 		// --- unknown op never matches ---
 		{
 			name:  "unknown op never matches",
-			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "regex", Value: "xagent:"}}},
-			event: InputEvent{Data: "xagent: do it"},
+			rule:  model.RoutingRule{Conditions: []model.Condition{{Attr: "body", Op: "regex", Value: "gritz:"}}},
+			event: InputEvent{Data: "gritz: do it"},
 			want:  false,
 		},
 	}

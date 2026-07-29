@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import type { Task } from '@/gen/xagent/v1/xagent_pb'
+import type { Task } from '@/gen/gritz/v1/gritz_pb'
 
 export function ArchivedBadge({ task }: { task: Task }) {
   if (!task.archived) {

@@ -1,6 +1,6 @@
 # Remove `GetTaskDetails`; consumers compose from the primitives
 
-Issue: https://github.com/icholy/xagent/issues/1426
+Issue: https://github.com/icholy/gritz/issues/1426
 
 ## Problem
 
@@ -68,12 +68,12 @@ slice.
 `agentmcp` process — a distinct client from the driver):
 
 ```go
-task,   _ := s.client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: s.task.ID})
-events, _ := s.client.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+task,   _ := s.client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: s.task.ID})
+events, _ := s.client.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
     TaskId: s.task.ID,
     Types:  []string{model.EventTypeInstruction, model.EventTypeExternal}, // the brief
 })
-links,  _ := s.client.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: s.task.ID})
+links,  _ := s.client.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: s.task.ID})
 ```
 
 The output goes **fully event-native** — this is the #1406 motivation this
@@ -117,9 +117,9 @@ does) and make a **single new `ListLinks` call** for `promptLinks`:
 
 ```go
 // first run only
-var promptLinks []*xagentv1.TaskLink
+var promptLinks []*gritzv1.TaskLink
 if !cfg.Started {
-    resp, err := d.Client.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: d.TaskID})
+    resp, err := d.Client.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: d.TaskID})
     if err != nil {
         return fmt.Errorf("failed to fetch task links: %w", err)
     }
@@ -145,9 +145,9 @@ finishing the #1406 reshape. The handler already fetches the full stream once fo
 links:
 
 ```go
-task,   _ := h.service.GetTask(ctx, &xagentv1.GetTaskRequest{Id: input.ID})
-events, _ := h.service.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: input.ID}) // all arms
-links,  _ := h.service.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: input.ID})
+task,   _ := h.service.GetTask(ctx, &gritzv1.GetTaskRequest{Id: input.ID})
+events, _ := h.service.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: input.ID}) // all arms
+links,  _ := h.service.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: input.ID})
 ```
 
 The output struct **drops both synthesized fields** — the `Instructions`
@@ -212,7 +212,7 @@ resources — a `task` change touched the header (now `getTask`), a `task_links`
 change touched the links (now `listLinks`). The timeline and its follow-on-SSE
 behavior are entirely unaffected.
 
-#### 6. n8n node — `n8n-node/nodes/XAgent/XAgentExecutor.ts`
+#### 6. n8n node — `n8n-node/nodes/Gritz/GritzExecutor.ts`
 
 Not in the issue's table, but a real consumer that breaks at compile time when
 the generated client loses `getTaskDetails`. It calls `getTaskDetails` in three
@@ -241,7 +241,7 @@ consistent with "no server-side compat."
 
 ### Proto / RPC removal
 
-In `proto/xagent/v1/xagent.proto`, delete:
+In `proto/gritz/v1/gritz.proto`, delete:
 
 - the rpc `GetTaskDetails(GetTaskDetailsRequest) returns (GetTaskDetailsResponse);` (`:17`)
 - `message GetTaskDetailsRequest { int64 id = 1; }` (`:192-194`)
@@ -249,13 +249,13 @@ In `proto/xagent/v1/xagent.proto`, delete:
 
 then `mise run generate` (which runs `go generate ./...` — `go tool buf generate`
 via `generate.go` **and** the `moq` client mock via
-`internal/xagentclient/client.go:1` — plus `webui` codegen), and
+`internal/gritzclient/client.go:1` — plus `webui` codegen), and
 `buf generate` in `n8n-node/`. That drops:
 
-- the Go server/client/handler stubs in `internal/proto/.../xagent.connect.go`
-  and the `GetTaskDetailsRequest`/`Response` types in `xagent.pb.go`;
+- the Go server/client/handler stubs in `internal/proto/.../gritz.connect.go`
+  and the `GetTaskDetailsRequest`/`Response` types in `gritz.pb.go`;
 - `GetTaskDetailsFunc` and friends from the generated mock
-  `internal/xagentclient/client_moq.go`;
+  `internal/gritzclient/client_moq.go`;
 - `getTaskDetails` from the webui and n8n generated clients.
 
 Delete the handler `func (s *Server) GetTaskDetails` (`task.go:188-214`).
@@ -297,7 +297,7 @@ clients must have no remaining callers, or the Go/webui/n8n builds break).
 4. **CLI `task list` header-only** — Delivers: render rows from `ListTasks`
    alone; delete the per-task `GetTaskDetails` N+1 and the
    instructions/links/events columns. Depends on: nothing. Verifiable by:
-   running `xagent task list`; the command makes exactly one RPC.
+   running `gritz task list`; the command makes exactly one RPC.
 
 5. **webui to `GetTask` + `ListLinks`** — Delivers: split the detail query into
    `getTask` + `listLinks`; update `use-org-sse.ts` invalidation +

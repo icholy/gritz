@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -24,7 +24,7 @@ const (
 )
 
 // EventPayload is the sealed set of event bodies — one per arm of the
-// xagentv1.Event.payload oneof. Each arm reports its discriminator via Type()
+// gritzv1.Event.payload oneof. Each arm reports its discriminator via Type()
 // and maps itself onto the wire via SetPayloadProto, keeping the arm switch off
 // Event.Proto(). The set is closed: implementations must live in this package
 // because the interface is sealed with the unexported isEventPayload marker.
@@ -34,7 +34,7 @@ type EventPayload interface {
 	// SetPayloadProto assigns this arm onto pb.Payload. It does the assignment
 	// rather than returning the arm because protoc-gen-go's oneof wrapper type
 	// is unexported and unnameable from this package.
-	SetPayloadProto(pb *xagentv1.Event)
+	SetPayloadProto(pb *gritzv1.Event)
 	isEventPayload()
 }
 
@@ -49,8 +49,8 @@ type InstructionPayload struct {
 func (*InstructionPayload) Type() string    { return EventTypeInstruction }
 func (*InstructionPayload) isEventPayload() {}
 
-func (p *InstructionPayload) SetPayloadProto(pb *xagentv1.Event) {
-	pb.Payload = &xagentv1.Event_Instruction{Instruction: &xagentv1.InstructionPayload{
+func (p *InstructionPayload) SetPayloadProto(pb *gritzv1.Event) {
+	pb.Payload = &gritzv1.Event_Instruction{Instruction: &gritzv1.InstructionPayload{
 		Text: p.Text,
 		Url:  p.URL,
 	}}
@@ -76,8 +76,8 @@ type ExternalPayload struct {
 func (*ExternalPayload) Type() string    { return EventTypeExternal }
 func (*ExternalPayload) isEventPayload() {}
 
-func (p *ExternalPayload) SetPayloadProto(pb *xagentv1.Event) {
-	pb.Payload = &xagentv1.Event_External{External: &xagentv1.ExternalPayload{
+func (p *ExternalPayload) SetPayloadProto(pb *gritzv1.Event) {
+	pb.Payload = &gritzv1.Event_External{External: &gritzv1.ExternalPayload{
 		Description: p.Description,
 		Url:         p.URL,
 		Data:        p.Data,
@@ -97,8 +97,8 @@ type ReportPayload struct {
 func (*ReportPayload) Type() string    { return EventTypeReport }
 func (*ReportPayload) isEventPayload() {}
 
-func (p *ReportPayload) SetPayloadProto(pb *xagentv1.Event) {
-	pb.Payload = &xagentv1.Event_Report{Report: &xagentv1.ReportPayload{
+func (p *ReportPayload) SetPayloadProto(pb *gritzv1.Event) {
+	pb.Payload = &gritzv1.Event_Report{Report: &gritzv1.ReportPayload{
 		Content: p.Content,
 	}}
 }
@@ -117,8 +117,8 @@ type LinkPayload struct {
 func (*LinkPayload) Type() string    { return EventTypeLink }
 func (*LinkPayload) isEventPayload() {}
 
-func (p *LinkPayload) SetPayloadProto(pb *xagentv1.Event) {
-	pb.Payload = &xagentv1.Event_Link{Link: &xagentv1.LinkPayload{
+func (p *LinkPayload) SetPayloadProto(pb *gritzv1.Event) {
+	pb.Payload = &gritzv1.Event_Link{Link: &gritzv1.LinkPayload{
 		LinkId:    p.LinkID,
 		Relevance: p.Relevance,
 		Url:       p.URL,
@@ -157,11 +157,11 @@ var (
 )
 
 // Proto converts an Actor to its protobuf representation.
-func (a Actor) Proto() *xagentv1.Actor {
-	return &xagentv1.Actor{Kind: a.Kind, Name: a.Name}
+func (a Actor) Proto() *gritzv1.Actor {
+	return &gritzv1.Actor{Kind: a.Kind, Name: a.Name}
 }
 
-func actorFromProto(pb *xagentv1.Actor) Actor {
+func actorFromProto(pb *gritzv1.Actor) Actor {
 	if pb == nil {
 		return Actor{}
 	}
@@ -169,21 +169,21 @@ func actorFromProto(pb *xagentv1.Actor) Actor {
 }
 
 // LifecycleKind is the closed set of lifecycle transitions, mapped 1:1 onto the
-// xagentv1.LifecycleKind enum (the TaskChange set, minus Woken).
+// gritzv1.LifecycleKind enum (the TaskChange set, minus Woken).
 type LifecycleKind int32
 
 const (
-	LifecycleKindUnspecified    = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_UNSPECIFIED)
-	LifecycleKindCreated        = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_CREATED)
-	LifecycleKindUpdated        = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_UPDATED)
-	LifecycleKindCancelled      = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_CANCELLED)
-	LifecycleKindRestarted      = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_RESTARTED)
-	LifecycleKindArchived       = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_ARCHIVED)
-	LifecycleKindUnarchived     = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_UNARCHIVED)
-	LifecycleKindAutoArchived   = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_AUTO_ARCHIVED)
-	LifecycleKindSandboxStarted = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_SANDBOX_STARTED)
-	LifecycleKindSandboxExited  = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_SANDBOX_EXITED)
-	LifecycleKindSandboxFailed  = LifecycleKind(xagentv1.LifecycleKind_LIFECYCLE_KIND_SANDBOX_FAILED)
+	LifecycleKindUnspecified    = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_UNSPECIFIED)
+	LifecycleKindCreated        = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_CREATED)
+	LifecycleKindUpdated        = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_UPDATED)
+	LifecycleKindCancelled      = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_CANCELLED)
+	LifecycleKindRestarted      = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_RESTARTED)
+	LifecycleKindArchived       = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_ARCHIVED)
+	LifecycleKindUnarchived     = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_UNARCHIVED)
+	LifecycleKindAutoArchived   = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_AUTO_ARCHIVED)
+	LifecycleKindSandboxStarted = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_SANDBOX_STARTED)
+	LifecycleKindSandboxExited  = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_SANDBOX_EXITED)
+	LifecycleKindSandboxFailed  = LifecycleKind(gritzv1.LifecycleKind_LIFECYCLE_KIND_SANDBOX_FAILED)
 )
 
 // LifecyclePayload is the body of a lifecycle event — an about-task record of a
@@ -207,9 +207,9 @@ type LifecyclePayload struct {
 func (*LifecyclePayload) Type() string    { return EventTypeLifecycle }
 func (*LifecyclePayload) isEventPayload() {}
 
-func (p *LifecyclePayload) SetPayloadProto(pb *xagentv1.Event) {
-	pb.Payload = &xagentv1.Event_Lifecycle{Lifecycle: &xagentv1.LifecyclePayload{
-		Kind:       xagentv1.LifecycleKind(p.Kind),
+func (p *LifecyclePayload) SetPayloadProto(pb *gritzv1.Event) {
+	pb.Payload = &gritzv1.Event_Lifecycle{Lifecycle: &gritzv1.LifecyclePayload{
+		Kind:       gritzv1.LifecycleKind(p.Kind),
 		Actor:      p.Actor.Proto(),
 		FromStatus: p.FromStatus,
 		ToStatus:   p.ToStatus,
@@ -281,8 +281,8 @@ type Event struct {
 
 // Proto converts an Event to its protobuf representation, delegating the arm
 // mapping to the payload.
-func (e *Event) Proto() *xagentv1.Event {
-	pb := &xagentv1.Event{
+func (e *Event) Proto() *gritzv1.Event {
+	pb := &gritzv1.Event{
 		Id:        e.ID,
 		TaskId:    e.TaskID,
 		Wake:      e.Wake,
@@ -294,7 +294,7 @@ func (e *Event) Proto() *xagentv1.Event {
 
 // EventFromProto converts a protobuf Event to a model Event, delegating the arm
 // mapping to EventPayloadFromProto.
-func EventFromProto(pb *xagentv1.Event) *Event {
+func EventFromProto(pb *gritzv1.Event) *Event {
 	e := &Event{
 		ID:      pb.Id,
 		TaskID:  pb.TaskId,
@@ -322,14 +322,14 @@ func FilterPayloads(events []*Event, types ...string) []EventPayload {
 
 // EventPayloadFromProto maps the set oneof arm of pb to its typed payload. It
 // is the only proto→model arm switch; it returns nil when no arm is set.
-func EventPayloadFromProto(pb *xagentv1.Event) EventPayload {
+func EventPayloadFromProto(pb *gritzv1.Event) EventPayload {
 	switch arm := pb.Payload.(type) {
-	case *xagentv1.Event_Instruction:
+	case *gritzv1.Event_Instruction:
 		return &InstructionPayload{
 			Text: arm.Instruction.Text,
 			URL:  arm.Instruction.Url,
 		}
-	case *xagentv1.Event_External:
+	case *gritzv1.Event_External:
 		return &ExternalPayload{
 			Description: arm.External.Description,
 			URL:         arm.External.Url,
@@ -338,11 +338,11 @@ func EventPayloadFromProto(pb *xagentv1.Event) EventPayload {
 			Source:      arm.External.Source,
 			EventType:   arm.External.Type,
 		}
-	case *xagentv1.Event_Report:
+	case *gritzv1.Event_Report:
 		return &ReportPayload{
 			Content: arm.Report.Content,
 		}
-	case *xagentv1.Event_Lifecycle:
+	case *gritzv1.Event_Lifecycle:
 		return &LifecyclePayload{
 			Kind:       LifecycleKind(arm.Lifecycle.Kind),
 			Actor:      actorFromProto(arm.Lifecycle.Actor),
@@ -351,7 +351,7 @@ func EventPayloadFromProto(pb *xagentv1.Event) EventPayload {
 			Message:    arm.Lifecycle.Message,
 			Fields:     arm.Lifecycle.Fields,
 		}
-	case *xagentv1.Event_Link:
+	case *gritzv1.Event_Link:
 		return &LinkPayload{
 			LinkID:    arm.Link.LinkId,
 			Relevance: arm.Link.Relevance,

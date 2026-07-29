@@ -1,6 +1,6 @@
 # OAuth 2.1 for MCP endpoint
 
-Issue: https://github.com/icholy/xagent/issues/417
+Issue: https://github.com/icholy/gritz/issues/417
 
 ## Problem
 
@@ -10,7 +10,7 @@ The `/mcp` endpoint cannot be used as a Claude.ai custom connector because Claud
 
 ### Overview
 
-Implement a minimal OAuth 2.1 authorization server within xagent. The user is already logged into the xagent web UI and has an app JWT (from `/auth/token`) scoped to their selected org. The authorize page sends this JWT to the backend, which verifies it and issues an auth code. No API keys or cookie auth involved in the OAuth flow.
+Implement a minimal OAuth 2.1 authorization server within gritz. The user is already logged into the gritz web UI and has an app JWT (from `/auth/token`) scoped to their selected org. The authorize page sends this JWT to the backend, which verifies it and issues an auth code. No API keys or cookie auth involved in the OAuth flow.
 
 ### Sequence Diagram
 
@@ -18,7 +18,7 @@ Implement a minimal OAuth 2.1 authorization server within xagent. The user is al
 sequenceDiagram
     participant U as User Browser
     participant C as Claude.ai
-    participant X as xagent Server
+    participant X as gritz Server
 
     C->>X: GET /.well-known/oauth-authorization-server
     X->>C: authorization_endpoint, token_endpoint, registration_endpoint
@@ -65,13 +65,13 @@ The `GET /ui/oauth/authorize` page is handled by the React frontend. The backend
 
 ```json
 {
-  "issuer": "https://xagent.example.com",
-  "authorization_endpoint": "https://xagent.example.com/ui/oauth/authorize",
-  "token_endpoint": "https://xagent.example.com/oauth/token",
+  "issuer": "https://gritz.example.com",
+  "authorization_endpoint": "https://gritz.example.com/ui/oauth/authorize",
+  "token_endpoint": "https://gritz.example.com/oauth/token",
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code", "refresh_token"],
   "code_challenge_methods_supported": ["S256"],
-  "registration_endpoint": "https://xagent.example.com/oauth/register"
+  "registration_endpoint": "https://gritz.example.com/oauth/register"
 }
 ```
 
@@ -79,8 +79,8 @@ The `GET /ui/oauth/authorize` page is handled by the React frontend. The backend
 
 ```json
 {
-  "resource": "https://xagent.example.com",
-  "authorization_servers": ["https://xagent.example.com"]
+  "resource": "https://gritz.example.com",
+  "authorization_servers": ["https://gritz.example.com"]
 }
 ```
 
@@ -237,10 +237,10 @@ This page is behind cookie auth middleware (like all `/ui/` routes). The user mu
 ### User Flow
 
 1. User adds a custom connector in Claude.ai with:
-   - **URL**: `https://xagent.example.com/mcp`
+   - **URL**: `https://gritz.example.com/mcp`
    - **Client ID / Client Secret**: leave blank (Claude.ai auto-registers via DCR)
 2. Claude.ai fetches discovery metadata, registers via `/oauth/register`, opens browser to `/ui/oauth/authorize`
-3. If user is not logged into xagent, they log in via Zitadel (existing SSO flow)
+3. If user is not logged into gritz, they log in via Zitadel (existing SSO flow)
 4. User sees a consent screen showing their identity and org, clicks "Approve"
 5. Frontend POSTs app JWT + OAuth params to `/oauth/authorize`
 6. Backend verifies JWT, signs auth code JWT, redirects back to Claude.ai

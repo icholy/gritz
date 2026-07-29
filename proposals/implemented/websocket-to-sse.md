@@ -1,6 +1,6 @@
 # Switch from WebSockets to Server-Sent Events (SSE)
 
-Issue: https://github.com/icholy/xagent/issues/512
+Issue: https://github.com/icholy/gritz/issues/512
 
 ## Problem
 
@@ -280,7 +280,7 @@ Simplify the proxy config in `webui/vite.config.ts`:
 
 ```typescript
 proxy: {
-  "/xagent.v1.XAgentService": {
+  "/gritz.v1.GritzService": {
     target: "http://localhost:6464",
     changeOrigin: true,
   },

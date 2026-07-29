@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/icholy/xagent/internal/x/githubx"
+	"github.com/icholy/gritz/internal/x/githubx"
 	"gotest.tools/v3/assert"
 )
 

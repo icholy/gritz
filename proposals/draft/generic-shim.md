@@ -1,19 +1,19 @@
 # Generic Standalone Shim Binary
 
-Issue: https://github.com/icholy/xagent/issues/1221
+Issue: https://github.com/icholy/gritz/issues/1221
 
 ## Problem
 
 The in-sandbox shim (`internal/microvmshim/`) is the supervisor that runs inside
 a task's sandbox: it provisions the task's files once (gated by the
-`/xagent/.provisioned` marker), spawns and supervises the driver per run/resume,
+`/gritz/.provisioned` marker), spawns and supervises the driver per run/resume,
 and reports the driver's exit as a `driver-exited{code}` event over the
-`/xagent/lifecycle` SSE stream. It holds no cloud credentials and makes no
+`/gritz/lifecycle` SSE stream. It holds no cloud credentials and makes no
 control-plane calls — all lifecycle authority lives with the runner. That job is
 backend-agnostic, but the shim today is not:
 
-1. **It ships inside the full `xagent` binary.** The shim is invoked as
-   `xagent tool microvm-shim`, so getting the shim into a sandbox means getting
+1. **It ships inside the full `gritz` binary.** The shim is invoked as
+   `gritz tool microvm-shim`, so getting the shim into a sandbox means getting
    the entire multi-call binary in (~59 MB, measured on a current
    `CGO_ENABLED=0` linux/amd64 build). Every backend forks its own mechanism
    for moving those tens of MB: Docker tar-copies the binary into the
@@ -48,7 +48,7 @@ stock-image backends.
 ### Overview
 
 ```
-cmd/shim                       new standalone binary (sibling to cmd/xagent,
+cmd/shim                       new standalone binary (sibling to cmd/gritz,
                                cmd/migrate, cmd/dummymcp)
 internal/shim/                 neutral package: Bundle, File, lifecycle event
                                types, the shim Server — imports NO backend
@@ -111,7 +111,7 @@ What doesn't change).
 
 `microvmshim.Server` already splits its two surfaces: `HooksHandler()` serves
 the AWS lifecycle hooks (`/aws/lambda-microvms/runtime/v1/*` on
-`awsmicrovm.HookPort`), and `ControlHandler()` serves the generic xagent
+`awsmicrovm.HookPort`), and `ControlHandler()` serves the generic gritz
 control surface on the ingress port. The flag simply decides whether the hook
 server is mounted:
 
@@ -124,7 +124,7 @@ shim --aws-lambda-microvm [--hook-addr :9000]  # + AWS lifecycle hooks
   spawn), stop, lifecycle stream. The bundle arrives in the `Run` request
   body — no S3 staging, no payload URL, because the runner can reach the shim
   directly (Nomad alloc address, exe.dev). The shim authenticates control
-  requests against the `XAGENT_TOKEN` in its environment (set by the backend
+  requests against the `GRITZ_TOKEN` in its environment (set by the backend
   at machine creation, exactly the token already minted into `spec.Env`) with
   a constant-time compare — the runner presents the same task token as a
   bearer. No new credential is introduced.
@@ -142,14 +142,14 @@ nothing measurable.
 
 ### The shim downloads the driver if necessary
 
-The shim is small; the driver (`xagent driver`, the full ~59 MB multi-call
+The shim is small; the driver (`gritz driver`, the full ~59 MB multi-call
 binary, changing every release) is fetched at runtime. On `Run`, if the
 bundle's `Cmd[0]` (i.e. `backend.BinaryPath`) does not exist on disk, the shim
 downloads it before spawning:
 
 ```
-GET {XAGENT_SERVER}/prebuilt/{runtime.GOARCH}
-Authorization: Bearer {XAGENT_TOKEN}
+GET {GRITZ_SERVER}/prebuilt/{runtime.GOARCH}
+Authorization: Bearer {GRITZ_TOKEN}
 ```
 
 written to `Cmd[0]` atomically (temp file + rename, mode 0755). Because the
@@ -169,8 +169,8 @@ The "if necessary" clause is what lets one shim serve both packaging models:
 
 **Server-side**, a new authenticated endpoint serves the prebuilt binaries.
 The server does not serve them today, but its image already ships them:
-the Dockerfile builds `prebuilt/xagent-linux-{amd64,arm64}` and sets
-`XAGENT_PREBUILT_DIR=/app/prebuilt`. The endpoint is a thin handler over
+the Dockerfile builds `prebuilt/gritz-linux-{amd64,arm64}` and sets
+`GRITZ_PREBUILT_DIR=/app/prebuilt`. The endpoint is a thin handler over
 `prebuilt.ReadBinary(arch)`:
 
 ```go
@@ -236,7 +236,7 @@ payloads are string constants kept in sync between `microvmshim` and
 shipped in the same binary — the contract could never skew against itself.
 With a standalone shim, **the runner↔shim protocol becomes an independently
 shipped wire contract**, and the question is whether it should be typed and
-versioned like the rest of the codebase (Connect RPC, `proto/xagent/v1/`) or
+versioned like the rest of the codebase (Connect RPC, `proto/gritz/v1/`) or
 stay hand-rolled to protect the binary size.
 
 Measured on this repo (Go 1.26, `CGO_ENABLED=0`, linux/amd64):
@@ -245,9 +245,9 @@ Measured on this repo (Go 1.26, `CGO_ENABLED=0`, linux/amd64):
 |---|---|---|
 | Minimal shim: `net/http` + `internal/x/sse` + `os/exec` | 8.3 MB | 5.7 MB |
 | + `connectrpc.com/connect` + `google.golang.org/protobuf` runtime (small dedicated proto) | 13.4 MB | 9.2 MB |
-| + connect linking the full `xagentv1` generated package instead | 15.9 MB | — |
+| + connect linking the full `gritzv1` generated package instead | 15.9 MB | — |
 | `google.golang.org/grpc` server alone, before any generated code | 14.6 MB | — |
-| Full `cmd/xagent` today, for scale | 58.9 MB | — |
+| Full `cmd/gritz` today, for scale | 58.9 MB | — |
 
 Three conclusions fall out:
 
@@ -262,7 +262,7 @@ Three conclusions fall out:
    should pass it; validating that against the real proxy is an
    implementation-plan checkpoint). Cost: **+5.1 MB (+3.5 MB stripped)** over
    the hand-rolled baseline.
-3. **A dedicated `proto/shim/v1` matters.** Reusing `xagent.proto` would link
+3. **A dedicated `proto/shim/v1` matters.** Reusing `gritz.proto` would link
    every message in the main API into the shim (+2.5 MB more) and couple the
    shim's release cadence to the whole API surface. The shim gets its own
    tiny, frozen-slow proto module.
@@ -335,23 +335,23 @@ generated `ShimServiceClient` replaces the hand-rolled SSE consumer in
 
 - `mise run build` adds `shim-linux-{amd64,arm64}` (built `CGO_ENABLED=0
   -ldflags "-s -w"` — the shim has no reason to carry symbol tables).
-- `release.yml` uploads `xagent-shim-linux-{amd64,arm64}` next to the
-  existing `xagent-linux-*` assets; the server Dockerfile copies them into
-  `XAGENT_PREBUILT_DIR` alongside the driver binaries so the server can also
+- `release.yml` uploads `gritz-shim-linux-{amd64,arm64}` next to the
+  existing `gritz-linux-*` assets; the server Dockerfile copies them into
+  `GRITZ_PREBUILT_DIR` alongside the driver binaries so the server can also
   serve the shim itself (e.g. a Nomad `artifact` source) without a detour
   through GitHub releases.
 - `microvm.Dockerfile` changes its entrypoint from
-  `["/usr/local/bin/xagent", "tool", "microvm-shim"]` to
+  `["/usr/local/bin/gritz", "tool", "microvm-shim"]` to
   `["/usr/local/bin/shim", "--aws-lambda-microvm"]`, still baking the full
-  `xagent` binary at `backend.BinaryPath` for the driver.
-- `xagent tool microvm-shim` remains as a thin wrapper around the moved
+  `gritz` binary at `backend.BinaryPath` for the driver.
+- `gritz tool microvm-shim` remains as a thin wrapper around the moved
   `internal/shim` server until existing MicroVM snapshots are rebuilt, then
   is deleted.
 
 ### What doesn't change
 
 The runner backends, orchestrator (`runner.go`), driver, server API, task
-state machine, database schema, and `xagent.proto` are untouched except for
+state machine, database schema, and `gritz.proto` are untouched except for
 the driver-injection seam moving into the shim:
 
 - **Docker** keeps tar-copying the full binary into a local container —
@@ -370,7 +370,7 @@ the driver-injection seam moving into the shim:
 1. **Extract `internal/shim`** — Delivers: the neutral package (Bundle, File,
    event types, the moved `Server` + `lifecycle` broadcaster);
    `internal/microvmshim` deleted; `lambdamicrovm` and `backend.File`
-   re-pointed via alias; `xagent tool microvm-shim` now wraps
+   re-pointed via alias; `gritz tool microvm-shim` now wraps
    `internal/shim`. Pure move, no behavior change. Depends on: nothing.
    Verifiable by: existing `microvmshim`/`lambdamicrovm` tests pass relocated.
 2. **Server `/prebuilt/{arch}` endpoint** — Delivers: Bearer-authenticated
@@ -385,7 +385,7 @@ the driver-injection seam moving into the shim:
    (fake `Process`, in-memory Connect client), existing lambda backend tests.
 4. **Generic mode: `Run` + driver download + env-token auth** — Delivers:
    bundle-in-body `Run`, download-if-absent from `/prebuilt/{arch}` with
-   atomic install, constant-time `XAGENT_TOKEN` bearer check. Depends on:
+   atomic install, constant-time `GRITZ_TOKEN` bearer check. Depends on:
    (2), (3). Verifiable by: unit tests with an `httptest` prebuilt server
    (present → no fetch; absent → fetch, cache, re-spawn without re-fetch).
 5. **`cmd/shim` target + release artifacts** — Delivers: the binary, the
@@ -394,7 +394,7 @@ the driver-injection seam moving into the shim:
    Verifiable by: built artifacts exist and `shim --aws-lambda-microvm`
    serves both surfaces.
 6. **Lambda image migration** — Delivers: `microvm.Dockerfile` + README
-   switched to the standalone shim; `xagent tool microvm-shim` deleted once
+   switched to the standalone shim; `gritz tool microvm-shim` deleted once
    snapshots are rebuilt. Depends on: (5). Verifiable by: an image built per
    the README runs a task end-to-end on the lambda backend.
 7. **Runner-side idle reaper** — Delivers: max-idle/max-lifetime prune policy
@@ -409,9 +409,9 @@ platform-suspend dependency).
 ## Trade-offs
 
 **A second release artifact vs. one binary for everything.** The shim adds a
-cross-arch build (`xagent-shim-linux-{amd64,arm64}`) to every release on top
+cross-arch build (`gritz-shim-linux-{amd64,arm64}`) to every release on top
 of the existing prebuilt driver builds — more CI surface and one more thing
-to version. The alternative (keep shipping the shim inside `xagent`) is what
+to version. The alternative (keep shipping the shim inside `gritz`) is what
 we have: every backend must move ~59 MB into the sandbox by its own bespoke
 mechanism, and the Nomad/exe.dev designs each grow infrastructure (artifact
 server, SFTP of the full binary) just to deliver bytes that are 85% dead

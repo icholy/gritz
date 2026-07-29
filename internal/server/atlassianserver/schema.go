@@ -1,7 +1,7 @@
 package atlassianserver
 
 import (
-	"github.com/icholy/xagent/internal/eventrouter"
+	"github.com/icholy/gritz/internal/eventrouter"
 )
 
 // init registers atlassianserver's schemas on the process-wide default registry.
@@ -26,7 +26,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Comment Body",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the comment text.",
 			},
 			{
@@ -57,7 +57,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "body",
 				Label:       "Issue Description",
-				Placeholder: "xagent:",
+				Placeholder: "gritz:",
 				Help:        "Matched against the description of the labeled issue.",
 			},
 			{
@@ -69,7 +69,7 @@ func RegisterSchemas(reg *eventrouter.SchemaRegistry) {
 			{
 				Key:         "label",
 				Label:       "Label",
-				Placeholder: "xagent",
+				Placeholder: "gritz",
 				Help:        "The label added to the issue.",
 			},
 			{

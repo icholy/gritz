@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/icholy/xagent/internal/auth/authscope"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -17,14 +17,14 @@ import (
 type TaskStatus int32
 
 const (
-	TaskStatusUnspecified TaskStatus = TaskStatus(xagentv1.TaskStatus_UNSPECIFIED)
-	TaskStatusPending     TaskStatus = TaskStatus(xagentv1.TaskStatus_PENDING)
-	TaskStatusRunning     TaskStatus = TaskStatus(xagentv1.TaskStatus_RUNNING)
-	TaskStatusRestarting  TaskStatus = TaskStatus(xagentv1.TaskStatus_RESTARTING)
-	TaskStatusCancelling  TaskStatus = TaskStatus(xagentv1.TaskStatus_CANCELLING)
-	TaskStatusCompleted   TaskStatus = TaskStatus(xagentv1.TaskStatus_COMPLETED)
-	TaskStatusFailed      TaskStatus = TaskStatus(xagentv1.TaskStatus_FAILED)
-	TaskStatusCancelled   TaskStatus = TaskStatus(xagentv1.TaskStatus_CANCELLED)
+	TaskStatusUnspecified TaskStatus = TaskStatus(gritzv1.TaskStatus_UNSPECIFIED)
+	TaskStatusPending     TaskStatus = TaskStatus(gritzv1.TaskStatus_PENDING)
+	TaskStatusRunning     TaskStatus = TaskStatus(gritzv1.TaskStatus_RUNNING)
+	TaskStatusRestarting  TaskStatus = TaskStatus(gritzv1.TaskStatus_RESTARTING)
+	TaskStatusCancelling  TaskStatus = TaskStatus(gritzv1.TaskStatus_CANCELLING)
+	TaskStatusCompleted   TaskStatus = TaskStatus(gritzv1.TaskStatus_COMPLETED)
+	TaskStatusFailed      TaskStatus = TaskStatus(gritzv1.TaskStatus_FAILED)
+	TaskStatusCancelled   TaskStatus = TaskStatus(gritzv1.TaskStatus_CANCELLED)
 )
 
 // Label renders a TaskStatus for a lifecycle payload, mapping the zero
@@ -51,10 +51,10 @@ func (s TaskStatus) IsTerminal() bool {
 type TaskCommand int32
 
 const (
-	TaskCommandNone    TaskCommand = TaskCommand(xagentv1.TaskCommand_NONE)
-	TaskCommandRestart TaskCommand = TaskCommand(xagentv1.TaskCommand_RESTART)
-	TaskCommandStop    TaskCommand = TaskCommand(xagentv1.TaskCommand_STOP)
-	TaskCommandStart   TaskCommand = TaskCommand(xagentv1.TaskCommand_START)
+	TaskCommandNone    TaskCommand = TaskCommand(gritzv1.TaskCommand_NONE)
+	TaskCommandRestart TaskCommand = TaskCommand(gritzv1.TaskCommand_RESTART)
+	TaskCommandStop    TaskCommand = TaskCommand(gritzv1.TaskCommand_STOP)
+	TaskCommandStart   TaskCommand = TaskCommand(gritzv1.TaskCommand_START)
 )
 
 // Task represents a task in the system. Instructions are no longer a Task field —
@@ -120,14 +120,14 @@ func (t *Task) ScopeAttr() []authscope.Attr {
 }
 
 // Proto converts a Task to its protobuf representation.
-func (t *Task) Proto(baseURL string) *xagentv1.Task {
-	return &xagentv1.Task{
+func (t *Task) Proto(baseURL string) *gritzv1.Task {
+	return &gritzv1.Task{
 		Id:           t.ID,
 		Name:         t.Name,
 		Runner:       t.Runner,
 		Workspace:    t.Workspace,
-		Status:       xagentv1.TaskStatus(t.Status),
-		Command:      xagentv1.TaskCommand(t.Command),
+		Status:       gritzv1.TaskStatus(t.Status),
+		Command:      gritzv1.TaskCommand(t.Command),
 		Version:      t.Version,
 		Archived:     t.Archived,
 		Url:          TaskURL(baseURL, t.ID, t.OrgID),
@@ -136,7 +136,7 @@ func (t *Task) Proto(baseURL string) *xagentv1.Task {
 		AutoArchive:  durationpb.New(t.AutoArchive),
 		ShellSession: t.ShellSession,
 		Namespace:    t.Namespace,
-		Actions: &xagentv1.TaskActions{
+		Actions: &gritzv1.TaskActions{
 			Archive:   t.CanArchive(),
 			Unarchive: t.CanUnarchive(),
 			Cancel:    t.CanCancel(),
@@ -147,7 +147,7 @@ func (t *Task) Proto(baseURL string) *xagentv1.Task {
 }
 
 // TaskFromProto converts a protobuf Task to a model Task.
-func TaskFromProto(pb *xagentv1.Task) *Task {
+func TaskFromProto(pb *gritzv1.Task) *Task {
 	var createdAt, updatedAt time.Time
 	if pb.CreatedAt != nil {
 		createdAt = pb.CreatedAt.AsTime()
@@ -193,8 +193,8 @@ type RunnerEvent struct {
 }
 
 // Proto converts a RunnerEvent to its protobuf representation.
-func (r *RunnerEvent) Proto() *xagentv1.RunnerEvent {
-	return &xagentv1.RunnerEvent{
+func (r *RunnerEvent) Proto() *gritzv1.RunnerEvent {
+	return &gritzv1.RunnerEvent{
 		TaskId:    r.TaskID,
 		Event:     string(r.Event),
 		Version:   r.Version,
@@ -204,7 +204,7 @@ func (r *RunnerEvent) Proto() *xagentv1.RunnerEvent {
 }
 
 // RunnerEventFromProto converts a protobuf RunnerEvent to a model RunnerEvent.
-func RunnerEventFromProto(pb *xagentv1.RunnerEvent) RunnerEvent {
+func RunnerEventFromProto(pb *gritzv1.RunnerEvent) RunnerEvent {
 	return RunnerEvent{
 		TaskID:    pb.TaskId,
 		Event:     RunnerEventType(pb.Event),

@@ -1,10 +1,10 @@
 # Recurring Scheduled Tasks
 
-Issue: https://github.com/icholy/xagent/issues/1456
+Issue: https://github.com/icholy/gritz/issues/1456
 
 ## Problem
 
-Every xagent task is created imperatively — a human in the Web UI, an external poller
+Every gritz task is created imperatively — a human in the Web UI, an external poller
 (GitHub/Jira), or an agent calls `CreateTask` and the runner picks the row up on its next
 poll (`internal/runner/runner.go`). There is no way to say "run this task every weekday at
 09:00" or "kick off a dependency-update run every night."
@@ -13,14 +13,14 @@ Recurring work is common: nightly dependency bumps and changelog grooming, daily
 what merged yesterday" reports, weekly triage digests, polling-style automations where a
 webhook isn't available, and re-running a triage task every few hours until something is
 resolved. Users emulate this today with external cron (host crontab, GitHub Actions
-`schedule:`, Fly cron machines) shelling out to `xagent task create`. That works but lives
+`schedule:`, Fly cron machines) shelling out to `gritz task create`. That works but lives
 outside the product: schedules aren't visible in the UI, aren't org/tenant scoped, aren't
 covered by the auth/scope model, and every integration reinvents "what time is it, did I
 already run this."
 
 We want first-class, user-defined **recurring scheduled tasks**: a user specifies a schedule
 (cron expression + timezone) and a task template (workspace, runner, instructions), and
-xagent materializes a real task run on each occurrence — correctly and exactly-once across
+gritz materializes a real task run on each occurrence — correctly and exactly-once across
 multiple C2 server instances.
 
 ## Design
@@ -291,7 +291,7 @@ Each `Tick`:
    `internal/command/runner.go` wake loop).
 
 Defaults: `interval = 10s`, `batchSize = 100`, exposed as `--schedule-poll` and
-`--schedule-batch` on `xagent server`, alongside the existing `--archive-poll` /
+`--schedule-batch` on `gritz server`, alongside the existing `--archive-poll` /
 `--archive-batch`. A 10s tick bounds firing latency to well under the minute-resolution cron
 grid while keeping DB load negligible (the partial index makes each scan index-only). Wired up
 from `internal/command/server.go` next to the archiver goroutine, sharing the same
@@ -350,7 +350,7 @@ permanently due. The reason lives in the server logs.
 
 ### API surface
 
-New proto RPCs on `XAgentService` (`proto/xagent/v1/xagent.proto`), following the existing
+New proto RPCs on `GritzService` (`proto/gritz/v1/gritz.proto`), following the existing
 naming (`CreateTask`, `ListTasks`, …):
 
 ```proto
@@ -468,7 +468,7 @@ above it land.
 | **Stored `schedules` table + `SKIP LOCKED` scheduler worker** (proposed) | Reuses the archiver worker shape and the `CreateTask` path verbatim; exactly-once across instances via a single Postgres primitive already idiomatic in the code; scheduling fully decoupled from execution; visible in UI, org-scoped, scope-gated | Adds a second background worker and a cron dependency; introduces the first `SKIP LOCKED` usage (archiver used optimistic version only) |
 | **Optimistic `version` claim (mirror the archiver exactly)** | Zero new locking concepts; identical to auto-archive | A duplicated fire is a duplicated *real task run*, not an idempotent no-op; correct only while the server is single-replica, which the prompt explicitly rules out |
 | **Postgres advisory lock around the whole tick** (one leader) | Dead simple; one scheduler runs at a time | Serializes all scheduling through one instance (no horizontal scale of the scheduler); a stuck leader stalls every schedule; coarser than per-row claiming |
-| **External cron → `xagent task create`** (status quo) | No code | Invisible to the product; no tenancy/scope integration; every integration reinvents state; not what the issue asks for |
+| **External cron → `gritz task create`** (status quo) | No code | Invisible to the product; no tenancy/scope integration; every integration reinvents state; not what the issue asks for |
 | **Compute due-ness at read time (no `next_run_at` column)** | No bookkeeping column to advance | Re-parses cron for every row every tick; can't express last-run without more columns anyway |
 
 The proposed shape is the smallest thing that is *correct across instances* while staying

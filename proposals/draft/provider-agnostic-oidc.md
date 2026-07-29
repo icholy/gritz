@@ -1,6 +1,6 @@
 # Provider-agnostic OIDC auth
 
-Issue: https://github.com/icholy/xagent/issues/703
+Issue: https://github.com/icholy/gritz/issues/703
 
 ## Problem
 
@@ -26,7 +26,7 @@ The `WithOnAuthenticated` hook we pass (`apiauth.go:181`) calls `cfg.UserResolve
 What zitadel-go is **not** doing for us — i.e. things we already own and that don't move under this proposal:
 
 - **API key auth (`xat_*`).** Lives entirely in `key.go` and `token.go`; SHA-256 hashed, validated via `StoreKeyValidator`.
-- **App JWT issuance + verification.** `jwt.go`: Ed25519, 5-minute TTL, served by `HandleToken` at `apiauth.go:312`. The `XAGENT_AUTH_APP_KEY` env var is unrelated to IdP choice.
+- **App JWT issuance + verification.** `jwt.go`: Ed25519, 5-minute TTL, served by `HandleToken` at `apiauth.go:312`. The `GRITZ_AUTH_APP_KEY` env var is unrelated to IdP choice.
 - **`UserInfo` + `Caller(ctx)` plumbing.** `WithUser` / `Caller` / `MustCaller` are our own context helpers; the Connect interceptor `RequireUserInterceptor()` consumes them.
 - **`UserResolver` and `KeyValidator` interfaces.** Defined here, implemented in `internal/server/storeauth.go`. The OIDC swap leaves these unchanged.
 - **Org resolution for app JWTs.** `HandleToken` reads `?org_id=…`, calls `resolver.ResolveOrg`, and signs an app JWT with the resolved org. Not OIDC-flavored.
@@ -61,7 +61,7 @@ Alternatives considered:
 **What we'd have to write ourselves** (these are the items zitadel-go currently bundles):
 
 1. **Three `http.HandlerFunc`s** for `/auth/login`, `/auth/callback`, `/auth/logout` (~80 lines).
-2. **Encrypted session cookie**, including encoding/decoding `UserInfo` + (optionally) the `id_token` we need for RP-initiated logout. The cleanest path is to keep the encryption primitive we already have for OAuth state cookies in `internal/auth/oauthflow/` and reuse it; failing that, `crypto/aes` + `crypto/cipher` with our existing 32-byte `XAGENT_AUTH_ENCRYPTION_KEY` is ~30 lines and has no new dep. (`gorilla/securecookie` is an option but not necessary — we already require a 32-byte key.)
+2. **Encrypted session cookie**, including encoding/decoding `UserInfo` + (optionally) the `id_token` we need for RP-initiated logout. The cleanest path is to keep the encryption primitive we already have for OAuth state cookies in `internal/auth/oauthflow/` and reuse it; failing that, `crypto/aes` + `crypto/cipher` with our existing 32-byte `GRITZ_AUTH_ENCRYPTION_KEY` is ~30 lines and has no new dep. (`gorilla/securecookie` is an option but not necessary — we already require a 32-byte key.)
 3. **State + nonce cookies** for the round-trip to the IdP. Same encrypted-cookie helper as (2).
 4. **`RequireAuth` / `CheckAuth` middleware adapters** that read the session cookie, populate `*UserInfo`, and (in the require case) redirect to `/auth/login` with the original URL preserved as state. We already have the outer `RequireAuth`/`CheckAuth` shape at `apiauth.go:244` and `:268`; only the inner "is there a cookie session" branch changes.
 5. **RP-initiated logout.** Read `end_session_endpoint` from the discovery document, redirect with `id_token_hint` + `post_logout_redirect_uri`. The discovery document doesn't expose `end_session_endpoint` through `coreos/go-oidc`'s public surface, so we'd unmarshal it ourselves from `provider.Claims(&extra)` — ~10 lines.
@@ -84,18 +84,18 @@ Total new code under our ownership: roughly **150–200 lines** in `internal/aut
 
 ### Config / secrets / deployment changes
 
-- `internal/command/server.go:42–55`: rename CLI flag `--auth-domain` → `--auth-issuer-url`, env var `XAGENT_AUTH_DOMAIN` → `XAGENT_AUTH_ISSUER_URL`, and update the `Usage:` strings on the three `--auth-*` flags from "ZITADEL …" to "OIDC …".
-- `fly.toml:12`: rename the documenting comment from `XAGENT_AUTH_DOMAIN` to `XAGENT_AUTH_ISSUER_URL`. The Fly secret rotates with the same one-shot `fly secrets set` that the Ory migration calls for.
-- `sops.env.yml`: rename the encrypted entry from `XAGENT_AUTH_DOMAIN` to `XAGENT_AUTH_ISSUER_URL`. Re-encrypt with the new IdP's value.
-- `XAGENT_AUTH_ENCRYPTION_KEY`, `XAGENT_AUTH_APP_KEY`, `XAGENT_AUTH_CLIENT_ID`, `XAGENT_AUTH_CLIENT_SECRET`: unchanged names and meanings.
+- `internal/command/server.go:42–55`: rename CLI flag `--auth-domain` → `--auth-issuer-url`, env var `GRITZ_AUTH_DOMAIN` → `GRITZ_AUTH_ISSUER_URL`, and update the `Usage:` strings on the three `--auth-*` flags from "ZITADEL …" to "OIDC …".
+- `fly.toml:12`: rename the documenting comment from `GRITZ_AUTH_DOMAIN` to `GRITZ_AUTH_ISSUER_URL`. The Fly secret rotates with the same one-shot `fly secrets set` that the Ory migration calls for.
+- `sops.env.yml`: rename the encrypted entry from `GRITZ_AUTH_DOMAIN` to `GRITZ_AUTH_ISSUER_URL`. Re-encrypt with the new IdP's value.
+- `GRITZ_AUTH_ENCRYPTION_KEY`, `GRITZ_AUTH_APP_KEY`, `GRITZ_AUTH_CLIENT_ID`, `GRITZ_AUTH_CLIENT_SECRET`: unchanged names and meanings.
 - No `go.mod` removal can be done in the same commit because tests will fail if `zitadel-go` is missing while the new code is being written. The clean sequence is: introduce `coreos/go-oidc`, port the code, delete the zitadel-go and `zitadel/oidc` imports from `apiauth.go`, then run `go mod tidy` and observe the deletions. Approximate net `go.mod` delta: `+github.com/coreos/go-oidc/v3 -github.com/zitadel/zitadel-go/v3 -github.com/zitadel/oidc/v3`.
-- The `XAGENT_AUTH_DEVICE_CLIENT_ID` entry in `fly.toml:15` and `sops.env.yml:9` has no reader in the Go code today (verified by grepping `internal/**` — no `device_code` or `DeviceCode` references). It's either dead config or reserved for a forthcoming device-flow CLI login. Either way it is not relevant to this migration; treat it as a config-only entry to be cleaned up or wired up separately.
+- The `GRITZ_AUTH_DEVICE_CLIENT_ID` entry in `fly.toml:15` and `sops.env.yml:9` has no reader in the Go code today (verified by grepping `internal/**` — no `device_code` or `DeviceCode` references). It's either dead config or reserved for a forthcoming device-flow CLI login. Either way it is not relevant to this migration; treat it as a config-only entry to be cleaned up or wired up separately.
 
 ### Behavioral differences
 
 | Behavior | Today (zitadel-go) | After (coreos/go-oidc) | Visible? |
 | --- | --- | --- | --- |
-| Session cookie name | `zitadel.session` | `xagent.session` (proposed) | Cookie inspector only. |
+| Session cookie name | `zitadel.session` | `gritz.session` (proposed) | Cookie inspector only. |
 | Session cookie encoding | Encrypted JSON of `*openid.DefaultContext` (claims + UserInfo + tokens) | Encrypted JSON of `{ID, Email, Name, IDTokenHint, ExpiresAt}` | No — only what `Auth.User(r)` reads is exposed. |
 | Session contents we store | Full ID/access/refresh token set | Just `UserInfo` + `id_token` (the hint we need for RP-initiated logout) | Smaller cookie. We don't currently use refresh tokens. |
 | ID-token verification | `rp.UserinfoCallback[…]` | `provider.Verifier(...).Verify(ctx, rawIDToken)` | No — both verify signature + iss + aud + exp. |
@@ -120,7 +120,7 @@ API keys (`xat_*`) and app JWTs (`xa_…`) are entirely unaffected. They don't g
 
 **Adopt `coreos/go-oidc/v3` + `golang.org/x/oauth2`**, rename `apiauth.Config.Domain` → `IssuerURL` and the corresponding flag/env var, write the ~150 lines of session-cookie + handler code we currently get from zitadel-go, and remove both `github.com/zitadel/zitadel-go/v3` and `github.com/zitadel/oidc/v3` from `go.mod`.
 
-This unlocks the [Ory migration](ory-network-auth.md) and any future IdP change as a *config-only* operation. Combined with the Ory swap, the two land as one PR pair (this one first, the Ory `XAGENT_AUTH_ISSUER_URL` cutover second) or as a single PR if they are scoped together — either way, the second never has to touch Go code.
+This unlocks the [Ory migration](ory-network-auth.md) and any future IdP change as a *config-only* operation. Combined with the Ory swap, the two land as one PR pair (this one first, the Ory `GRITZ_AUTH_ISSUER_URL` cutover second) or as a single PR if they are scoped together — either way, the second never has to touch Go code.
 
 ### Effort estimate
 
@@ -128,7 +128,7 @@ This unlocks the [Ory migration](ory-network-auth.md) and any future IdP change 
 - **End-to-end verification:** ~½ day. Stand up a staging deploy against the current Zitadel issuer, click through login/logout/API-key/app-JWT, then repeat against an Ory developer project.
 - **Total:** ~1.5 days from branch to merged. The risk is bounded because the new code is a re-implementation of well-defined OIDC steps with a small public surface; the path to verify (login → callback → cookie → API call → logout) is the same path we exercise manually today.
 
-Combined with the [Ory migration](ory-network-auth.md) on top, the user-visible result is: a single round of "log out and log in again on the next deploy," autofill starts working, and `XAGENT_AUTH_ISSUER_URL` becomes the only thing pointing at which IdP we use.
+Combined with the [Ory migration](ory-network-auth.md) on top, the user-visible result is: a single round of "log out and log in again on the next deploy," autofill starts working, and `GRITZ_AUTH_ISSUER_URL` becomes the only thing pointing at which IdP we use.
 
 ## Trade-offs
 
@@ -148,4 +148,4 @@ The case against: zero — the work isn't zero, but the alternative is doing it 
 1. **Land in one PR or two?** This proposal and the Ory migration can be merged as one PR (single re-login, single deploy) or two (this one first against the existing Zitadel issuer to prove provider-agnosticism, Ory swap second). Two PRs is safer; one PR is faster. Decide before the implementation branch opens.
 2. **Cookie codec re-use.** The existing `internal/auth/oauthflow/` already encrypts cookies for the GitHub/Atlassian flows. Worth checking whether its codec is general enough to reuse here, vs. introducing a third encryption call-site. A 10-minute read of `oauthflow/code.go` before implementation answers this.
 3. **Should the new session cookie carry the `id_token`?** Required if we want RP-initiated logout to send `id_token_hint`. Not required if we accept "logout = clear cookie, no IdP-side session termination" (which is what most apps do). Today zitadel-go sends the hint; preserving that behavior costs us ~200 bytes of cookie per user. Probably yes, for parity.
-4. **`XAGENT_AUTH_DEVICE_CLIENT_ID`.** Same open question as the Ory proposal — no current Go-code reader. Either it's a forthcoming device-flow client ID (in which case it's IdP-agnostic by construction once this proposal lands), or it's leftover config to delete. Worth resolving alongside this PR rather than after.
+4. **`GRITZ_AUTH_DEVICE_CLIENT_ID`.** Same open question as the Ory proposal — no current Go-code reader. Either it's a forthcoming device-flow client ID (in which case it's IdP-agnostic by construction once this proposal lands), or it's leftover config to delete. Worth resolving alongside this PR rather than after.

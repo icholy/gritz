@@ -58,22 +58,22 @@ jobs:
           CGO_ENABLED: '0'
           GOOS: linux
           GOARCH: amd64
-        run: go build -ldflags "-X github.com/icholy/xagent/internal/version.Version=${{ needs.release-please.outputs.tag_name }}" -o xagent-linux-amd64 ./cmd/xagent
+        run: go build -ldflags "-X github.com/icholy/gritz/internal/version.Version=${{ needs.release-please.outputs.tag_name }}" -o gritz-linux-amd64 ./cmd/gritz
 
       - name: Build linux/arm64
         env:
           CGO_ENABLED: '0'
           GOOS: linux
           GOARCH: arm64
-        run: go build -ldflags "-X github.com/icholy/xagent/internal/version.Version=${{ needs.release-please.outputs.tag_name }}" -o xagent-linux-arm64 ./cmd/xagent
+        run: go build -ldflags "-X github.com/icholy/gritz/internal/version.Version=${{ needs.release-please.outputs.tag_name }}" -o gritz-linux-arm64 ./cmd/gritz
 
       - name: Attach binaries to Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
-            xagent-linux-amd64
-            xagent-linux-arm64
+            gritz-linux-amd64
+            gritz-linux-arm64
 
   docker:
     needs: release-please
@@ -221,6 +221,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-contexts: xagent-workspace-debian=docker-image://ghcr.io/${{ github.repository }}-workspace-debian:${{ steps.meta.outputs.version }}
+          build-contexts: gritz-workspace-debian=docker-image://ghcr.io/${{ github.repository }}-workspace-debian:${{ steps.meta.outputs.version }}
           cache-from: type=gha,scope=workspace-mise
           cache-to: type=gha,mode=max,scope=workspace-mise

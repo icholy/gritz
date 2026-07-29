@@ -67,4 +67,4 @@ jobs:
           status: ${{ job.status }}
           env: ${{ steps.deployment.outputs.env }}
           deployment_id: ${{ steps.deployment.outputs.deployment_id }}
-          env_url: https://xagent.choly.ca
+          env_url: https://gritz.dev

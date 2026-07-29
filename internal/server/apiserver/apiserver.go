@@ -7,15 +7,15 @@ import (
 	"log/slog"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/proto/xagent/v1/xagentv1connect"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/server/atlassianserver"
-	"github.com/icholy/xagent/internal/store"
-	"github.com/icholy/xagent/internal/version"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/proto/gritz/v1/gritzv1connect"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/server/atlassianserver"
+	"github.com/icholy/gritz/internal/store"
+	"github.com/icholy/gritz/internal/version"
 )
 
 //go:generate go tool moq -out github_moq_test.go . GithubServer
@@ -30,7 +30,7 @@ type GithubServer interface {
 }
 
 type Server struct {
-	xagentv1connect.UnimplementedXAgentServiceHandler
+	gritzv1connect.UnimplementedGritzServiceHandler
 	log       *slog.Logger
 	store     *store.Store
 	baseURL   string
@@ -99,13 +99,13 @@ func (s *Server) publish(n model.Notification) {
 	}
 }
 
-func (s *Server) Ping(ctx context.Context, req *xagentv1.PingRequest) (*xagentv1.PingResponse, error) {
-	return &xagentv1.PingResponse{
+func (s *Server) Ping(ctx context.Context, req *gritzv1.PingRequest) (*gritzv1.PingResponse, error) {
+	return &gritzv1.PingResponse{
 		Version: version.String(),
 	}, nil
 }
 
-func (s *Server) GetProfile(ctx context.Context, req *xagentv1.GetProfileRequest) (*xagentv1.GetProfileResponse, error) {
+func (s *Server) GetProfile(ctx context.Context, req *gritzv1.GetProfileRequest) (*gritzv1.GetProfileResponse, error) {
 	u := apiauth.Caller(ctx)
 	if u == nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("not authenticated"))
@@ -118,8 +118,8 @@ func (s *Server) GetProfile(ctx context.Context, req *xagentv1.GetProfileRequest
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.GetProfileResponse{
-		Profile: &xagentv1.Profile{
+	return &gritzv1.GetProfileResponse{
+		Profile: &gritzv1.Profile{
 			Id:    u.ID,
 			Email: u.Email,
 			Name:  u.Name,

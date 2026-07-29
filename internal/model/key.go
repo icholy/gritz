@@ -3,8 +3,8 @@ package model
 import (
 	"time"
 
-	"github.com/icholy/xagent/internal/auth/authscope"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -25,8 +25,8 @@ func (k *Key) IsExpired() bool {
 }
 
 // Proto converts a Key to its protobuf representation.
-func (k *Key) Proto() *xagentv1.Key {
-	pb := &xagentv1.Key{
+func (k *Key) Proto() *gritzv1.Key {
+	pb := &gritzv1.Key{
 		Id:        k.ID,
 		Name:      k.Name,
 		CreatedAt: timestamppb.New(k.CreatedAt),

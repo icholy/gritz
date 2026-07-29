@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
-func (s *Server) RegisterWorkspaces(ctx context.Context, req *xagentv1.RegisterWorkspacesRequest) (*xagentv1.RegisterWorkspacesResponse, error) {
+func (s *Server) RegisterWorkspaces(ctx context.Context, req *gritzv1.RegisterWorkspacesRequest) (*gritzv1.RegisterWorkspacesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpWorkspaceWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot register workspaces"))
@@ -41,10 +41,10 @@ func (s *Server) RegisterWorkspaces(ctx context.Context, req *xagentv1.RegisterW
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.RegisterWorkspacesResponse{}, nil
+	return &gritzv1.RegisterWorkspacesResponse{}, nil
 }
 
-func (s *Server) ListWorkspaces(ctx context.Context, req *xagentv1.ListWorkspacesRequest) (*xagentv1.ListWorkspacesResponse, error) {
+func (s *Server) ListWorkspaces(ctx context.Context, req *gritzv1.ListWorkspacesRequest) (*gritzv1.ListWorkspacesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpWorkspaceRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list workspaces"))
@@ -53,10 +53,10 @@ func (s *Server) ListWorkspaces(ctx context.Context, req *xagentv1.ListWorkspace
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListWorkspacesResponse{Workspaces: model.ProtoMap(workspaces)}, nil
+	return &gritzv1.ListWorkspacesResponse{Workspaces: model.ProtoMap(workspaces)}, nil
 }
 
-func (s *Server) ClearWorkspaces(ctx context.Context, req *xagentv1.ClearWorkspacesRequest) (*xagentv1.ClearWorkspacesResponse, error) {
+func (s *Server) ClearWorkspaces(ctx context.Context, req *gritzv1.ClearWorkspacesRequest) (*gritzv1.ClearWorkspacesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpWorkspaceWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot clear workspaces"))
@@ -80,5 +80,5 @@ func (s *Server) ClearWorkspaces(ctx context.Context, req *xagentv1.ClearWorkspa
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.ClearWorkspacesResponse{}, nil
+	return &gritzv1.ClearWorkspacesResponse{}, nil
 }

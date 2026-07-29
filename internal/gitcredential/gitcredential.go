@@ -7,12 +7,12 @@ import (
 	"io"
 	"strings"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 )
 
 // Run executes the git credential helper logic for the given action.
-func Run(ctx context.Context, action string, r io.Reader, w io.Writer, client xagentclient.Client) error {
+func Run(ctx context.Context, action string, r io.Reader, w io.Writer, client gritzclient.Client) error {
 	switch action {
 	case "get":
 		return get(ctx, r, w, client)
@@ -47,7 +47,7 @@ func FormatOutput(w io.Writer, token string) error {
 	return err
 }
 
-func get(ctx context.Context, r io.Reader, w io.Writer, client xagentclient.Client) error {
+func get(ctx context.Context, r io.Reader, w io.Writer, client gritzclient.Client) error {
 	fields := ParseInput(r)
 
 	// Only handle github.com over https.
@@ -58,7 +58,7 @@ func get(ctx context.Context, r io.Reader, w io.Writer, client xagentclient.Clie
 		return nil
 	}
 
-	resp, err := client.CreateGitHubToken(ctx, &xagentv1.CreateGitHubTokenRequest{})
+	resp, err := client.CreateGitHubToken(ctx, &gritzv1.CreateGitHubTokenRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to get GitHub token: %w", err)
 	}

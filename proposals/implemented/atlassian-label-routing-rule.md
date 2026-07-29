@@ -1,11 +1,11 @@
 # Atlassian Routing Rule for Jira Label Added
 
-Issue: https://github.com/icholy/xagent/issues/809
+Issue: https://github.com/icholy/gritz/issues/809
 
 ## Problem
 
-Users want to trigger an xagent task by adding a label to a Jira issue (e.g.
-add an `xagent` label to a ticket and have an agent pick it up). Today the
+Users want to trigger an gritz task by adding a label to a Jira issue (e.g.
+add an `gritz` label to a ticket and have an agent pick it up). Today the
 Atlassian integration only reacts to comments, so there is no way to start a
 task from a label change. Issue #809 asks for this and explicitly requests a
 proposal first, including the open question of whether the Jira webhook even
@@ -68,7 +68,7 @@ So no `jira:issue_updated` parsing exists on the Atlassian side at all.
 ### Routing-rule match fields
 
 `model.RoutingRule` (`internal/model/routing_rule.go`) and its proto
-(`proto/xagent/v1/xagent.proto`, `message RoutingRule`, fields 1–7) already
+(`proto/gritz/v1/gritz.proto`, `message RoutingRule`, fields 1–7) already
 expose: `Source`, `Type`, `Prefix`, `Mention`, `Assignee`, `URLPrefix`, plus a
 `Create` action (`CreateTaskAction`). Matching lives in `InputEvent.MatchRule`
 (`internal/eventrouter/rule.go`): each non-empty rule field must equal (or
@@ -83,7 +83,7 @@ via the source-specific `matchAssignee`.
    `InputEvent`.
 2. Even if they did, there is no `InputEvent.Type` value for "label added", and
    no rule field that targets a *specific* label value (e.g. only trigger on
-   `xagent`, not on any label).
+   `gritz`, not on any label).
 
 ## Design
 
@@ -154,7 +154,7 @@ In `toInputEvent`, add a `case "jira:issue_updated"` (Jira's real
 ```
 
 The actor is `payload.User` (the person who edited the issue), used the same way
-the comment path uses `payload.Comment.Author`: to resolve the xagent owner via
+the comment path uses `payload.Comment.Author`: to resolve the gritz owner via
 `GetUserByAtlassianAccountID` in `ServeHTTP`. Because `toInputEvent` currently
 returns a single `*InputEvent`, supporting multiple added labels requires
 changing its signature to `([]*eventrouter.InputEvent, error)` and looping the
@@ -173,13 +173,13 @@ with fields that already exist:
 ```
 Source = "atlassian"
 Type   = "label_added"
-Prefix = "xagent"        // empty = any label
+Prefix = "gritz"        // empty = any label
 ```
 
 This needs no model/proto/migration/UI change and matches the established
 pattern where `Prefix`/`Mention` filter on `Data`. The trade-off is that
-`Prefix` is a prefix, not an exact match, so `Prefix = "xagent"` would also match
-a label `xagent-urgent`. Given labels are short identifiers, this is acceptable
+`Prefix` is a prefix, not an exact match, so `Prefix = "gritz"` would also match
+a label `gritz-urgent`. Given labels are short identifiers, this is acceptable
 and arguably useful; an exact-match field can be added later if needed.
 
 Alternative considered — a dedicated `Label` match field on `RoutingRule` (model
@@ -232,7 +232,7 @@ re-creates). That matches existing comment/assignment behaviour.
 
 ## Trade-offs
 
-- **Polling instead of webhooks** (cf. the `xagent jira` poller): would avoid
+- **Polling instead of webhooks** (cf. the `gritz jira` poller): would avoid
   webhook setup but adds latency and load and duplicates the existing
   webhook-based comment path. Rejected — the webhook already exists and carries
   the data.

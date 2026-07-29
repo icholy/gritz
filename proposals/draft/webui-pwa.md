@@ -2,7 +2,7 @@
 
 ## Problem
 
-The xagent web UI is a desktop-first React SPA served at `/ui/` by the Go server (`internal/server/static.go` embeds the Vite build via `//go:embed webui` and falls back to `index.html` for client routes). It is usable on mobile browsers but is not installable, has no app icon on the home screen, no splash screen, and no offline shell. Launching it on a phone means navigating Safari/Chrome, finding the bookmark, waiting for the network to be there before any UI paints, and tolerating the URL bar eating vertical space.
+The gritz web UI is a desktop-first React SPA served at `/ui/` by the Go server (`internal/server/static.go` embeds the Vite build via `//go:embed webui` and falls back to `index.html` for client routes). It is usable on mobile browsers but is not installable, has no app icon on the home screen, no splash screen, and no offline shell. Launching it on a phone means navigating Safari/Chrome, finding the bookmark, waiting for the network to be there before any UI paints, and tolerating the URL bar eating vertical space.
 
 Turning the web UI into a PWA gives us three discrete wins:
 
@@ -10,7 +10,7 @@ Turning the web UI into a PWA gives us three discrete wins:
 2. **Mobile-first UX scaffolding** — proper maskable icons, theme colors, viewport meta, and splash screen make it feel like an app rather than a bookmark.
 3. **Offline shell** — the SPA bundle can be cached so launching the installed app shows the UI immediately on cold start and on flaky connections, even though live data still requires the server.
 
-Push notifications when the app is closed are **out of scope** for this proposal. xagent is a live system; the foreground real-time strategy already works, and background delivery (Web Push, native push) is a separate, larger initiative that we are not committing to here.
+Push notifications when the app is closed are **out of scope** for this proposal. gritz is a live system; the foreground real-time strategy already works, and background delivery (Web Push, native push) is a separate, larger initiative that we are not committing to here.
 
 ## Scope
 
@@ -20,7 +20,7 @@ Push notifications when the app is closed are **out of scope** for this proposal
 - **Service Worker** registered from `main.tsx`, scoped to `/ui/`. Its responsibilities are kept deliberately narrow:
   - Precache the built JS/CSS/HTML hash-named assets so the app shell loads instantly on launch.
   - Network-first for `index.html` so deploys are picked up.
-  - Pass-through (do not intercept) for `/xagent.v1.XAgentService/*`, `/events`, `/auth/*`, and `/webhook/*`. These are live, authenticated, and Connect-RPC framed — the SW must not cache or interfere.
+  - Pass-through (do not intercept) for `/gritz.v1.GritzService/*`, `/events`, `/auth/*`, and `/webhook/*`. These are live, authenticated, and Connect-RPC framed — the SW must not cache or interfere.
 - **App icons & splash** — generate maskable PNGs from the existing `webui/public/icon.png`. iOS-specific `apple-touch-icon` link tags are added to `index.html`.
 - **Install prompt** — render the browser's `beforeinstallprompt` (Android/Desktop Chrome) behind a small "Install" affordance. iOS does not fire this event; document the manual "Share → Add to Home Screen" path in a settings hint.
 - **Theme color & viewport meta** updates in `webui/index.html` so the standalone window chrome and status bar match the app.
@@ -28,7 +28,7 @@ Push notifications when the app is closed are **out of scope** for this proposal
 What is **explicitly out of scope**:
 
 - Web Push / push notifications. No VAPID, no `push` SW event, no server-side subscription storage, no notification settings UI.
-- Offline write/queueing of mutations. xagent is fundamentally a live system: creating a task, restarting a task, replying to an event all require the server. We do not attempt to queue these for later replay.
+- Offline write/queueing of mutations. gritz is fundamentally a live system: creating a task, restarting a task, replying to an event all require the server. We do not attempt to queue these for later replay.
 - Caching of API responses in the service worker. React Query is already the cache layer; duplicating it in the SW would create stale-data bugs.
 - Background sync for the SSE stream. SSE inside a service worker is not viable (no `EventSource` in worker context, and `fetch` streams die when the SW is terminated).
 
@@ -72,7 +72,7 @@ This is a deliberate scope choice. Background delivery would require Web Push wi
 Frontend changes (build-time):
 
 - Add `vite-plugin-pwa` to `webui/package.json`. It generates the manifest, the service worker (Workbox-backed), the type definitions, and the registration helper. The alternative is hand-rolling all of this; `vite-plugin-pwa` is the standard and saves a lot of boilerplate around precache-manifest injection.
-- Configure it in `webui/vite.config.ts` with `registerType: 'prompt'`, `scope: '/ui/'`, `start_url: '/ui/tasks'`, `base: '/ui/'`, and the precache glob restricted to hashed JS/CSS plus `index.html`. Network paths that must not be intercepted are explicitly excluded via `navigateFallbackDenylist` (`/xagent.v1.*`, `/events`, `/auth/.*`, `/webhook/.*`).
+- Configure it in `webui/vite.config.ts` with `registerType: 'prompt'`, `scope: '/ui/'`, `start_url: '/ui/tasks'`, `base: '/ui/'`, and the precache glob restricted to hashed JS/CSS plus `index.html`. Network paths that must not be intercepted are explicitly excluded via `navigateFallbackDenylist` (`/gritz.v1.*`, `/events`, `/auth/.*`, `/webhook/.*`).
 - Add maskable icon assets to `webui/public/`. The existing `icon.png` is the source; new sizes are generated as build artifacts.
 - Wire the SW registration in `webui/src/main.tsx` behind `import.meta.env.PROD` to avoid SW interference during `vite dev` (SW + HMR fight constantly).
 - Update `webui/index.html` head with the manifest link, theme color, viewport-fit cover, apple-touch-icons, and apple status bar meta.
@@ -110,6 +110,6 @@ Total: about a day and a half. Almost all of the cost is wiring and asset genera
 
 **Capacitor wrapper.** Wrap the existing Vite build as a Capacitor app for iOS/Android distribution. Gives us App Store presence and easier deep linking. Costs: Apple Developer Program membership, App Store review cycle, two more build pipelines, native code for any platform-specific bits. Rejected because the wins over a plain PWA install are marginal for an internal tool with a small user base, and the distribution overhead is large.
 
-**Native app (React Native or Swift/Kotlin).** Best mobile UX. Worst engineering ROI given xagent's scope and team size. Rejected.
+**Native app (React Native or Swift/Kotlin).** Best mobile UX. Worst engineering ROI given gritz's scope and team size. Rejected.
 
 **Just add the manifest, skip the service worker.** Possible — a manifest alone is enough for "installable" on most platforms today. We would lose the offline shell and the instant cold-start on flaky networks but keep the engineering surface even smaller. Worth considering if SW maintenance turns out to be a drag; the SW config is the only piece with non-trivial moving parts (precache manifest, update prompt, scope).

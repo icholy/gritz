@@ -8,8 +8,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -21,7 +21,7 @@ var PruneCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
+			Value:   gritzclient.DefaultURL,
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -32,14 +32,14 @@ var PruneCommand = &cli.Command{
 		}
 		defer docker.Close()
 
-		// Create xagent client
-		xagentClient := xagentclient.New(xagentclient.Options{BaseURL: cmd.String("server")})
+		// Create gritz client
+		gritzClient := gritzclient.New(gritzclient.Options{BaseURL: cmd.String("server")})
 
-		// List all stopped xagent containers
+		// List all stopped gritz containers
 		containers, err := docker.ContainerList(ctx, container.ListOptions{
 			All: true,
 			Filters: filters.NewArgs(
-				filters.Arg("label", "xagent=true"),
+				filters.Arg("label", "gritz=true"),
 				filters.Arg("status", "exited"),
 			),
 		})
@@ -55,7 +55,7 @@ var PruneCommand = &cli.Command{
 		// Check each container's task status and remove if archived
 		var removed int
 		for _, c := range containers {
-			taskIDStr := c.Labels["xagent.task"]
+			taskIDStr := c.Labels["gritz.task"]
 			if taskIDStr == "" {
 				continue
 			}
@@ -67,7 +67,7 @@ var PruneCommand = &cli.Command{
 			}
 
 			// Fetch task status
-			task, err := xagentClient.GetTask(ctx, &xagentv1.GetTaskRequest{Id: taskID})
+			task, err := gritzClient.GetTask(ctx, &gritzv1.GetTaskRequest{Id: taskID})
 			if err != nil {
 				fmt.Printf("Warning: failed to get task %d: %v\n", taskID, err)
 				continue

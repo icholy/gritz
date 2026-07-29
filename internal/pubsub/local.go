@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 )
 
 const subscriberBufSize = 64

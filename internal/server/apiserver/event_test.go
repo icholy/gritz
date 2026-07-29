@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
-	"github.com/icholy/xagent/internal/x/testx"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
+	"github.com/icholy/gritz/internal/x/testx"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 )
@@ -26,7 +26,7 @@ func orgWithWorkspace(t *testing.T, srv *Server) *teststore.Org {
 // createTestTask creates a task to own the events under test.
 func createTestTask(t *testing.T, srv *Server, ctx context.Context) int64 {
 	t.Helper()
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Test Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -55,16 +55,16 @@ func TestGetEvent(t *testing.T) {
 	assert.NilError(t, srv.store.CreateEvent(ctx, nil, event))
 
 	// Act
-	getResp, err := srv.GetEvent(ctx, &xagentv1.GetEventRequest{
+	getResp, err := srv.GetEvent(ctx, &gritzv1.GetEventRequest{
 		Id: event.ID,
 	})
 
 	// Assert
 	assert.NilError(t, err)
-	expected := &xagentv1.Event{
+	expected := &gritzv1.Event{
 		Id:     event.ID,
 		TaskId: taskID,
-		Payload: &xagentv1.Event_External{External: &xagentv1.ExternalPayload{
+		Payload: &gritzv1.Event_External{External: &gritzv1.ExternalPayload{
 			Description: "Issue updated",
 			Url:         "https://github.com/example/repo/issues/42",
 			Data:        `{"status": "closed"}`,
@@ -91,7 +91,7 @@ func TestGetEvent_Permissions(t *testing.T) {
 	assert.NilError(t, srv.store.CreateEvent(ctxA, nil, event))
 
 	// Act
-	_, err := srv.GetEvent(ctxB, &xagentv1.GetEventRequest{
+	_, err := srv.GetEvent(ctxB, &gritzv1.GetEventRequest{
 		Id: event.ID,
 	})
 
@@ -118,7 +118,7 @@ func TestListEvents(t *testing.T) {
 	}))
 
 	// Act - uses default limit (100)
-	resp, err := srv.ListExternalEvents(ctx, &xagentv1.ListExternalEventsRequest{})
+	resp, err := srv.ListExternalEvents(ctx, &gritzv1.ListExternalEventsRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -135,14 +135,14 @@ func TestListEvents_ExternalOnly(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := orgWithWorkspace(t, srv)
 	ctx := createCtx(t, org)
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:         "Test Task",
 		Runner:       "test-runner",
 		Workspace:    "test-workspace",
-		Instructions: []*xagentv1.Instruction{{Text: "do the thing"}},
+		Instructions: []*gritzv1.Instruction{{Text: "do the thing"}},
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	_, err = srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId: taskResp.Task.Id,
 		Url:    "https://github.com/example/repo/pull/1",
 	})
@@ -154,7 +154,7 @@ func TestListEvents_ExternalOnly(t *testing.T) {
 	}))
 
 	// Act
-	resp, err := srv.ListExternalEvents(ctx, &xagentv1.ListExternalEventsRequest{})
+	resp, err := srv.ListExternalEvents(ctx, &gritzv1.ListExternalEventsRequest{})
 
 	// Assert - the org feed returns only the external event; instruction and link
 	// events do not leak into it.
@@ -181,7 +181,7 @@ func TestListEventsWithLimit(t *testing.T) {
 	}
 
 	// Act - Get only 2 most recent events
-	resp, err := srv.ListExternalEvents(ctx, &xagentv1.ListExternalEventsRequest{
+	resp, err := srv.ListExternalEvents(ctx, &gritzv1.ListExternalEventsRequest{
 		Limit: 2,
 	})
 	assert.NilError(t, err)
@@ -220,9 +220,9 @@ func TestListEvents_Permissions(t *testing.T) {
 	}))
 
 	// Act
-	respA, err := srv.ListExternalEvents(ctxA, &xagentv1.ListExternalEventsRequest{})
+	respA, err := srv.ListExternalEvents(ctxA, &gritzv1.ListExternalEventsRequest{})
 	assert.NilError(t, err)
-	respB, err := srv.ListExternalEvents(ctxB, &xagentv1.ListExternalEventsRequest{})
+	respB, err := srv.ListExternalEvents(ctxB, &gritzv1.ListExternalEventsRequest{})
 	assert.NilError(t, err)
 
 	// Assert
@@ -245,13 +245,13 @@ func TestDeleteEvent(t *testing.T) {
 	assert.NilError(t, srv.store.CreateEvent(ctx, nil, event))
 
 	// Act
-	_, err := srv.DeleteEvent(ctx, &xagentv1.DeleteEventRequest{
+	_, err := srv.DeleteEvent(ctx, &gritzv1.DeleteEventRequest{
 		Id: event.ID,
 	})
 
 	// Assert
 	assert.NilError(t, err)
-	_, getErr := srv.GetEvent(ctx, &xagentv1.GetEventRequest{Id: event.ID})
+	_, getErr := srv.GetEvent(ctx, &gritzv1.GetEventRequest{Id: event.ID})
 	assert.ErrorContains(t, getErr, "")
 }
 
@@ -272,14 +272,14 @@ func TestDeleteEvent_Permissions(t *testing.T) {
 	assert.NilError(t, srv.store.CreateEvent(ctxA, nil, event))
 
 	// Act
-	_, err := srv.DeleteEvent(ctxB, &xagentv1.DeleteEventRequest{
+	_, err := srv.DeleteEvent(ctxB, &gritzv1.DeleteEventRequest{
 		Id: event.ID,
 	})
 
 	// Assert - delete should silently fail (no error, but event still exists)
 	assert.NilError(t, err)
 	// Verify event still exists for user A
-	_, err = srv.GetEvent(ctxA, &xagentv1.GetEventRequest{Id: event.ID})
+	_, err = srv.GetEvent(ctxA, &gritzv1.GetEventRequest{Id: event.ID})
 	assert.NilError(t, err)
 }
 
@@ -303,7 +303,7 @@ func TestListEventsByTask(t *testing.T) {
 	}))
 
 	// Act
-	resp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	resp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID,
 	})
 
@@ -311,13 +311,13 @@ func TestListEventsByTask(t *testing.T) {
 	// creation, so filter to the external events. They are in chronological
 	// (oldest-first) stream order.
 	assert.NilError(t, err)
-	var external []*xagentv1.ExternalPayload
+	var external []*gritzv1.ExternalPayload
 	for _, e := range resp.Events {
 		if x := e.GetExternal(); x != nil {
 			external = append(external, x)
 		}
 	}
-	assert.DeepEqual(t, external, []*xagentv1.ExternalPayload{
+	assert.DeepEqual(t, external, []*gritzv1.ExternalPayload{
 		{Description: "Event 1"},
 		{Description: "Event 2"},
 	}, protocmp.Transform())
@@ -337,7 +337,7 @@ func TestListEventsByTask_LegacyNoTokens(t *testing.T) {
 	}))
 
 	// Act - no pagination fields → the legacy unpaged path.
-	resp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: taskID})
+	resp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: taskID})
 
 	// Assert - full ascending list, no tokens (exactly today's behavior).
 	assert.NilError(t, err)
@@ -362,7 +362,7 @@ func TestListEventsByTask_Paged(t *testing.T) {
 	}
 
 	// The legacy unpaged list is the ground-truth ascending order.
-	full, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: taskID})
+	full, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: taskID})
 	assert.NilError(t, err)
 	fullIDs := testx.ExtractField(full.Events, "Id").([]int64)
 	total := len(fullIDs)
@@ -372,7 +372,7 @@ func TestListEventsByTask_Paged(t *testing.T) {
 	// ascending, with both tokens populated — older history exists, and the
 	// live-follow token is always set on the paged path.
 	const pageSize = 2
-	newest, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	newest, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: pageSize,
 	})
 	assert.NilError(t, err)
@@ -386,7 +386,7 @@ func TestListEventsByTask_Paged(t *testing.T) {
 	// once history is exhausted.
 	got := testx.ExtractField(newest.Events, "Id").([]int64)
 	for token := newest.PrevPageToken; token != ""; {
-		page, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+		page, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 			TaskId: taskID, PageSize: pageSize, PageToken: token,
 		})
 		assert.NilError(t, err)
@@ -418,7 +418,7 @@ func TestListEventsByTask_More(t *testing.T) {
 	// older page remains. Walk prev_page_token to the oldest page, collecting More.
 	const pageSize = 2
 	var gotMore []bool
-	resp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	resp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: pageSize,
 	})
 	assert.NilError(t, err)
@@ -429,7 +429,7 @@ func TestListEventsByTask_More(t *testing.T) {
 		if resp.PrevPageToken == "" {
 			break
 		}
-		resp, err = srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+		resp, err = srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 			TaskId: taskID, PageSize: pageSize, PageToken: resp.PrevPageToken,
 		})
 		assert.NilError(t, err)
@@ -453,7 +453,7 @@ func TestListEventsByTask_LiveFollow(t *testing.T) {
 
 	// A large page fits the whole stream: no older history (prev empty), but the
 	// live-follow token is still populated so the tail can be polled.
-	newest, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	newest, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 100,
 	})
 	assert.NilError(t, err)
@@ -462,7 +462,7 @@ func TestListEventsByTask_LiveFollow(t *testing.T) {
 
 	// Follow the tail with nothing newer yet → an empty page whose token echoes the
 	// resume cursor so polling continues.
-	poll, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	poll, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 100, PageToken: newest.NextPageToken,
 	})
 	assert.NilError(t, err)
@@ -476,7 +476,7 @@ func TestListEventsByTask_LiveFollow(t *testing.T) {
 		OrgID:   org.OrgID,
 		Payload: &model.ExternalPayload{Description: "Event 2"},
 	}))
-	poll2, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	poll2, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 100, PageToken: poll.NextPageToken,
 	})
 	assert.NilError(t, err)
@@ -505,14 +505,14 @@ func TestListEventsByTask_TypesFilter(t *testing.T) {
 
 	// Empty types on the paged path → all types (instruction + external + the
 	// lifecycle CREATED), so more than the two seeded events come back.
-	all, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	all, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 100,
 	})
 	assert.NilError(t, err)
 	assert.Assert(t, len(all.Events) >= 3)
 
 	// A types filter narrows to just the requested types.
-	resp, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	resp, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 100,
 		Types: []string{model.EventTypeExternal},
 	})
@@ -521,7 +521,7 @@ func TestListEventsByTask_TypesFilter(t *testing.T) {
 	assert.Equal(t, resp.Events[0].GetExternal().Description, "PR comment")
 
 	// Multiple types widen the filter but still exclude lifecycle.
-	resp, err = srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	resp, err = srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 100,
 		Types: []string{model.EventTypeInstruction, model.EventTypeExternal},
 	})
@@ -540,13 +540,13 @@ func TestListEventsByTask_InvalidArgs(t *testing.T) {
 	taskID := createTestTask(t, srv, ctx)
 
 	// A page size past the max → CodeInvalidArgument.
-	_, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	_, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageSize: 5000,
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 
 	// An undecodable page token → CodeInvalidArgument.
-	_, err = srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	_, err = srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskID, PageToken: "@@not-a-valid-token@@",
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
@@ -568,11 +568,11 @@ func TestListEventsByTask_Permissions(t *testing.T) {
 	}))
 
 	// Act
-	respA, err := srv.ListEventsByTask(ctxA, &xagentv1.ListEventsByTaskRequest{
+	respA, err := srv.ListEventsByTask(ctxA, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskA,
 	})
 	assert.NilError(t, err)
-	respB, err := srv.ListEventsByTask(ctxB, &xagentv1.ListEventsByTaskRequest{
+	respB, err := srv.ListEventsByTask(ctxB, &gritzv1.ListEventsByTaskRequest{
 		TaskId: taskA,
 	})
 	assert.NilError(t, err)
