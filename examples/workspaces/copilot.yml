@@ -1,7 +1,7 @@
 workspaces:
   pets-workshop:
     container:
-      image: ghcr.io/icholy/xagent-workspace-debian:latest
+      image: ghcr.io/icholy/gritz-workspace-debian:latest
       working_dir: /root
       environment:
         COPILOT_GITHUB_TOKEN: ${env:COPILOT_GITHUB_TOKEN}

@@ -1,6 +1,6 @@
 # Task Namespaces for Routing Rules
 
-Issue: https://github.com/icholy/xagent/issues/1317
+Issue: https://github.com/icholy/gritz/issues/1317
 
 ## Problem
 
@@ -28,7 +28,7 @@ if links := linksByOrg[orgID]; len(links) > 0 {
 A routing rule on `github` `label_added` (condition `label equals reviewbot`,
 create-task action, `wakeup` off) is meant to spawn a fresh code-review task
 whenever the `reviewbot` label is applied to a PR. It never fires when the PR was
-opened by another xagent task: that implementing task already holds a subscribed
+opened by another gritz task: that implementing task already holds a subscribed
 link to the PR, so the label event finds a subscriber, takes the wake/attach
 branch, and (because `wakeup` is off) just silently attaches to the implementing
 task. No reviewer is created.
@@ -331,7 +331,7 @@ Net: a deployment that never sets a namespace behaves identically to today.
    namespace scope in `Apply`. This is the slice that closes the issue.
 
 5. **Proto + API handlers** — Delivers: `namespace` on `Task`, `CreateTaskRequest`,
-   `RoutingRule` in `proto/xagent/v1/xagent.proto` (regenerate); `CreateTask`
+   `RoutingRule` in `proto/gritz/v1/gritz.proto` (regenerate); `CreateTask`
    honors `req.Namespace`; `Get/SetRoutingRules` round-trip it; `get_my_task`
    exposes it. Depends on: (4). Verifiable by: handler tests — SetRoutingRules
    round-trip preserves namespace; CreateTask with a namespace persists it.

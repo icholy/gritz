@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/server"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/server"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 

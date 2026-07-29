@@ -22,11 +22,11 @@ import (
 )
 
 // Subprotocol is the WebSocket subprotocol version token negotiated on both
-// legs (Sec-WebSocket-Protocol: xagent-shell.v1). It carries no credential —
+// legs (Sec-WebSocket-Protocol: gritz-shell.v1). It carries no credential —
 // the attach leg authenticates with a Bearer token on the request. It lives
 // here so the relay, the driver, and the CLI client all reference the wire
 // contract from a single package.
-const Subprotocol = "xagent-shell.v1"
+const Subprotocol = "gritz-shell.v1"
 
 // ReadLimit is the per-message read limit applied to every *websocket.Conn on
 // every leg of a shell session (both dial legs and both relay legs). It lives

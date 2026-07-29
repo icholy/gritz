@@ -6,8 +6,8 @@ package scheduler
 import (
 	"context"
 	"database/sql"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store"
 	"sync"
 )
 

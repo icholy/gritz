@@ -10,8 +10,8 @@ import { LogOut, Settings } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { QueryClient } from '@tanstack/react-query'
 import { useQuery } from '@connectrpc/connect-query'
-import { getProfile } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import xagentIcon from '@/assets/icon.png'
+import { getProfile } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import gritzIcon from '@/assets/icon.png'
 import { useAuthTransport } from '@/lib/services'
 import { NO_ORG, type AuthTransport } from '@/lib/transport'
 import { useOrgId } from '@/hooks/use-org-id'
@@ -117,7 +117,7 @@ function RootComponent() {
         <nav className="shrink-0 border-b">
           <div className="px-4 py-3 flex flex-wrap items-center gap-3 md:gap-6">
             <Link to="/tasks/new" search={{ org: currentOrgId }} className="hidden md:block">
-              <img src={xagentIcon} alt="XAgent" className="h-8 w-8" />
+              <img src={gritzIcon} alt="Gritz" className="h-8 w-8" />
             </Link>
             <div className="flex gap-2 md:gap-4">
               <Link

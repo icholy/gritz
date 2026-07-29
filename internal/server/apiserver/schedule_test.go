@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
-	"github.com/icholy/xagent/internal/x/cmpx"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
+	"github.com/icholy/gritz/internal/x/cmpx"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"gotest.tools/v3/assert"
@@ -22,12 +22,12 @@ func TestCreateSchedule(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	resp, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Name:      "nightly",
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		Namespace: "reviewbot",
-		Instructions: []*xagentv1.Instruction{
+		Instructions: []*gritzv1.Instruction{
 			{Text: "bump deps", Url: "https://example.com/deps"},
 		},
 		CronExpr:    "0 9 * * *",
@@ -40,13 +40,13 @@ func TestCreateSchedule(t *testing.T) {
 	// An enabled schedule gets a first fire time computed server-side.
 	assert.Assert(t, resp.Schedule.NextRunAt != nil)
 
-	expected := &xagentv1.Schedule{
+	expected := &gritzv1.Schedule{
 		Id:        resp.Schedule.Id,
 		Name:      "nightly",
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		Namespace: "reviewbot",
-		Instructions: []*xagentv1.Instruction{
+		Instructions: []*gritzv1.Instruction{
 			{Text: "bump deps", Url: "https://example.com/deps"},
 		},
 		CronExpr:    "0 9 * * *",
@@ -63,10 +63,10 @@ func TestCreateSchedule(t *testing.T) {
 	// It round-trips through Get. created_at/updated_at are ignored: the create
 	// response carries the in-memory time at full precision, while the DB read-back
 	// is truncated to Postgres's microsecond resolution.
-	getResp, err := srv.GetSchedule(ctx, &xagentv1.GetScheduleRequest{Id: resp.Schedule.Id})
+	getResp, err := srv.GetSchedule(ctx, &gritzv1.GetScheduleRequest{Id: resp.Schedule.Id})
 	assert.NilError(t, err)
 	assert.DeepEqual(t, getResp.Schedule, resp.Schedule, protocmp.Transform(),
-		protocmp.IgnoreFields(&xagentv1.Schedule{}, "created_at", "updated_at"))
+		protocmp.IgnoreFields(&gritzv1.Schedule{}, "created_at", "updated_at"))
 }
 
 func TestCreateSchedule_DisabledHasNoNextRun(t *testing.T) {
@@ -75,7 +75,7 @@ func TestCreateSchedule_DisabledHasNoNextRun(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	resp, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		CronExpr:  "0 9 * * *",
@@ -95,7 +95,7 @@ func TestCreateSchedule_DefaultTimezone(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// An empty timezone defaults to UTC.
-	resp, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	resp, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		CronExpr:  "0 9 * * *",
@@ -110,7 +110,7 @@ func TestCreateSchedule_InvalidCron(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	_, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		CronExpr:  "not a cron",
@@ -118,7 +118,7 @@ func TestCreateSchedule_InvalidCron(t *testing.T) {
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 
 	// The invalid schedule was never stored.
-	list, err := srv.ListSchedules(ctx, &xagentv1.ListSchedulesRequest{})
+	list, err := srv.ListSchedules(ctx, &gritzv1.ListSchedulesRequest{})
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Len(list.Schedules, 0))
 }
@@ -129,7 +129,7 @@ func TestCreateSchedule_InvalidTimezone(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	_, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		CronExpr:  "0 9 * * *",
@@ -144,7 +144,7 @@ func TestCreateSchedule_BadWorkspace(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	_, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "fake-workspace",
 		Runner:    "test-runner",
 		CronExpr:  "0 9 * * *",
@@ -159,7 +159,7 @@ func TestCreateSchedule_RequiresCreateScope(t *testing.T) {
 
 	// A member holding only task-read (org membership, no create scope) is denied.
 	readOnly := scopedCtx(t, org, authscope.Scopes{authscope.New(authscope.OpTaskRead)})
-	_, err := srv.CreateSchedule(readOnly, &xagentv1.CreateScheduleRequest{
+	_, err := srv.CreateSchedule(readOnly, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
@@ -170,7 +170,7 @@ func TestCreateSchedule_RequiresCreateScope(t *testing.T) {
 		authscope.WithTaskRunner("test-runner"),
 		authscope.WithTaskArchived(false),
 	)})
-	_, err = srv.CreateSchedule(creator, &xagentv1.CreateScheduleRequest{
+	_, err = srv.CreateSchedule(creator, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.NilError(t, err)
@@ -182,18 +182,18 @@ func TestListSchedules(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{Name: "a", Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *"})
+	_, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{Name: "a", Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *"})
 	assert.NilError(t, err)
-	_, err = srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{Name: "b", Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 10 * * *"})
+	_, err = srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{Name: "b", Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 10 * * *"})
 	assert.NilError(t, err)
 
-	list, err := srv.ListSchedules(ctx, &xagentv1.ListSchedulesRequest{})
+	list, err := srv.ListSchedules(ctx, &gritzv1.ListSchedulesRequest{})
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Len(list.Schedules, 2))
 
 	// List is org-scoped: another org sees none.
 	other := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
-	otherList, err := srv.ListSchedules(createCtx(t, other), &xagentv1.ListSchedulesRequest{})
+	otherList, err := srv.ListSchedules(createCtx(t, other), &gritzv1.ListSchedulesRequest{})
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Len(otherList.Schedules, 0))
 }
@@ -206,14 +206,14 @@ func TestGetSchedule_Permissions(t *testing.T) {
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
 
-	resp, err := srv.CreateSchedule(ctxA, &xagentv1.CreateScheduleRequest{
+	resp, err := srv.CreateSchedule(ctxA, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.NilError(t, err)
 
 	// Its own org reads it; another org gets not-found (org-scoped).
-	_, errA := srv.GetSchedule(ctxA, &xagentv1.GetScheduleRequest{Id: resp.Schedule.Id})
-	_, errB := srv.GetSchedule(ctxB, &xagentv1.GetScheduleRequest{Id: resp.Schedule.Id})
+	_, errA := srv.GetSchedule(ctxA, &gritzv1.GetScheduleRequest{Id: resp.Schedule.Id})
+	_, errB := srv.GetSchedule(ctxB, &gritzv1.GetScheduleRequest{Id: resp.Schedule.Id})
 	assert.NilError(t, errA)
 	assert.ErrorContains(t, errB, "not found")
 }
@@ -225,23 +225,23 @@ func TestSchedule_ReadIsMembershipOnly(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 
-	created, err := srv.CreateSchedule(createCtx(t, org), &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(createCtx(t, org), &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.NilError(t, err)
 	reader := scopedCtx(t, org, authscope.Scopes{authscope.New(authscope.OpTaskRead)})
 
 	// Read scope covers get and list.
-	_, err = srv.GetSchedule(reader, &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.GetSchedule(reader, &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
-	list, err := srv.ListSchedules(reader, &xagentv1.ListSchedulesRequest{})
+	list, err := srv.ListSchedules(reader, &gritzv1.ListSchedulesRequest{})
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Len(list.Schedules, 1))
 
 	// ...but not the mutations.
-	_, err = srv.SetScheduleEnabled(reader, &xagentv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: true})
+	_, err = srv.SetScheduleEnabled(reader, &gritzv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: true})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
-	_, err = srv.DeleteSchedule(reader, &xagentv1.DeleteScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.DeleteSchedule(reader, &gritzv1.DeleteScheduleRequest{Id: created.Schedule.Id})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 }
 
@@ -252,18 +252,18 @@ func TestSchedule_MutationsRequireWrite(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 
-	created, err := srv.CreateSchedule(createCtx(t, org), &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(createCtx(t, org), &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.NilError(t, err)
 	writer := scopedCtx(t, org, authscope.Scopes{authscope.New(authscope.OpTaskWrite)})
 
-	_, err = srv.SetScheduleEnabled(writer, &xagentv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: false})
+	_, err = srv.SetScheduleEnabled(writer, &gritzv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: false})
 	assert.NilError(t, err)
-	_, err = srv.DeleteSchedule(writer, &xagentv1.DeleteScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.DeleteSchedule(writer, &gritzv1.DeleteScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 
-	_, err = srv.GetSchedule(createCtx(t, org), &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.GetSchedule(createCtx(t, org), &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.ErrorContains(t, err, "not found")
 }
 
@@ -274,20 +274,20 @@ func TestSetScheduleEnabled(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Start disabled — no next fire time.
-	created, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *", Enabled: false,
 	})
 	assert.NilError(t, err)
 	assert.Assert(t, created.Schedule.NextRunAt == nil)
 
 	// Enabling recomputes next_run_at from now.
-	enabled, err := srv.SetScheduleEnabled(ctx, &xagentv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: true})
+	enabled, err := srv.SetScheduleEnabled(ctx, &gritzv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: true})
 	assert.NilError(t, err)
 	assert.Assert(t, enabled.Schedule.Enabled)
 	assert.Assert(t, enabled.Schedule.NextRunAt != nil)
 
 	// Disabling clears it so the claim query skips the row.
-	disabled, err := srv.SetScheduleEnabled(ctx, &xagentv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: false})
+	disabled, err := srv.SetScheduleEnabled(ctx, &gritzv1.SetScheduleEnabledRequest{Id: created.Schedule.Id, Enabled: false})
 	assert.NilError(t, err)
 	assert.Assert(t, !disabled.Schedule.Enabled)
 	assert.Assert(t, disabled.Schedule.NextRunAt == nil)
@@ -299,15 +299,15 @@ func TestDeleteSchedule(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	created, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.NilError(t, err)
 
-	_, err = srv.DeleteSchedule(ctx, &xagentv1.DeleteScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.DeleteSchedule(ctx, &gritzv1.DeleteScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 
-	_, err = srv.GetSchedule(ctx, &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.GetSchedule(ctx, &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.ErrorContains(t, err, "not found")
 }
 
@@ -317,14 +317,14 @@ func TestUpdateSchedule(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	created, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Name: "original", Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *", Timezone: "UTC", Enabled: true,
 	})
 	assert.NilError(t, err)
 	firstNext := created.Schedule.NextRunAt.AsTime()
 
 	// Rename and move the spec to a new time; next_run_at recomputes.
-	updated, err := srv.UpdateSchedule(ctx, &xagentv1.UpdateScheduleRequest{
+	updated, err := srv.UpdateSchedule(ctx, &gritzv1.UpdateScheduleRequest{
 		Id: created.Schedule.Id, Name: "renamed", Workspace: "test-workspace", Runner: "test-runner", CronExpr: "30 2 * * *", Timezone: "UTC",
 	})
 	assert.NilError(t, err)
@@ -334,7 +334,7 @@ func TestUpdateSchedule(t *testing.T) {
 	assert.Assert(t, !updated.Schedule.NextRunAt.AsTime().Equal(firstNext))
 
 	// Persisted.
-	getResp, err := srv.GetSchedule(ctx, &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	getResp, err := srv.GetSchedule(ctx, &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Schedule.Name, "renamed")
 	assert.Equal(t, getResp.Schedule.CronExpr, "30 2 * * *")
@@ -346,18 +346,18 @@ func TestUpdateSchedule_InvalidCron(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	created, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *", Timezone: "UTC",
 	})
 	assert.NilError(t, err)
 
-	_, err = srv.UpdateSchedule(ctx, &xagentv1.UpdateScheduleRequest{
+	_, err = srv.UpdateSchedule(ctx, &gritzv1.UpdateScheduleRequest{
 		Id: created.Schedule.Id, Workspace: "test-workspace", Runner: "test-runner", CronExpr: "nonsense",
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 
 	// The bad update never landed: the stored spec is unchanged.
-	getResp, err := srv.GetSchedule(ctx, &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	getResp, err := srv.GetSchedule(ctx, &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 	assert.Equal(t, getResp.Schedule.CronExpr, "0 9 * * *")
 }
@@ -373,12 +373,12 @@ func TestRunSchedule(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	created, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Name:      "nightly",
 		Workspace: "test-workspace",
 		Runner:    "test-runner",
 		Namespace: "reviewbot",
-		Instructions: []*xagentv1.Instruction{
+		Instructions: []*gritzv1.Instruction{
 			{Text: "bump deps", Url: "https://example.com/deps"},
 			{Text: "groom changelog"},
 		},
@@ -396,7 +396,7 @@ func TestRunSchedule(t *testing.T) {
 	assert.Assert(t, before.LastRunAt == nil)
 	assert.Equal(t, before.LastTaskId, int64(0))
 
-	resp, err := srv.RunSchedule(ctx, &xagentv1.RunScheduleRequest{Id: created.Schedule.Id})
+	resp, err := srv.RunSchedule(ctx, &gritzv1.RunScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 	assert.Assert(t, resp.Task != nil)
 	assert.Assert(t, resp.Task.Id != 0)
@@ -433,10 +433,10 @@ func TestRunSchedule(t *testing.T) {
 	// recorded on it. created_at/updated_at are ignored — the create response carries
 	// the in-memory time at full precision, while the read-back is truncated to
 	// Postgres's microsecond resolution (same as TestCreateSchedule).
-	after, err := srv.GetSchedule(ctx, &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	after, err := srv.GetSchedule(ctx, &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 	assert.DeepEqual(t, after.Schedule, before, protocmp.Transform(),
-		protocmp.IgnoreFields(&xagentv1.Schedule{}, "created_at", "updated_at"))
+		protocmp.IgnoreFields(&gritzv1.Schedule{}, "created_at", "updated_at"))
 }
 
 // A manual run works on a disabled schedule — disabled only means "don't fire
@@ -448,23 +448,23 @@ func TestRunSchedule_DisabledSchedule(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	created, err := srv.CreateSchedule(ctx, &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(ctx, &gritzv1.CreateScheduleRequest{
 		Name:         "inert",
 		Workspace:    "test-workspace",
 		Runner:       "test-runner",
-		Instructions: []*xagentv1.Instruction{{Text: "smoke test"}},
+		Instructions: []*gritzv1.Instruction{{Text: "smoke test"}},
 		CronExpr:     "0 9 * * *",
 		Enabled:      false,
 	})
 	assert.NilError(t, err)
 	assert.Assert(t, created.Schedule.NextRunAt == nil)
 
-	resp, err := srv.RunSchedule(ctx, &xagentv1.RunScheduleRequest{Id: created.Schedule.Id})
+	resp, err := srv.RunSchedule(ctx, &gritzv1.RunScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 	assert.Assert(t, resp.Task != nil)
 
 	// Running it never re-enabled the row or gave it a next fire time.
-	after, err := srv.GetSchedule(ctx, &xagentv1.GetScheduleRequest{Id: created.Schedule.Id})
+	after, err := srv.GetSchedule(ctx, &gritzv1.GetScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 	assert.Assert(t, !after.Schedule.Enabled)
 	assert.Assert(t, after.Schedule.NextRunAt == nil)
@@ -481,14 +481,14 @@ func TestRunSchedule_RequiresCreateScope(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 
-	created, err := srv.CreateSchedule(createCtx(t, org), &xagentv1.CreateScheduleRequest{
+	created, err := srv.CreateSchedule(createCtx(t, org), &gritzv1.CreateScheduleRequest{
 		Workspace: "test-workspace", Runner: "test-runner", CronExpr: "0 9 * * *",
 	})
 	assert.NilError(t, err)
 
 	// task-write (the tier that toggles/deletes a schedule) is not enough to fire it.
 	writer := scopedCtx(t, org, authscope.Scopes{authscope.New(authscope.OpTaskWrite)})
-	_, err = srv.RunSchedule(writer, &xagentv1.RunScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.RunSchedule(writer, &gritzv1.RunScheduleRequest{Id: created.Schedule.Id})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 
 	// Create scope for a different target does not grant a run on this one.
@@ -497,7 +497,7 @@ func TestRunSchedule_RequiresCreateScope(t *testing.T) {
 		authscope.WithTaskRunner("test-runner"),
 		authscope.WithTaskArchived(false),
 	)})
-	_, err = srv.RunSchedule(wrongTarget, &xagentv1.RunScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.RunSchedule(wrongTarget, &gritzv1.RunScheduleRequest{Id: created.Schedule.Id})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 
 	// Create scope on the schedule's own (workspace, runner) may run it.
@@ -506,7 +506,7 @@ func TestRunSchedule_RequiresCreateScope(t *testing.T) {
 		authscope.WithTaskRunner("test-runner"),
 		authscope.WithTaskArchived(false),
 	)})
-	_, err = srv.RunSchedule(creator, &xagentv1.RunScheduleRequest{Id: created.Schedule.Id})
+	_, err = srv.RunSchedule(creator, &gritzv1.RunScheduleRequest{Id: created.Schedule.Id})
 	assert.NilError(t, err)
 }
 
@@ -516,6 +516,6 @@ func TestRunSchedule_NotFound(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctx := createCtx(t, org)
 
-	_, err := srv.RunSchedule(ctx, &xagentv1.RunScheduleRequest{Id: 999})
+	_, err := srv.RunSchedule(ctx, &gritzv1.RunScheduleRequest{Id: 999})
 	assert.Equal(t, connect.CodeOf(err), connect.CodeNotFound)
 }

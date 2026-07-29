@@ -6,11 +6,11 @@ import (
 	"slices"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
 // GetEventTypes returns the eventrouter event-type registry so clients (the
@@ -18,31 +18,31 @@ import (
 // the attributes a rule may condition on for each. The registry is global —
 // populated by the producer packages' init (githubserver, atlassianserver) — so
 // the response is not org-scoped.
-func (s *Server) GetEventTypes(ctx context.Context, req *xagentv1.GetEventTypesRequest) (*xagentv1.GetEventTypesResponse, error) {
+func (s *Server) GetEventTypes(ctx context.Context, req *gritzv1.GetEventTypesRequest) (*gritzv1.GetEventTypesResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpOrgRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read org"))
 	}
 	defs := eventrouter.DefaultSchemaRegistry.EventTypes()
-	pb := make([]*xagentv1.EventTypeDef, len(defs))
+	pb := make([]*gritzv1.EventTypeDef, len(defs))
 	for i, def := range defs {
-		attrs := make([]*xagentv1.AttrDef, len(def.Attrs))
+		attrs := make([]*gritzv1.AttrDef, len(def.Attrs))
 		for j, attr := range def.Attrs {
-			attrs[j] = &xagentv1.AttrDef{
+			attrs[j] = &gritzv1.AttrDef{
 				Key:         attr.Key,
 				Label:       attr.Label,
 				Help:        attr.Help,
 				Placeholder: attr.Placeholder,
 			}
 		}
-		pb[i] = &xagentv1.EventTypeDef{
+		pb[i] = &gritzv1.EventTypeDef{
 			Source: def.Source,
 			Type:   def.Type,
 			Label:  def.Label,
 			Attrs:  attrs,
 		}
 	}
-	return &xagentv1.GetEventTypesResponse{EventTypes: pb}, nil
+	return &gritzv1.GetEventTypesResponse{EventTypes: pb}, nil
 }
 
 // TestEvent feeds a hand-composed synthetic event into the real routing code
@@ -63,7 +63,7 @@ func (s *Server) GetEventTypes(ctx context.Context, req *xagentv1.GetEventTypesR
 // error. For a dry run, task/link resolution is skipped — the report is derived
 // from the matched rule alone; firing resolves links so it can wake existing
 // subscribed tasks.
-func (s *Server) TestEvent(ctx context.Context, req *xagentv1.TestEventRequest) (*xagentv1.TestEventResponse, error) {
+func (s *Server) TestEvent(ctx context.Context, req *gritzv1.TestEventRequest) (*gritzv1.TestEventResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Fire mutates (wakes/creates tasks), so it needs OpOrgWrite — the same scope
 	// as editing rules; a dry run is a read-only simulation and needs only
@@ -119,7 +119,7 @@ func (s *Server) TestEvent(ctx context.Context, req *xagentv1.TestEventRequest) 
 		return m.OrgID != caller.OrgID
 	})
 
-	resp := &xagentv1.TestEventResponse{
+	resp := &gritzv1.TestEventResponse{
 		Fired:   req.Fire,
 		Matches: model.ProtoMap(matches),
 	}

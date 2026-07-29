@@ -1,10 +1,10 @@
 # Routing Rules That Create Tasks
 
-Issue: https://github.com/icholy/xagent/issues/717
+Issue: https://github.com/icholy/gritz/issues/717
 
 ## Problem
 
-Routing rules today only ever *wake existing tasks*. The webhook flow looks up the commenter's xagent user, calls `Router.Route`, and that function derives candidate orgs implicitly from the set of subscribed links that already match the event URL (`internal/eventrouter/eventrouter.go:42-82`):
+Routing rules today only ever *wake existing tasks*. The webhook flow looks up the commenter's gritz user, calls `Router.Route`, and that function derives candidate orgs implicitly from the set of subscribed links that already match the event URL (`internal/eventrouter/eventrouter.go:42-82`):
 
 ```go
 linksByOrg, err := r.find(ctx, input)   // links matching the event URL
@@ -29,18 +29,18 @@ This proposal reworks routing so that an org's rules can opt into creating a tas
 3. For each org, pick the **first matching rule** (rule ordering is significant). Drop orgs with no match. Then look up subscribed links — but only for orgs whose rule matched (`FindSubscribedLinksForOrgs`).
 4. If the org has a subscribed link covering the URL, wake (existing `attach` path). Otherwise, if the matched rule has the create action, create the task and its subscribed link in a single transaction. Sequential redeliveries are absorbed by the routing-level link lookup on the second event, which sees the just-committed link and takes the wake path.
 
-The "commenter must be a linked xagent user" constraint stays unchanged. It is the security boundary: only events authored by a linked xagent user may create or wake tasks.
+The "commenter must be a linked gritz user" constraint stays unchanged. It is the security boundary: only events authored by a linked gritz user may create or wake tasks.
 
 ### 1. Org resolution — keep it bound to the commenter
 
-Both webhook handlers already resolve the commenter to an xagent user before invoking `Route`:
+Both webhook handlers already resolve the commenter to an gritz user before invoking `Route`:
 
 - `internal/server/webhookserver/github.go:52` — `GetUserByGitHubUserID(extracted.githubUserID)`; `sql.ErrNoRows` drops the event.
 - `internal/server/webhookserver/atlassian.go:77` — `GetUserByAtlassianAccountID(extracted.atlassianAccountID)`; same drop behaviour.
 
 Routing extends from there. Candidate orgs are the orgs the commenter belongs to, loaded together with each org's routing rules in one query (§4, `ListRoutingRulesForUser`). Each candidate org then evaluates its own rules and its own links independently.
 
-**Rejected alternative — resolve orgs by GitHub installation id.** The `orgs` table already stores the installation id (`internal/store/org.go:171`, `SetOrgGitHubInstallation`), so an installation-keyed lookup is technically available. We reject it because it would let *any* commenter in an installed repo trigger task creation. The current invariant — "only linked xagent users can trigger tasks" — is a deliberate security feature, not a limitation. Keying on the installation breaks that invariant.
+**Rejected alternative — resolve orgs by GitHub installation id.** The `orgs` table already stores the installation id (`internal/store/org.go:171`, `SetOrgGitHubInstallation`), so an installation-keyed lookup is technically available. We reject it because it would let *any* commenter in an installed repo trigger task creation. The current invariant — "only linked gritz users can trigger tasks" — is a deliberate security feature, not a limitation. Keying on the installation breaks that invariant.
 
 The Atlassian path inherits the same posture: account id → user → `ListOrgsByMember`. See §6 for Atlassian parity.
 
@@ -79,7 +79,7 @@ type CreateTaskAction struct {
 
 Backward-compatible: rules without `create` keep behaving exactly as today (`create == nil` means wake-only). Adding fields to the JSON-stored rule list does not require a migration — `GetOrgRoutingRules` (`internal/store/org.go:191`) `json.Unmarshal`s into the current struct and skips unknown fields anyway. Existing rows continue to parse.
 
-Proto mirror (`proto/xagent/v1/xagent.proto:532-537`):
+Proto mirror (`proto/gritz/v1/gritz.proto:532-537`):
 
 ```protobuf
 message RoutingRule {
@@ -327,7 +327,7 @@ The proposal does **not** design that form; it flags that the friendlier event-t
 
 ### 9. Default rules
 
-`defaultRules` (`internal/eventrouter/eventrouter.go:35-37`) stays a single prefix-only wake rule. The default behaviour for an org with no configured rules is unchanged: comments starting with `xagent:` wake matching tasks, no creation. To opt into creation an org configures a rule with `create` set.
+`defaultRules` (`internal/eventrouter/eventrouter.go:35-37`) stays a single prefix-only wake rule. The default behaviour for an org with no configured rules is unchanged: comments starting with `gritz:` wake matching tasks, no creation. To opt into creation an org configures a rule with `create` set.
 
 ### 10. Test plan sketch
 
@@ -338,7 +338,7 @@ The proposal does **not** design that form; it flags that the friendlier event-t
 - **Route — second event wakes the created task** — replay the same event; assert no second task created, and the existing task transitions through `attach`.
 - **Per-org isolation** — user belongs to org A (matching link, no create-rule) and org B (matching create-rule, no link). Assert A wakes its task and B creates a new one; the link in A does not suppress creation in B.
 - **First matching rule wins** — org with `[wake-only rule that matches, create-rule that also matches]`. Assert the wake-only rule shadows the create-rule (no task created when no link exists). Reorder to `[create-rule first, wake-only second]` and assert the create-rule fires.
-- **Rule-less org uses `defaultRules`** — org member of the user with `routing_rules = []`. Fire an event whose body starts with `xagent:` and matches a subscribed link in the org; assert the wake path runs. Fire one without the `xagent:` prefix and assert nothing happens. (Confirms the membership join returns the org and the fallback is applied.)
+- **Rule-less org uses `defaultRules`** — org member of the user with `routing_rules = []`. Fire an event whose body starts with `gritz:` and matches a subscribed link in the org; assert the wake path runs. Fire one without the `gritz:` prefix and assert nothing happens. (Confirms the membership join returns the org and the fallback is applied.)
 - **Link query scoped to matched orgs** — user is a member of orgs A, B, C, only B has a matching rule. Assert `FindSubscribedLinksForOrgs` is called with `[B]` only. (Easiest to assert via the store moq.)
 - **Redelivery dedup** — fire the same `Route` call twice sequentially against an org with a create-rule. Assert exactly one task and one subscribed link exist after both return. The second call sees the link committed by the first and takes the wake path (the dedup happens at the routing-level link lookup, not inside the tx).
 - **Create-rule that doesn't match** — rule with `mention: bot` against an event without the mention; assert no task is created.
@@ -349,7 +349,7 @@ The dedup and rule-less-org tests belong in `internal/eventrouter` with `teststo
 
 ### Org resolution: linked-commenter vs installation id
 
-**Chosen: linked-commenter (`ListOrgsByMember`).** The invariant "only linked xagent users can trigger tasks" is a security feature. Installation-id keying would let any commenter in an installed repo trigger creation — strictly broader and a strict regression in posture. See §1.
+**Chosen: linked-commenter (`ListOrgsByMember`).** The invariant "only linked gritz users can trigger tasks" is a security feature. Installation-id keying would let any commenter in an installed repo trigger creation — strictly broader and a strict regression in posture. See §1.
 
 ### Dedup: routing-level lookup vs advisory lock vs unique constraint
 

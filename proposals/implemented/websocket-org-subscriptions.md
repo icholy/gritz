@@ -1,6 +1,6 @@
 # WebSocket endpoint for real-time org change notifications
 
-Issue: https://github.com/icholy/xagent/issues/470
+Issue: https://github.com/icholy/gritz/issues/470
 
 ## Problem
 
@@ -159,11 +159,11 @@ interface Notification {
 }
 
 const invalidationKeys: Record<string, string[][]> = {
-  task:      [["xagent.v1.XAgentService", "ListTasks"], ["xagent.v1.XAgentService", "GetTaskDetails"]],
-  log:       [["xagent.v1.XAgentService", "ListLogs"]],
-  link:      [["xagent.v1.XAgentService", "GetTaskDetails"]],
-  event:     [["xagent.v1.XAgentService", "GetTaskDetails"]],
-  workspace: [["xagent.v1.XAgentService", "ListWorkspaces"]],
+  task:      [["gritz.v1.GritzService", "ListTasks"], ["gritz.v1.GritzService", "GetTaskDetails"]],
+  log:       [["gritz.v1.GritzService", "ListLogs"]],
+  link:      [["gritz.v1.GritzService", "GetTaskDetails"]],
+  event:     [["gritz.v1.GritzService", "GetTaskDetails"]],
+  workspace: [["gritz.v1.GritzService", "ListWorkspaces"]],
 };
 
 export function useOrgWebSocket() {

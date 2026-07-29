@@ -1,12 +1,12 @@
 # Org-Level Event Routing Configuration
 
-Issue: https://github.com/icholy/xagent/issues/458
+Issue: https://github.com/icholy/gritz/issues/458
 
 ## Problem
 
-Event routing currently uses hardcoded filtering rules baked into the webhook handlers. Both `extractGitHubWebhookEvent` and `extractAtlassianWebhookEvent` require comments to start with the `xagent:` prefix before they are routed to tasks. This logic lives in the webhook layer, outside the `eventrouter.Router`, which means:
+Event routing currently uses hardcoded filtering rules baked into the webhook handlers. Both `extractGitHubWebhookEvent` and `extractAtlassianWebhookEvent` require comments to start with the `gritz:` prefix before they are routed to tasks. This logic lives in the webhook layer, outside the `eventrouter.Router`, which means:
 
-1. **No per-org customization** — All orgs share the same `xagent:` prefix rule. An org cannot change or disable the prefix, nor add alternative trigger mechanisms.
+1. **No per-org customization** — All orgs share the same `gritz:` prefix rule. An org cannot change or disable the prefix, nor add alternative trigger mechanisms.
 2. **No @mention routing** — There's no way to trigger events by mentioning a user (e.g. `@BotUser fix the tests`), which would be a natural fit since the runner already provisions per-user MCP server permissions.
 3. **Filtering is in the wrong layer** — The webhook handlers decide what gets routed *before* the Router sees the event. The Router should own filtering so it can apply per-org rules.
 
@@ -22,7 +22,7 @@ Each org can have multiple routing rules. A rule defines a **trigger type** and 
 
 Two initial rule types:
 
-- **prefix** — Match comments that start with a configurable string (generalizing the current `xagent:` behavior).
+- **prefix** — Match comments that start with a configurable string (generalizing the current `gritz:` behavior).
 - **mention** — Match comments that @mention a specific username.
 
 ```go
@@ -53,7 +53,7 @@ The column stores an array of routing rule objects:
 
 ```json
 [
-    {"type": "prefix", "value": "xagent:"},
+    {"type": "prefix", "value": "gritz:"},
     {"type": "mention", "value": "BotUser"}
 ]
 ```
@@ -117,25 +117,25 @@ All RPCs are org-scoped via `caller.OrgID` from the auth context. The API is set
 
 ### 5. Default Behavior (No Rules Configured)
 
-When an org's `routing_rules` column is an empty array `[]` (the default), the Router falls back to the current hardcoded behavior: prefix match on `xagent:`. This ensures backward compatibility — existing orgs work identically without any migration or configuration.
+When an org's `routing_rules` column is an empty array `[]` (the default), the Router falls back to the current hardcoded behavior: prefix match on `gritz:`. This ensures backward compatibility — existing orgs work identically without any migration or configuration.
 
 ```go
 func defaultRules() []model.RoutingRule {
     return []model.RoutingRule{
-        {Type: model.RoutingRulePrefix, Value: "xagent:"},
+        {Type: model.RoutingRulePrefix, Value: "gritz:"},
     }
 }
 ```
 
-Once an org sets custom rules, the defaults are no longer applied. This is an explicit opt-in: if you configure rules, you own the full set. If you want to keep `xagent:` alongside a mention rule, you add both.
+Once an org sets custom rules, the defaults are no longer applied. This is an explicit opt-in: if you configure rules, you own the full set. If you want to keep `gritz:` alongside a mention rule, you add both.
 
 ### 6. Router Changes
 
-The `eventrouter.Router` currently receives a pre-filtered event (webhook handlers already checked for `xagent:` prefix). The new flow:
+The `eventrouter.Router` currently receives a pre-filtered event (webhook handlers already checked for `gritz:` prefix). The new flow:
 
 **Before (current):**
 ```
-Webhook Handler → filter (xagent: prefix) → Router.Route(event)
+Webhook Handler → filter (gritz: prefix) → Router.Route(event)
                                               → findLinksByOrg(url, userID)
                                               → create events, route to tasks
 ```
@@ -159,7 +159,7 @@ type Event struct {
     Description string     // human-readable summary
     Data        string     // raw comment body (unfiltered)
     URL         string     // issue/PR/ticket URL for link matching
-    UserID      string     // xagent user ID
+    UserID      string     // gritz user ID
 }
 ```
 
@@ -265,7 +265,7 @@ func extractGitHubWebhookEvent(event any) *extractedEvent {
     case *github.IssueCommentEvent:
         return &extractedEvent{
             description: fmt.Sprintf("..."),
-            data:        e.GetComment().GetBody(), // no xagent: prefix check
+            data:        e.GetComment().GetBody(), // no gritz: prefix check
             url:         e.GetIssue().GetHTMLURL(),
             githubUserID: e.GetSender().GetID(),
         }
@@ -278,14 +278,14 @@ func extractGitHubWebhookEvent(event any) *extractedEvent {
 }
 ```
 
-The `action == "submitted"` check for PR reviews stays in the handler — it's event-type filtering (structural), not content filtering (routing). Similarly, the handler still ignores unsupported webhook event types. Only the `xagent:` prefix check moves to the Router.
+The `action == "submitted"` check for PR reviews stays in the handler — it's event-type filtering (structural), not content filtering (routing). Similarly, the handler still ignores unsupported webhook event types. Only the `gritz:` prefix check moves to the Router.
 
 **Atlassian handler (`internal/webhook/atlassian.go`):**
 
 ```go
 func extractAtlassianWebhookEvent(body []byte) *extractedEvent {
     // Keep: only process comment_created events
-    // Remove: xagent: prefix check
+    // Remove: gritz: prefix check
 }
 ```
 
@@ -302,7 +302,7 @@ Add a "Routing Rules" section to the org settings page:
 - List current rules with type, value, and priority
 - "Add Rule" form with type selector (prefix/mention) and value input
 - Delete button per rule
-- Help text explaining the default `xagent:` behavior when no rules are configured
+- Help text explaining the default `gritz:` behavior when no rules are configured
 - For mention rules, suggest usernames from org members' linked GitHub/Atlassian accounts
 
 ### 11. Implementation Order

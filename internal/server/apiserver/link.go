@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
-func (s *Server) CreateLink(ctx context.Context, req *xagentv1.CreateLinkRequest) (*xagentv1.CreateLinkResponse, error) {
+func (s *Server) CreateLink(ctx context.Context, req *gritzv1.CreateLinkRequest) (*gritzv1.CreateLinkResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before the DB read (AllowOp ignores
 	// predicates); the instance check happens after the row is loaded.
@@ -73,12 +73,12 @@ func (s *Server) CreateLink(ctx context.Context, req *xagentv1.CreateLinkRequest
 		ClientID: caller.ClientID,
 		Time:     time.Now(),
 	})
-	return &xagentv1.CreateLinkResponse{
+	return &gritzv1.CreateLinkResponse{
 		Link: link.Proto(),
 	}, nil
 }
 
-func (s *Server) ListLinks(ctx context.Context, req *xagentv1.ListLinksRequest) (*xagentv1.ListLinksResponse, error) {
+func (s *Server) ListLinks(ctx context.Context, req *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.AllowOp(authscope.OpTaskRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read task"))
@@ -102,7 +102,7 @@ func (s *Server) ListLinks(ctx context.Context, req *xagentv1.ListLinksRequest) 
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListLinksResponse{
+	return &gritzv1.ListLinksResponse{
 		Links: model.ProtoMap(links),
 	}, nil
 }

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@connectrpc/connect-query'
-import { listKeys, deleteKey } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { Key } from '@/gen/xagent/v1/xagent_pb'
+import { listKeys, deleteKey } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { Key } from '@/gen/gritz/v1/gritz_pb'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import {
   Table,

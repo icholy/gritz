@@ -15,28 +15,28 @@ import (
 	"github.com/google/go-github/v88/github"
 )
 
-const DefaultRepo = "icholy/xagent"
+const DefaultRepo = "icholy/gritz"
 
 var BinaryNames = []string{
-	"xagent-linux-amd64",
-	"xagent-linux-arm64",
+	"gritz-linux-amd64",
+	"gritz-linux-arm64",
 }
 
 // Dir returns the directory where prebuilt binaries are stored.
-// It checks XAGENT_PREBUILT_DIR first, then XAGENT_CONFIG_DIR/prebuilt,
-// then falls back to os.UserConfigDir()/xagent/prebuilt.
+// It checks GRITZ_PREBUILT_DIR first, then GRITZ_CONFIG_DIR/prebuilt,
+// then falls back to os.UserConfigDir()/gritz/prebuilt.
 func Dir() (string, error) {
-	if dir := os.Getenv("XAGENT_PREBUILT_DIR"); dir != "" {
+	if dir := os.Getenv("GRITZ_PREBUILT_DIR"); dir != "" {
 		return dir, nil
 	}
-	if dir := os.Getenv("XAGENT_CONFIG_DIR"); dir != "" {
+	if dir := os.Getenv("GRITZ_CONFIG_DIR"); dir != "" {
 		return filepath.Join(dir, "prebuilt"), nil
 	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("config directory: %w", err)
 	}
-	return filepath.Join(dir, "xagent", "prebuilt"), nil
+	return filepath.Join(dir, "gritz", "prebuilt"), nil
 }
 
 // BinaryPath returns the path to a prebuilt binary for the given architecture.
@@ -45,14 +45,14 @@ func BinaryPath(arch string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, fmt.Sprintf("xagent-linux-%s", arch)), nil
+	return filepath.Join(dir, fmt.Sprintf("gritz-linux-%s", arch)), nil
 }
 
 // ReadBinary reads the prebuilt binary for the given architecture.
 func ReadBinary(arch string) ([]byte, error) {
 	// If we're on the matching platform and statically linked (no CGO),
 	// use the currently running binary. This lets locally built binaries
-	// work without having to run "xagent download" first.
+	// work without having to run "gritz download" first.
 	if runtime.GOOS == "linux" && arch == runtime.GOARCH && !testing.Testing() && !cgoEnabled() {
 		exe, err := os.Executable()
 		if err != nil {
@@ -67,7 +67,7 @@ func ReadBinary(arch string) ([]byte, error) {
 	data, err := os.ReadFile(binPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("prebuilt binary not found: %s\n\nRun 'xagent download' to download prebuilt binaries", binPath)
+			return nil, fmt.Errorf("prebuilt binary not found: %s\n\nRun 'gritz download' to download prebuilt binaries", binPath)
 		}
 		return nil, fmt.Errorf("failed to read binary %s: %w", binPath, err)
 	}

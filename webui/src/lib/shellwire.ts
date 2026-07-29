@@ -13,9 +13,9 @@
 //   0x03 ping   — keepalive, no payload
 
 // Subprotocol is the WebSocket subprotocol version token negotiated on the
-// attach leg (Sec-WebSocket-Protocol: xagent-shell.v1). It carries no
+// attach leg (Sec-WebSocket-Protocol: gritz-shell.v1). It carries no
 // credential — the browser authenticates via its cookie session.
-export const SUBPROTOCOL = 'xagent-shell.v1'
+export const SUBPROTOCOL = 'gritz-shell.v1'
 
 // READ_LIMIT mirrors shellwire.ReadLimit (1 MiB). The browser has no equivalent
 // of coder/websocket's SetReadLimit, but the constant is exported so callers can

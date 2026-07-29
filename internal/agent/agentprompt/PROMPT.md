@@ -14,12 +14,12 @@ The task was updated. Continue.
 {{ renderHeader .Task }}
 
 ## How to work this task
-{{ if not .Task.GetName }}This task has no name yet — set one with xagent:update_my_task.
+{{ if not .Task.GetName }}This task has no name yet — set one with gritz:update_my_task.
 {{ end }}If you have questions, problems, or take no action, respond on the platform from the most recent instruction or event url, suffixing your message with (task {{ .Task.GetId }}).
-When you create a resource (PR, issue, comment), record it with xagent:create_link and subscribe=true so you receive replies, even after the task is complete. Use subscribe=false only for reference links you didn't create.
+When you create a resource (PR, issue, comment), record it with gritz:create_link and subscribe=true so you receive replies, even after the task is complete. Use subscribe=false only for reference links you didn't create.
 Prefer web URLs a user can visit over API URLs.
-Use xagent:report to log important observations. Your text responses are not visible to users — only tool calls are.
-If you need to re-check for updates mid-run, call xagent:get_my_task.
+Use gritz:report to log important observations. Your text responses are not visible to users — only tool calls are.
+If you need to re-check for updates mid-run, call gritz:get_my_task.
 {{- if .Prompt}}
 
 {{ .Prompt }}

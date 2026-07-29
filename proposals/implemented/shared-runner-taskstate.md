@@ -1,6 +1,6 @@
 # Shared Runner-Local Taskstate Store
 
-Issue: https://github.com/icholy/xagent/issues/1075
+Issue: https://github.com/icholy/gritz/issues/1075
 
 > This change lands **before** the lambda-microvm backend (PR #1054,
 > `feat/lambda-microvm-backend`). It introduces the shared `taskstate` store and
@@ -15,8 +15,8 @@ sandbox belongs to this task, and is it still alive?* — and today the only
 backend, **Docker**, answers it by treating the runtime itself as the database.
 
 Container **labels** are the index. `find` is a label-filtered `ContainerList`
-on every call; `List` re-lists by `xagent=true`/`xagent.runner=<id>` and parses
-the `xagent.task` label, with an error branch for a malformed value; `Watch`
+on every call; `List` re-lists by `gritz=true`/`gritz.runner=<id>` and parses
+the `gritz.task` label, with an error branch for a malformed value; `Watch`
 reconstructs the task id and exit code from docker event-attribute strings.
 There is no runner-local record of the task→container mapping at all — the daemon
 *is* the source of truth.
@@ -84,7 +84,7 @@ Five decisions frame the design.
    filesystem.
 
 2. **The store is the only source of truth; tags/labels become informational.**
-   Docker container labels (`xagent.task`, `xagent.runner`, `xagent=true`) — and
+   Docker container labels (`gritz.task`, `gritz.runner`, `gritz=true`) — and
    the equivalent tags a microVM backend sets — are **kept**, but only for human
    visibility (`docker ps`, the AWS console, ad-hoc `aws lambda list-microvms`).
    They are **never read** for discovery or for any lifecycle decision. This is
@@ -237,12 +237,12 @@ Five decisions frame the design.
 
    - **Docker's `Launch`** inspects `reuse` (whose `ID` is a container id): if the
      container exists it reuses it (`RepairNetworks` + `ContainerStart`), else it
-     creates `xagent-{taskID}`; on a name conflict it adopts the existing
+     creates `gritz-{taskID}`; on a name conflict it adopts the existing
      container by name and returns its id. **`Probe`** is
      `ContainerInspect(handle.ID)`
      (`running`→`StateRunning`, `exited`/`dead`/not-found→`StateExited`),
      replacing the label-filtered `ContainerList` in `find` and the
-     label-parsing loop in `List`. No Docker code parses `xagent.task` anymore.
+     label-parsing loop in `List`. No Docker code parses `gritz.task` anymore.
    - **A microVM backend** (future) implements `Launch` (stage bundle +
      `RunMicrovm`; `reuse` carries the prior handle so the backend can delete the
      stale staged object — exactly the in-flight branch's `Start` stale-handle
@@ -269,7 +269,7 @@ by a task id the backend parsed out of runtime metadata. The runner resolves
 id→task via `store.ByID` (the `map[string]int64` reverse index) and applies the
 same dedup/enqueue logic `Monitor` has today. Emitting only the id is what keeps
 this sound for both styles of backend: Docker's `Watch` stops doing
-`strconv.ParseInt` on `xagent.task` event attributes and just reports the
+`strconv.ParseInt` on `gritz.task` event attributes and just reports the
 container id from the `die` event; a microVM `Watch` reports the microVM id its
 `ListMicrovms` poll already returns, with no need to reconstruct the opaque
 `Data`. The runner ignores any id it doesn't track. (This is why the handle has an
@@ -303,7 +303,7 @@ This is the only backend that changes on disk today, and the transition is
 deliberately conservative:
 
 - **New state dir.** The runner gains a single flat state directory
-  (e.g. `<state-dir>/tasks/<id>.json`, default `/var/lib/xagent/tasks`). It is
+  (e.g. `<state-dir>/tasks/<id>.json`, default `/var/lib/gritz/tasks`). It is
   **not** namespaced by backend — task ids are globally unique, so one `tasks/`
   directory suffices regardless of which backend a runner runs. On first run after
   upgrade the store is empty.
@@ -312,7 +312,7 @@ deliberately conservative:
   `backend.Destroy` and deletes the record. The backend itself persists nothing.
 - **Pre-existing containers.** Containers created by the old (label-only) code
   before the upgrade are not in the store, so the first `List` won't see them.
-  This is benign in practice because the container name `xagent-{taskID}` is
+  This is benign in practice because the container name `gritz-{taskID}` is
   deterministic: the next `Start` for such a task calls `Launch` with no `reuse`,
   hits the existing name, adopts the running container, and the runner records it
   — self-healing the gap. (See the first trade-off for the general statement.)
@@ -334,7 +334,7 @@ optional boot-time reseed is listed as an Open Question.)
 and writing its record. A crash in that window orphans an untracked sandbox. How
 exposed a backend is depends on whether its handle is deterministic:
 
-- **Docker is self-protected.** The container name `xagent-{taskID}` is
+- **Docker is self-protected.** The container name `gritz-{taskID}` is
   *deterministic*. A lost store-write after `Launch` created the container means
   the next `Start` calls `Launch` again (with no `reuse` handle, since the record
   was lost) and hits a **name conflict**, which *surfaces* the orphan instead of

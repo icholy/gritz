@@ -14,18 +14,18 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/icholy/xagent/internal/agent"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/proto/xagent/v1/xagentv1connect"
-	"github.com/icholy/xagent/internal/runner/backend"
-	dockerbackend "github.com/icholy/xagent/internal/runner/backend/docker"
-	"github.com/icholy/xagent/internal/runner/taskstate"
-	"github.com/icholy/xagent/internal/runner/workspace"
-	"github.com/icholy/xagent/internal/x/dockerx"
-	"github.com/icholy/xagent/internal/x/outbox"
-	"github.com/icholy/xagent/internal/x/testx"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/agent"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/proto/gritz/v1/gritzv1connect"
+	"github.com/icholy/gritz/internal/runner/backend"
+	dockerbackend "github.com/icholy/gritz/internal/runner/backend/docker"
+	"github.com/icholy/gritz/internal/runner/taskstate"
+	"github.com/icholy/gritz/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/x/dockerx"
+	"github.com/icholy/gritz/internal/x/outbox"
+	"github.com/icholy/gritz/internal/x/testx"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -46,7 +46,7 @@ func testStore(t *testing.T, recs ...taskstate.Record) *taskstate.Store {
 func TestRunnerStart(t *testing.T) {
 	abs, err := filepath.Abs("../../prebuilt")
 	assert.NilError(t, err)
-	t.Setenv("XAGENT_PREBUILT_DIR", abs)
+	t.Setenv("GRITZ_PREBUILT_DIR", abs)
 
 	task := &model.Task{
 		ID:        1,
@@ -62,38 +62,38 @@ func TestRunnerStart(t *testing.T) {
 	// this server directly (over the host network), so it must answer the
 	// driver's started/stopped events, its first-run brief (ListLinks), and the
 	// agent's get_my_task (GetTask + ListEventsByTask + ListLinks).
-	mock := &xagentclient.ClientMock{
-		CreateTaskTokenFunc: func(_ context.Context, req *xagentv1.CreateTaskTokenRequest) (*xagentv1.CreateTaskTokenResponse, error) {
-			return &xagentv1.CreateTaskTokenResponse{Token: "test-token"}, nil
+	mock := &gritzclient.ClientMock{
+		CreateTaskTokenFunc: func(_ context.Context, req *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
+			return &gritzv1.CreateTaskTokenResponse{Token: "test-token"}, nil
 		},
-		SubmitRunnerEventsFunc: func(_ context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		SubmitRunnerEventsFunc: func(_ context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 		// The driver reads its task at startup to fork on shell_session; this
 		// task has none, so it takes the normal agent path.
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-			return &xagentv1.GetTaskResponse{Task: task.Proto("")}, nil
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+			return &gritzv1.GetTaskResponse{Task: task.Proto("")}, nil
 		},
 		// The driver drains the event stream before running the agent; an empty
 		// page (more=false) makes the drain a single no-op call.
-		ListEventsByTaskFunc: func(_ context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
-			return &xagentv1.ListEventsByTaskResponse{}, nil
+		ListEventsByTaskFunc: func(_ context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
+			return &gritzv1.ListEventsByTaskResponse{}, nil
 		},
 		// The driver fetches the task's standing links for the first-run brief.
-		ListLinksFunc: func(_ context.Context, req *xagentv1.ListLinksRequest) (*xagentv1.ListLinksResponse, error) {
-			return &xagentv1.ListLinksResponse{}, nil
+		ListLinksFunc: func(_ context.Context, req *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
+			return &gritzv1.ListLinksResponse{}, nil
 		},
 	}
 
 	// Create httptest server with the mock
-	_, handler := xagentv1connect.NewXAgentServiceHandler(mock)
+	_, handler := gritzv1connect.NewGritzServiceHandler(mock)
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
 	// Create runner. The agent connects to the server directly over the network, so
 	// the container shares the host network namespace (NetworkMode "host") to
 	// reach the httptest server on 127.0.0.1, and ServerURL is the same URL.
-	client := xagentclient.New(xagentclient.Options{BaseURL: ts.URL})
+	client := gritzclient.New(gritzclient.Options{BaseURL: ts.URL})
 	be, err := dockerbackend.New(dockerbackend.Options{RunnerID: "test-runner"})
 	assert.NilError(t, err)
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
@@ -121,7 +121,7 @@ func TestRunnerStart(t *testing.T) {
 						Dummy: &workspace.DummyConfig{
 							Sleep: 1,
 							ToolCalls: []agent.DummyToolCall{
-								{Server: "xagent", Name: "get_my_task"},
+								{Server: "gritz", Name: "get_my_task"},
 							},
 						},
 					},
@@ -139,7 +139,7 @@ func TestRunnerStart(t *testing.T) {
 	defer docker.Close()
 
 	// Remove any leftover container from a previous aborted run.
-	_ = docker.ContainerRemove(t.Context(), "xagent-1", container.RemoveOptions{Force: true})
+	_ = docker.ContainerRemove(t.Context(), "gritz-1", container.RemoveOptions{Force: true})
 
 	// Start a task
 	err = r.Start(t.Context(), task)
@@ -153,11 +153,11 @@ func TestRunnerStart(t *testing.T) {
 	assert.Assert(t, rec.ID != "")
 
 	// Wait for the container to exit
-	err = dockerx.ContainerWait(t.Context(), docker, "xagent-1", container.WaitConditionNotRunning)
+	err = dockerx.ContainerWait(t.Context(), docker, "gritz-1", container.WaitConditionNotRunning)
 	assert.NilError(t, err)
 
 	// Remove the container
-	err = docker.ContainerRemove(t.Context(), "xagent-1", container.RemoveOptions{})
+	err = docker.ContainerRemove(t.Context(), "gritz-1", container.RemoveOptions{})
 	assert.NilError(t, err)
 
 	// Verify ListLinks was called twice — once by the driver's first-run brief
@@ -169,18 +169,18 @@ func TestRunnerStart(t *testing.T) {
 }
 
 // TestRunnerSpec_PreCreatesLogDir asserts the sandbox spec ships a directory
-// entry for the driver's /xagent/log parent, created 0777 so a non-root driver
+// entry for the driver's /gritz/log parent, created 0777 so a non-root driver
 // can write the append-only log file there (the driver's MkdirAll is only a
 // fallback).
 func TestRunnerSpec_PreCreatesLogDir(t *testing.T) {
 	t.Parallel()
 
-	mock := &xagentclient.ClientMock{
-		CreateTaskTokenFunc: func(_ context.Context, req *xagentv1.CreateTaskTokenRequest) (*xagentv1.CreateTaskTokenResponse, error) {
-			return &xagentv1.CreateTaskTokenResponse{Token: "test-token"}, nil
+	mock := &gritzclient.ClientMock{
+		CreateTaskTokenFunc: func(_ context.Context, req *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
+			return &gritzv1.CreateTaskTokenResponse{Token: "test-token"}, nil
 		},
 	}
-	client := xagentclient.New(xagentclient.Options{BaseURL: "http://localhost"})
+	client := gritzclient.New(gritzclient.Options{BaseURL: "http://localhost"})
 	be, err := dockerbackend.New(dockerbackend.Options{RunnerID: "test-runner"})
 	assert.NilError(t, err)
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
@@ -230,7 +230,7 @@ func TestRunnerSpec_PreCreatesLogDir(t *testing.T) {
 // the events it delivered through the mock client. The outbox's first Run pass
 // delivers everything already persisted, so this exercises the same durable path
 // production uses.
-func submitted(t *testing.T, mock *xagentclient.ClientMock, queue *outbox.Outbox[model.RunnerEvent]) []*xagentv1.RunnerEvent {
+func submitted(t *testing.T, mock *gritzclient.ClientMock, queue *outbox.Outbox[model.RunnerEvent]) []*gritzv1.RunnerEvent {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -261,7 +261,7 @@ func TestRunnerEventsSurviveRestart(t *testing.T) {
 	// them: this outbox is never Run, so nothing reaches the server.
 	crashed, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
 		StoreDir: dir,
-		Client:   &xagentclient.ClientMock{},
+		Client:   &gritzclient.ClientMock{},
 		Backoff:  backoff.NewConstantBackOff(0),
 		Log:      slog.Default(),
 	})
@@ -270,9 +270,9 @@ func TestRunnerEventsSurviveRestart(t *testing.T) {
 	assert.NilError(t, crashed.Enqueue(model.RunnerEvent{TaskID: 2, Event: model.RunnerEventFailed, Version: 5, Reason: "boom"}))
 
 	// The new process re-opens the same durable dir and delivers on startup.
-	mock := &xagentclient.ClientMock{
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+	mock := &gritzclient.ClientMock{
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 	}
 	restarted, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
@@ -286,7 +286,7 @@ func TestRunnerEventsSurviveRestart(t *testing.T) {
 	// The events survived the restart and are redelivered in FIFO order, with
 	// their TaskId/Version/Reason intact.
 	events := submitted(t, mock, restarted)
-	assert.DeepEqual(t, events, []*xagentv1.RunnerEvent{
+	assert.DeepEqual(t, events, []*gritzv1.RunnerEvent{
 		{Event: "started", TaskId: 1},
 		{Event: "failed", TaskId: 2, Version: 5, Reason: "boom"},
 	}, protocmp.Transform())
@@ -303,7 +303,7 @@ func TestRunnerStart_Idempotent(t *testing.T) {
 			return backend.StateRunning, nil
 		},
 	}
-	mock := &xagentclient.ClientMock{}
+	mock := &gritzclient.ClientMock{}
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
 		StoreDir: t.TempDir(),
 		Client:   mock,
@@ -345,9 +345,9 @@ func TestRunnerStart_AdoptReuse(t *testing.T) {
 			return 0, ctx.Err()
 		},
 	}
-	mock := &xagentclient.ClientMock{
-		CreateTaskTokenFunc: func(_ context.Context, _ *xagentv1.CreateTaskTokenRequest) (*xagentv1.CreateTaskTokenResponse, error) {
-			return &xagentv1.CreateTaskTokenResponse{Token: "t"}, nil
+	mock := &gritzclient.ClientMock{
+		CreateTaskTokenFunc: func(_ context.Context, _ *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
+			return &gritzv1.CreateTaskTokenResponse{Token: "t"}, nil
 		},
 	}
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
@@ -385,7 +385,7 @@ func TestRunnerList(t *testing.T) {
 			return state[h.ID], nil
 		},
 	}
-	mock := &xagentclient.ClientMock{}
+	mock := &gritzclient.ClientMock{}
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
 		StoreDir: t.TempDir(),
 		Client:   mock,
@@ -419,12 +419,12 @@ func TestRunnerPoll_StopWithoutSandbox(t *testing.T) {
 		Command:   model.TaskCommandStop,
 		Version:   3,
 	}
-	mock := &xagentclient.ClientMock{
-		ListRunnerTasksFunc: func(_ context.Context, _ *xagentv1.ListRunnerTasksRequest) (*xagentv1.ListRunnerTasksResponse, error) {
-			return &xagentv1.ListRunnerTasksResponse{Tasks: []*xagentv1.Task{task.Proto("")}}, nil
+	mock := &gritzclient.ClientMock{
+		ListRunnerTasksFunc: func(_ context.Context, _ *gritzv1.ListRunnerTasksRequest) (*gritzv1.ListRunnerTasksResponse, error) {
+			return &gritzv1.ListRunnerTasksResponse{Tasks: []*gritzv1.Task{task.Proto("")}}, nil
 		},
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 	}
 	be := &backend.BackendMock{
@@ -453,7 +453,7 @@ func TestRunnerPoll_StopWithoutSandbox(t *testing.T) {
 	assert.Equal(t, len(events), 1)
 	assert.DeepEqual(t,
 		events[0],
-		&xagentv1.RunnerEvent{Event: "stopped", TaskId: 7, Version: 3},
+		&gritzv1.RunnerEvent{Event: "stopped", TaskId: 7, Version: 3},
 		protocmp.Transform(),
 	)
 }
@@ -469,9 +469,9 @@ func TestRunnerPoll_StopSignalled(t *testing.T) {
 		Command:   model.TaskCommandStop,
 		Version:   3,
 	}
-	mock := &xagentclient.ClientMock{
-		ListRunnerTasksFunc: func(_ context.Context, _ *xagentv1.ListRunnerTasksRequest) (*xagentv1.ListRunnerTasksResponse, error) {
-			return &xagentv1.ListRunnerTasksResponse{Tasks: []*xagentv1.Task{task.Proto("")}}, nil
+	mock := &gritzclient.ClientMock{
+		ListRunnerTasksFunc: func(_ context.Context, _ *gritzv1.ListRunnerTasksRequest) (*gritzv1.ListRunnerTasksResponse, error) {
+			return &gritzv1.ListRunnerTasksResponse{Tasks: []*gritzv1.Task{task.Proto("")}}, nil
 		},
 	}
 	be := &backend.BackendMock{
@@ -506,9 +506,9 @@ func TestRunnerSupervise_ReportLost(t *testing.T) {
 	t.Parallel()
 	// Arrange - Wait reports the exit as lost (non-zero code): the driver's
 	// terminal report never reached the server, so the runner emits "failed".
-	mock := &xagentclient.ClientMock{
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+	mock := &gritzclient.ClientMock{
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 	}
 	be := &backend.BackendMock{
@@ -537,7 +537,7 @@ func TestRunnerSupervise_ReportLost(t *testing.T) {
 	assert.Equal(t, len(events), 1)
 	assert.DeepEqual(t,
 		events[0],
-		&xagentv1.RunnerEvent{Event: "failed", TaskId: 2, Version: 4, Reason: "sandbox exited with status code -1"},
+		&gritzv1.RunnerEvent{Event: "failed", TaskId: 2, Version: 4, Reason: "sandbox exited with status code -1"},
 		protocmp.Transform(),
 	)
 	assert.Assert(t, r.sem.TryAcquire(1)) // the slot was released
@@ -547,7 +547,7 @@ func TestRunnerSupervise_CleanExit(t *testing.T) {
 	t.Parallel()
 	// Arrange - Wait returns a clean exit (0): the driver already reported, so
 	// no event is owed, but the slot is still released.
-	mock := &xagentclient.ClientMock{}
+	mock := &gritzclient.ClientMock{}
 	be := &backend.BackendMock{
 		WaitFunc: func(_ context.Context, _ backend.Handle) (backend.ExitCode, error) {
 			return 0, nil
@@ -578,7 +578,7 @@ func TestRunnerSupervise_Shutdown(t *testing.T) {
 	t.Parallel()
 	// Arrange - Wait returns context.Canceled: the runner is shutting down, the
 	// sandbox stays alive for next-boot rehydration. No event, slot NOT released.
-	mock := &xagentclient.ClientMock{}
+	mock := &gritzclient.ClientMock{}
 	be := &backend.BackendMock{
 		WaitFunc: func(_ context.Context, _ backend.Handle) (backend.ExitCode, error) {
 			return 0, context.Canceled
@@ -610,16 +610,16 @@ func TestRunnerLoad(t *testing.T) {
 	// Arrange - a running sandbox (re-attached), an exited husk whose task is
 	// still running (lost-report backstop), and a gone sandbox whose record is
 	// dropped.
-	status := map[int64]xagentv1.TaskStatus{
-		2: xagentv1.TaskStatus_RUNNING,
-		3: xagentv1.TaskStatus_RUNNING,
+	status := map[int64]gritzv1.TaskStatus{
+		2: gritzv1.TaskStatus_RUNNING,
+		3: gritzv1.TaskStatus_RUNNING,
 	}
-	mock := &xagentclient.ClientMock{
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-			return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, Status: status[req.Id]}}, nil
+	mock := &gritzclient.ClientMock{
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+			return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, Status: status[req.Id]}}, nil
 		},
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 	}
 	state := map[string]backend.State{
@@ -662,7 +662,7 @@ func TestRunnerLoad(t *testing.T) {
 	// Assert - the exited husk and gone sandbox (both still-running tasks) each
 	// emit "failed"; the gone record is dropped, the others kept.
 	events := submitted(t, mock, queue)
-	assert.DeepEqual(t, events, []*xagentv1.RunnerEvent{
+	assert.DeepEqual(t, events, []*gritzv1.RunnerEvent{
 		{Event: "failed", TaskId: 2, Reason: "sandbox exited"},
 		{Event: "failed", TaskId: 3, Reason: "sandbox exited"},
 	}, protocmp.Transform())
@@ -708,12 +708,12 @@ func TestRunnerLoad_VersionScopedBackstop(t *testing.T) {
 			t.Parallel()
 			// Arrange - one exited husk whose task is still RUNNING on the server,
 			// so the boot-time backstop fires a "failed".
-			mock := &xagentclient.ClientMock{
-				GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-					return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, Status: xagentv1.TaskStatus_RUNNING}}, nil
+			mock := &gritzclient.ClientMock{
+				GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+					return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, Status: gritzv1.TaskStatus_RUNNING}}, nil
 				},
-				SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-					return &xagentv1.SubmitRunnerEventsResponse{}, nil
+				SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+					return &gritzv1.SubmitRunnerEventsResponse{}, nil
 				},
 			}
 			be := &backend.BackendMock{
@@ -752,12 +752,12 @@ func TestRunnerPrune(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	archived := map[int64]bool{1: true, 2: false}
-	mock := &xagentclient.ClientMock{
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+	mock := &gritzclient.ClientMock{
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
 			if req.Id == 4 {
 				return nil, connect.NewError(connect.CodeNotFound, errors.New("task not found"))
 			}
-			return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, Archived: archived[req.Id]}}, nil
+			return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, Archived: archived[req.Id]}}, nil
 		},
 	}
 	state := map[string]backend.State{
@@ -831,9 +831,9 @@ func TestRunnerStart_Gone(t *testing.T) {
 			return backend.Handle{}, backend.ErrGone
 		},
 	}
-	mock := &xagentclient.ClientMock{
-		CreateTaskTokenFunc: func(_ context.Context, _ *xagentv1.CreateTaskTokenRequest) (*xagentv1.CreateTaskTokenResponse, error) {
-			return &xagentv1.CreateTaskTokenResponse{Token: "t"}, nil
+	mock := &gritzclient.ClientMock{
+		CreateTaskTokenFunc: func(_ context.Context, _ *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
+			return &gritzv1.CreateTaskTokenResponse{Token: "t"}, nil
 		},
 	}
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
@@ -868,7 +868,7 @@ func TestRunnerStart_GoneViaProbe(t *testing.T) {
 			return backend.StateGone, nil
 		},
 	}
-	mock := &xagentclient.ClientMock{}
+	mock := &gritzclient.ClientMock{}
 	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
 		StoreDir: t.TempDir(),
 		Client:   mock,
@@ -907,9 +907,9 @@ func TestRunnerDie_StopWithoutSandbox(t *testing.T) {
 		Command:   model.TaskCommandStop,
 		Version:   3,
 	}
-	mock := &xagentclient.ClientMock{
-		ListRunnerTasksFunc: func(_ context.Context, _ *xagentv1.ListRunnerTasksRequest) (*xagentv1.ListRunnerTasksResponse, error) {
-			return &xagentv1.ListRunnerTasksResponse{Tasks: []*xagentv1.Task{task.Proto("")}}, nil
+	mock := &gritzclient.ClientMock{
+		ListRunnerTasksFunc: func(_ context.Context, _ *gritzv1.ListRunnerTasksRequest) (*gritzv1.ListRunnerTasksResponse, error) {
+			return &gritzv1.ListRunnerTasksResponse{Tasks: []*gritzv1.Task{task.Proto("")}}, nil
 		},
 	}
 	be := &backend.BackendMock{
@@ -959,12 +959,12 @@ func TestRunnerGracefulShutdown_NoFatalCause(t *testing.T) {
 		Command:   model.TaskCommandStop,
 		Version:   3,
 	}
-	mock := &xagentclient.ClientMock{
-		ListRunnerTasksFunc: func(_ context.Context, _ *xagentv1.ListRunnerTasksRequest) (*xagentv1.ListRunnerTasksResponse, error) {
-			return &xagentv1.ListRunnerTasksResponse{Tasks: []*xagentv1.Task{task.Proto("")}}, nil
+	mock := &gritzclient.ClientMock{
+		ListRunnerTasksFunc: func(_ context.Context, _ *gritzv1.ListRunnerTasksRequest) (*gritzv1.ListRunnerTasksResponse, error) {
+			return &gritzv1.ListRunnerTasksResponse{Tasks: []*gritzv1.Task{task.Proto("")}}, nil
 		},
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 	}
 	be := &backend.BackendMock{

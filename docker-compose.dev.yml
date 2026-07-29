@@ -2,16 +2,16 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: xagent
-      POSTGRES_PASSWORD: xagent
-      POSTGRES_DB: xagent
+      POSTGRES_USER: gritz
+      POSTGRES_PASSWORD: gritz
+      POSTGRES_DB: gritz
       PGPORT: "5433"
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
-      - xagent
+      - gritz
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U xagent -p 5433"]
+      test: ["CMD-SHELL", "pg_isready -U gritz -p 5433"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,16 +20,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: ["./xagent", "server", "--no-auth"]
+    command: ["./gritz", "server", "--no-auth"]
     ports:
       - "6464:6464"
     env_file: .env
     environment:
-      XAGENT_BASE_URL: http://localhost:6464
-      XAGENT_CORS: "true"
-      XAGENT_DATABASE_URL: postgres://xagent:xagent@postgres:5433/xagent?sslmode=disable
+      GRITZ_BASE_URL: http://localhost:6464
+      GRITZ_CORS: "true"
+      GRITZ_DATABASE_URL: postgres://gritz:gritz@postgres:5433/gritz?sslmode=disable
     networks:
-      - xagent
+      - gritz
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,22 +50,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: ["./xagent", "runner", "--workspaces", "/etc/xagent/workspaces.yml"]
+    command: ["./gritz", "runner", "--workspaces", "/etc/gritz/workspaces.yml"]
     environment:
-      XAGENT_SERVER: http://server:6464
+      GRITZ_SERVER: http://server:6464
       # Matches the fixed dev key the --no-auth server injects on startup
       # (internal/command/server.go: provisionDevKey).
-      XAGENT_API_KEY: xat_dev
-      XAGENT_RUNNER_ID: dev-runner
-      XAGENT_BACKEND: docker
-      XAGENT_STATE_DIR: /var/lib/xagent/tasks
+      GRITZ_API_KEY: xat_dev
+      GRITZ_RUNNER_ID: dev-runner
+      GRITZ_BACKEND: docker
+      GRITZ_STATE_DIR: /var/lib/gritz/tasks
     volumes:
       # Spawn task containers on the host daemon.
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./dev/workspaces.yml:/etc/xagent/workspaces.yml:ro
-      - runner_state:/var/lib/xagent
+      - ./dev/workspaces.yml:/etc/gritz/workspaces.yml:ro
+      - runner_state:/var/lib/gritz
     networks:
-      - xagent
+      - gritz
     depends_on:
       server:
         condition: service_healthy
@@ -73,8 +73,8 @@ services:
 networks:
   # A fixed network name so the dummy workspace (dev/workspaces.yml) can attach
   # its task containers to it and reach the server by its "server" service name.
-  xagent:
-    name: xagent-dev
+  gritz:
+    name: gritz-dev
 
 volumes:
   postgres_data:

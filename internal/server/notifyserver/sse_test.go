@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/x/sse"
 	"gotest.tools/v3/assert"
 )
 

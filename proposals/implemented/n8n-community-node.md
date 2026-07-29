@@ -1,21 +1,21 @@
-# n8n Community Node for xagent
+# n8n Community Node for gritz
 
-Issue: https://github.com/icholy/xagent/issues/561
+Issue: https://github.com/icholy/gritz/issues/561
 
 ## Problem
 
-There is no way to integrate xagent with n8n workflows. Users who automate processes with n8n cannot create xagent tasks, monitor their status, or react to task completion as part of larger automation pipelines.
+There is no way to integrate gritz with n8n workflows. Users who automate processes with n8n cannot create gritz tasks, monitor their status, or react to task completion as part of larger automation pipelines.
 
 ## Design
 
-A community node package (`n8n-nodes-xagent`) that exposes xagent's Connect RPC API as n8n node operations. The package uses the **programmatic style** (execute method) since xagent uses Connect RPC (JSON-over-HTTP POST) rather than a traditional REST API with distinct HTTP methods/paths per resource.
+A community node package (`n8n-nodes-gritz`) that exposes gritz's Connect RPC API as n8n node operations. The package uses the **programmatic style** (execute method) since gritz uses Connect RPC (JSON-over-HTTP POST) rather than a traditional REST API with distinct HTTP methods/paths per resource.
 
 ### Primary Use Case: Create Task and Wait for Completion
 
 The core workflow is: create a task, poll until it reaches a terminal status, and output the full task details (including links and logs). This is implemented as a single "Create and Wait" operation that blocks the n8n workflow execution until the task finishes:
 
 ```
-[Trigger] → [xagent: Create and Wait] → [Process Results]
+[Trigger] → [gritz: Create and Wait] → [Process Results]
 ```
 
 The node creates the task, then polls `GetTaskDetails` at a configurable interval until the task reaches a terminal status (COMPLETED, FAILED, or CANCELLED). The output includes the full task details: task metadata, child tasks, links (PRs, issues created by the agent), and events.
@@ -48,15 +48,15 @@ This lets downstream n8n nodes access task outputs — e.g., extract PR URLs fro
 ### Package Structure
 
 ```
-n8n-nodes-xagent/
+n8n-nodes-gritz/
 ├── package.json
 ├── tsconfig.json
 ├── credentials/
-│   └── XagentApi.credentials.ts
+│   └── GritzApi.credentials.ts
 ├── nodes/
-│   └── Xagent/
-│       ├── Xagent.node.ts
-│       └── Xagent.node.json      # codex file (metadata)
+│   └── Gritz/
+│       ├── Gritz.node.ts
+│       └── Gritz.node.json      # codex file (metadata)
 └── README.md
 ```
 
@@ -67,16 +67,16 @@ Authentication uses API keys (issued via `CreateKey` RPC). The credential defini
 ```typescript
 import { ICredentialType, INodeProperties } from 'n8n-workflow';
 
-export class XagentApi implements ICredentialType {
-  name = 'xagentApi';
-  displayName = 'xagent API';
+export class GritzApi implements ICredentialType {
+  name = 'gritzApi';
+  displayName = 'gritz API';
   properties: INodeProperties[] = [
     {
       displayName: 'Server URL',
       name: 'serverUrl',
       type: 'string',
       default: '',
-      placeholder: 'https://xagent.example.com',
+      placeholder: 'https://gritz.example.com',
       required: true,
     },
     {
@@ -91,7 +91,7 @@ export class XagentApi implements ICredentialType {
 }
 ```
 
-The node sends requests with `Authorization: Bearer <apiKey>` header, matching xagent's existing key auth.
+The node sends requests with `Authorization: Bearer <apiKey>` header, matching gritz's existing key auth.
 
 ### Node Operations
 
@@ -107,10 +107,10 @@ The node is task-focused with a single **Operation** dropdown:
 
 ### Connect RPC HTTP Mapping
 
-xagent uses Connect RPC which exposes unary RPCs as HTTP POST endpoints:
+gritz uses Connect RPC which exposes unary RPCs as HTTP POST endpoints:
 
 ```
-POST /xagent.v1.XAgentService/<MethodName>
+POST /gritz.v1.GritzService/<MethodName>
 Content-Type: application/json
 Authorization: Bearer <key>
 
@@ -120,7 +120,7 @@ Authorization: Bearer <key>
 For example, `CreateTask` maps to:
 
 ```
-POST /xagent.v1.XAgentService/CreateTask
+POST /gritz.v1.GritzService/CreateTask
 Content-Type: application/json
 
 {
@@ -142,20 +142,20 @@ import {
   INodeTypeDescription,
 } from 'n8n-workflow';
 
-export class Xagent implements INodeType {
+export class Gritz implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'xagent',
-    name: 'xagent',
-    icon: 'file:xagent.svg',
+    displayName: 'gritz',
+    name: 'gritz',
+    icon: 'file:gritz.svg',
     group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-    description: 'Create and run xagent tasks',
-    defaults: { name: 'xagent' },
+    description: 'Create and run gritz tasks',
+    defaults: { name: 'gritz' },
     inputs: ['main'],
     outputs: ['main'],
     credentials: [
-      { name: 'xagentApi', required: true },
+      { name: 'gritzApi', required: true },
     ],
     properties: [
       {
@@ -259,13 +259,13 @@ export class Xagent implements INodeType {
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
     const returnData: INodeExecutionData[] = [];
-    const credentials = await this.getCredentials('xagentApi');
+    const credentials = await this.getCredentials('gritzApi');
     const serverUrl = (credentials.serverUrl as string).replace(/\/$/, '');
 
     const rpc = async (method: string, body: Record<string, unknown> = {}) => {
       return this.helpers.httpRequest({
         method: 'POST',
-        url: `${serverUrl}/xagent.v1.XAgentService/${method}`,
+        url: `${serverUrl}/gritz.v1.GritzService/${method}`,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${credentials.apiKey}`,
@@ -365,16 +365,16 @@ A polling trigger node could be added later to start workflows when external tas
 
 ```json
 {
-  "name": "n8n-nodes-xagent",
+  "name": "n8n-nodes-gritz",
   "version": "0.1.0",
-  "description": "n8n community node for xagent task orchestration",
+  "description": "n8n community node for gritz task orchestration",
   "keywords": ["n8n-community-node-package"],
   "license": "MIT",
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "credentials": ["dist/credentials/XagentApi.credentials.js"],
+    "credentials": ["dist/credentials/GritzApi.credentials.js"],
     "nodes": [
-      "dist/nodes/Xagent/Xagent.node.js"
+      "dist/nodes/Gritz/Gritz.node.js"
     ]
   }
 }
@@ -382,7 +382,7 @@ A polling trigger node could be added later to start workflows when external tas
 
 ### Repository Location
 
-The node lives in a separate repository (`icholy/n8n-nodes-xagent`) since it's an npm package with its own release cycle. It has no dependency on the xagent Go codebase.
+The node lives in a separate repository (`icholy/n8n-nodes-gritz`) since it's an npm package with its own release cycle. It has no dependency on the gritz Go codebase.
 
 ## Trade-offs
 

@@ -14,8 +14,8 @@ func TestTaskURL(t *testing.T) {
 		orgID   int64
 		want    string
 	}{
-		{"basic", "https://xagent.example.com", 42, 7, "https://xagent.example.com/ui/tasks/42?org=7"},
-		{"multi-digit org", "https://xagent.choly.ca", 804, 123, "https://xagent.choly.ca/ui/tasks/804?org=123"},
+		{"basic", "https://gritz.example.com", 42, 7, "https://gritz.example.com/ui/tasks/42?org=7"},
+		{"multi-digit org", "https://gritz.dev", 804, 123, "https://gritz.dev/ui/tasks/804?org=123"},
 		{"empty base url", "", 42, 7, ""},
 	}
 	for _, tt := range tests {

@@ -1,6 +1,6 @@
 # Include Archived Tasks in the Task List
 
-Issue: https://github.com/icholy/xagent/issues/1334
+Issue: https://github.com/icholy/gritz/issues/1334
 
 ## Problem
 
@@ -8,7 +8,7 @@ The task list excludes archived tasks entirely. Archiving is a soft-delete — t
 
 - `ListTasksPage` (`internal/store/sql/queries/task.sql`) — `WHERE archived = FALSE`.
 - The partial keyset index `tasks_org_created_id_idx` — `WHERE archived = FALSE`.
-- The `ListTasks` RPC handler, the Web UI task list (`webui/src/routes/tasks.index.tsx`), the `list_tasks` MCP tool, and the `xagent task list` CLI — all consume that query.
+- The `ListTasks` RPC handler, the Web UI task list (`webui/src/routes/tasks.index.tsx`), the `list_tasks` MCP tool, and the `gritz task list` CLI — all consume that query.
 
 Once a task is archived (manually or by the auto-archive loop) it disappears from the UI and every listing surface. A user who wants to revisit an old, archived investigation — or confirm that auto-archive fired — has no path back to it short of knowing the id and deep-linking to `/tasks/{id}`. This matters more over time: auto-archive (#633) is making archived tasks the *majority* of an org's history, all of it invisible.
 
@@ -24,7 +24,7 @@ The keyset itself does not change shape semantically — the ordering is still `
 
 ### 1. Request field shape
 
-`proto/xagent/v1/xagent.proto` — add one field to the existing request:
+`proto/gritz/v1/gritz.proto` — add one field to the existing request:
 
 ```protobuf
 message ListTasksRequest {
@@ -198,7 +198,7 @@ The archive action column already gates on `canArchiveTask(task)`, which is fals
 
 ### 7. CLI
 
-`xagent task list` (`internal/command/task_list.go`) sends an empty `ListTasksRequest` today and only ever sees the first page (it doesn't paginate). Add a bool flag threaded into the request:
+`gritz task list` (`internal/command/task_list.go`) sends an empty `ListTasksRequest` today and only ever sees the first page (it doesn't paginate). Add a bool flag threaded into the request:
 
 ```go
 &cli.BoolFlag{
@@ -206,7 +206,7 @@ The archive action column already gates on `canArchiveTask(task)`, which is fals
 	Usage: "include archived tasks",
 },
 // ...
-resp, err := client.ListTasks(ctx, &xagentv1.ListTasksRequest{
+resp, err := client.ListTasks(ctx, &gritzv1.ListTasksRequest{
 	Archived: cmd.Bool("archived"),
 })
 ```
@@ -222,7 +222,7 @@ The `list_tasks` **MCP tool is out of scope** for this proposal — it stays act
 3. **SQL query + store** — Delivers: conditional `archived` predicate in `ListTasksPage`, `Archived` on `ListTasksPageParams`/`taskCursor`, filter threading + token-mismatch rejection (`sqlc generate`). Depends on: (2). Verifiable by: store tests — active-only unchanged; archived-included returns archived rows in keyset order; a token minted under one filter is rejected under the other with `ErrInvalidRequest`.
 4. **Server handler** — Delivers: pass `req.Archived` through. Depends on: (1), (3). Verifiable by: handler test paging with `archived` true/false; mismatch → `CodeInvalidArgument`.
 5. **Web UI** — Delivers: "Show archived" switch (reset tokens on change), archived badge + muted row. Depends on: (4). Verifiable by: rendering against an org with archived tasks; toggling shows/hides them and resets to page 1; `pnpm lint` passes.
-6. **CLI** — Delivers: a `--archived` flag on `xagent task list`. Depends on: (4). Verifiable by: `xagent task list --archived` returns archived tasks; default omits them.
+6. **CLI** — Delivers: a `--archived` flag on `gritz task list`. Depends on: (4). Verifiable by: `gritz task list --archived` returns archived tasks; default omits them.
 
 ## Trade-offs
 

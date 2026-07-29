@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/x/logctx"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/x/logctx"
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/zitadel-go/v3/pkg/authentication"

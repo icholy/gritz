@@ -3,8 +3,8 @@ package apiserver
 import (
 	"testing"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 
@@ -12,7 +12,7 @@ import (
 	// handler serves. atlassianserver is already imported transitively by the
 	// apiserver package; githubserver is only referenced via an interface, so it
 	// must be pulled in explicitly here for its github/* types to be registered.
-	_ "github.com/icholy/xagent/internal/server/githubserver"
+	_ "github.com/icholy/gritz/internal/server/githubserver"
 )
 
 func TestGetEventTypes(t *testing.T) {
@@ -23,11 +23,11 @@ func TestGetEventTypes(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.GetEventTypes(ctx, &xagentv1.GetEventTypesRequest{})
+	resp, err := srv.GetEventTypes(ctx, &gritzv1.GetEventTypesRequest{})
 
 	// Assert
 	assert.NilError(t, err)
-	byKey := map[string]*xagentv1.EventTypeDef{}
+	byKey := map[string]*gritzv1.EventTypeDef{}
 	for _, et := range resp.EventTypes {
 		byKey[et.Source+":"+et.Type] = et
 	}
@@ -49,11 +49,11 @@ func TestGetEventTypes(t *testing.T) {
 	// every display field (label/placeholder/help), not just the key.
 	labelAdded, ok := byKey["github:label_added"]
 	assert.Assert(t, ok, "expected github/label_added to be registered")
-	assert.DeepEqual(t, labelAdded.Attrs, []*xagentv1.AttrDef{
+	assert.DeepEqual(t, labelAdded.Attrs, []*gritzv1.AttrDef{
 		{
 			Key:         "body",
 			Label:       "Issue/PR Body",
-			Placeholder: "xagent:",
+			Placeholder: "gritz:",
 			Help:        "Matched against the description of the labeled issue or PR.",
 		},
 		{
@@ -65,7 +65,7 @@ func TestGetEventTypes(t *testing.T) {
 		{
 			Key:         "label",
 			Label:       "Label",
-			Placeholder: "xagent",
+			Placeholder: "gritz",
 			Help:        "The label added to the issue or PR.",
 		},
 		{

@@ -7,13 +7,13 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
-func (s *Server) CreateKey(ctx context.Context, req *xagentv1.CreateKeyRequest) (*xagentv1.CreateKeyResponse, error) {
+func (s *Server) CreateKey(ctx context.Context, req *gritzv1.CreateKeyRequest) (*gritzv1.CreateKeyResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpKeyCreate) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot create key"))
@@ -51,13 +51,13 @@ func (s *Server) CreateKey(ctx context.Context, req *xagentv1.CreateKeyRequest) 
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.CreateKeyResponse{
+	return &gritzv1.CreateKeyResponse{
 		Key:      key.Proto(),
 		RawToken: rawKey,
 	}, nil
 }
 
-func (s *Server) ListKeys(ctx context.Context, req *xagentv1.ListKeysRequest) (*xagentv1.ListKeysResponse, error) {
+func (s *Server) ListKeys(ctx context.Context, req *gritzv1.ListKeysRequest) (*gritzv1.ListKeysResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpKeyRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list keys"))
@@ -66,12 +66,12 @@ func (s *Server) ListKeys(ctx context.Context, req *xagentv1.ListKeysRequest) (*
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListKeysResponse{
+	return &gritzv1.ListKeysResponse{
 		Keys: model.ProtoMap(keys),
 	}, nil
 }
 
-func (s *Server) DeleteKey(ctx context.Context, req *xagentv1.DeleteKeyRequest) (*xagentv1.DeleteKeyResponse, error) {
+func (s *Server) DeleteKey(ctx context.Context, req *gritzv1.DeleteKeyRequest) (*gritzv1.DeleteKeyResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpKeyWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write key"))
@@ -88,5 +88,5 @@ func (s *Server) DeleteKey(ctx context.Context, req *xagentv1.DeleteKeyRequest) 
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.DeleteKeyResponse{}, nil
+	return &gritzv1.DeleteKeyResponse{}, nil
 }

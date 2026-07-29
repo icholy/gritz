@@ -11,7 +11,7 @@ import {
   listWorkspaces,
   listOrgMembers,
   listKeys,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useNotificationSSE, useTimelineFollowers } from '@/lib/services'
 import type { TimelineFollowers } from '@/lib/timeline-follow'
 import type { Notification, NotificationResource } from '@/lib/notification-sse'

@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/icholy/xagent/internal/agent/toollog"
+	"github.com/icholy/gritz/internal/agent/toollog"
 )
 
-// CodexAgent implements Agent using OpenAI Codex CLI.
-type CodexAgent struct {
+// Codegritz implements Agent using OpenAI Codex CLI.
+type Codegritz struct {
 	log        *DriverLog
 	cwd        string
 	verbose    bool
@@ -25,7 +25,7 @@ type CodexAgent struct {
 }
 
 // Prompt sends a prompt to Codex and waits for completion.
-func (a *CodexAgent) Prompt(ctx context.Context, prompt string, resume bool) error {
+func (a *Codegritz) Prompt(ctx context.Context, prompt string, resume bool) error {
 	a.log.Info("sending prompt", "text", prompt)
 
 	// Write MCP config if we have MCP servers
@@ -71,11 +71,11 @@ func (a *CodexAgent) Prompt(ctx context.Context, prompt string, resume bool) err
 }
 
 // Close releases any resources held by the agent.
-func (a *CodexAgent) Close() error {
+func (a *Codegritz) Close() error {
 	return nil
 }
 
-func (a *CodexAgent) run(ctx context.Context, bin string, args []string) error {
+func (a *Codegritz) run(ctx context.Context, bin string, args []string) error {
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = a.cwd
 	cmd.Stderr = os.Stderr
@@ -113,7 +113,7 @@ func (a *CodexAgent) run(ctx context.Context, bin string, args []string) error {
 }
 
 // writeConfig writes the Codex config.toml with MCP server configuration.
-func (a *CodexAgent) writeConfig() error {
+func (a *Codegritz) writeConfig() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
@@ -166,7 +166,7 @@ func (a *CodexAgent) writeConfig() error {
 	return os.WriteFile(configPath, []byte(b.String()), 0644)
 }
 
-func (a *CodexAgent) handleStreamEvent(data []byte) bool {
+func (a *Codegritz) handleStreamEvent(data []byte) bool {
 	var event struct {
 		Type string `json:"type"`
 		// item events

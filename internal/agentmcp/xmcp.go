@@ -6,22 +6,22 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/x/mcpx"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/x/mcpx"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type Server struct {
-	client       xagentclient.Client
+	client       gritzclient.Client
 	task         *model.Task
 	capabilities []string
 }
 
-func NewServer(client xagentclient.Client, task *model.Task, capabilities []string) *Server {
+func NewServer(client gritzclient.Client, task *model.Task, capabilities []string) *Server {
 	return &Server{
 		client:       client,
 		task:         task,
@@ -70,7 +70,7 @@ type createLinkInput struct {
 }
 
 func (s *Server) createLink(ctx context.Context, req *mcp.CallToolRequest, input createLinkInput) (*mcp.CallToolResult, any, error) {
-	_, err := s.client.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	_, err := s.client.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId:    s.task.ID,
 		Relevance: input.Relevance,
 		Url:       input.URL,
@@ -92,9 +92,9 @@ func (s *Server) report(ctx context.Context, req *mcp.CallToolRequest, input rep
 	// The wire is unchanged (UploadLogs) until the agent surface lands, but the
 	// server now re-points the `llm` channel onto the event stream: this upload
 	// appends a from-agent `report` event rather than a logs row.
-	_, err := s.client.UploadLogs(ctx, &xagentv1.UploadLogsRequest{
+	_, err := s.client.UploadLogs(ctx, &gritzv1.UploadLogsRequest{
 		TaskId: s.task.ID,
-		Entries: []*xagentv1.LogEntry{
+		Entries: []*gritzv1.LogEntry{
 			{Type: "llm", Content: input.Message},
 		},
 	})
@@ -106,12 +106,12 @@ func (s *Server) report(ctx context.Context, req *mcp.CallToolRequest, input rep
 }
 
 func (s *Server) getMyTask(ctx context.Context, req *mcp.CallToolRequest, input any) (*mcp.CallToolResult, any, error) {
-	task, err := s.client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: s.task.ID})
+	task, err := s.client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: s.task.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to get task: %v", err), nil, nil
 	}
 
-	events, err := s.client.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{
+	events, err := s.client.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{
 		TaskId: s.task.ID,
 		Types:  []string{model.EventTypeInstruction, model.EventTypeExternal},
 	})
@@ -119,7 +119,7 @@ func (s *Server) getMyTask(ctx context.Context, req *mcp.CallToolRequest, input 
 		return mcpx.ErrorResult("failed to get task events: %v", err), nil, nil
 	}
 
-	links, err := s.client.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: s.task.ID})
+	links, err := s.client.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: s.task.ID})
 	if err != nil {
 		return mcpx.ErrorResult("failed to get task links: %v", err), nil, nil
 	}
@@ -134,8 +134,8 @@ type updateMyTaskInput struct {
 func (s *Server) updateMyTask(ctx context.Context, _ *mcp.CallToolRequest, input updateMyTaskInput) (*mcp.CallToolResult, any, error) {
 	// Note: a task is intentionally not allowed to change its own auto_archive.
 	// The value set by the routing rule (or a human) is authoritative for the
-	// task's lifetime — see icholy/xagent#1094.
-	if _, err := s.client.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	// task's lifetime — see icholy/gritz#1094.
+	if _, err := s.client.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id:   s.task.ID,
 		Name: input.Name,
 	}); err != nil {
@@ -148,7 +148,7 @@ func (s *Server) updateMyTask(ctx context.Context, _ *mcp.CallToolRequest, input
 type getGitHubTokenInput struct{}
 
 func (s *Server) getGitHubToken(ctx context.Context, req *mcp.CallToolRequest, input getGitHubTokenInput) (*mcp.CallToolResult, any, error) {
-	resp, err := s.client.CreateGitHubToken(ctx, &xagentv1.CreateGitHubTokenRequest{})
+	resp, err := s.client.CreateGitHubToken(ctx, &gritzv1.CreateGitHubTokenRequest{})
 	if err != nil {
 		return mcpx.ErrorResult("failed to create github token: %v", err), nil, nil
 	}
@@ -168,7 +168,7 @@ func textResult(format string, args ...any) *mcp.CallToolResult {
 // for JSON output. The event stream is the instruction+external brief; the agent
 // reads instruction-arm events straight from it, so there is no synthesized
 // `instructions` field.
-func taskDetailsToMap(task *xagentv1.Task, taskEvents []*xagentv1.Event, taskLinks []*xagentv1.TaskLink) map[string]any {
+func taskDetailsToMap(task *gritzv1.Task, taskEvents []*gritzv1.Event, taskLinks []*gritzv1.TaskLink) map[string]any {
 	marshalOpts := protojson.MarshalOptions{Indent: "  "}
 
 	links := make([]json.RawMessage, len(taskLinks))

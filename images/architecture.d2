@@ -9,18 +9,18 @@ events: External Events {
 }
 
 backend: Backend {
-  server: XAgent Server
+  server: Gritz Server
   db: PostgreSQL
   server -> db
 }
 
-runner: XAgent Runner
+runner: Gritz Runner
 
 container: Docker Container {
   style.multiple: true
-  driver: XAgent Driver
+  driver: Gritz Driver
   agent: Agent (Claude Code)
-  mcp: XAgent MCP
+  mcp: Gritz MCP
   driver -> agent: runs
   agent -> mcp: tool calls
 }

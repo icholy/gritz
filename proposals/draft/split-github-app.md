@@ -1,12 +1,12 @@
 # Optional Runner-Local GitHub App
 
-Issue: https://github.com/icholy/xagent/issues/684
+Issue: https://github.com/icholy/gritz/issues/684
 
 Extends: [`proposals/accepted/github-app-installation-tokens.md`](../accepted/github-app-installation-tokens.md)
 
 ## Problem
 
-The accepted [GitHub App Installation Token API](../accepted/github-app-installation-tokens.md) proposal funnels both webhook delivery and agent write operations through a single central xagent GitHub App. To install that app, a user has to grant the central xagent deployment full read/write access (Contents, Pull requests, etc.) on whatever repos the agents will touch.
+The accepted [GitHub App Installation Token API](../accepted/github-app-installation-tokens.md) proposal funnels both webhook delivery and agent write operations through a single central gritz GitHub App. To install that app, a user has to grant the central gritz deployment full read/write access (Contents, Pull requests, etc.) on whatever repos the agents will touch.
 
 In practice this is the single biggest install-time objection: users want the event routing (PR comments, issue updates flowing back to tasks) but they don't want a shared multi-tenant app holding write keys to their repos.
 
@@ -16,14 +16,14 @@ The accepted proposal correctly identified app installation tokens as better tha
 
 Add an **optional, runner-local** GitHub App as a new way to give agents GitHub access. Nothing existing is removed or required:
 
-- The central xagent GitHub App keeps working exactly as it does today. Operators who are happy with it (or with PATs / `${env:GITHUB_TOKEN}` / `${sh:gh auth token}`) don't have to do anything.
+- The central gritz GitHub App keeps working exactly as it does today. Operators who are happy with it (or with PATs / `${env:GITHUB_TOKEN}` / `${sh:gh auth token}`) don't have to do anything.
 - A new code path lets an operator configure their **own** GitHub App at the runner. When configured, agents on that runner get short-lived installation tokens minted locally by the runner instead of by the central server.
 - Conceptually this turns the existing single app into two roles:
 
 | Role | App identity | Permissions | Lives where | Used for | Status |
 | --- | --- | --- | --- | --- | --- |
-| **Webhook role** | Central xagent deployment | Currently broad; can be narrowed to metadata + event subscriptions | Server | Webhooks, OAuth account linking, event routing | Unchanged from accepted proposal |
-| **Agent role** | Operator-owned (NEW) **or** central xagent app (existing) | Whatever the operator's app grants | Runner (NEW) **or** Server (existing) | Minting installation tokens for git + agent API calls | New runner-local path is opt-in |
+| **Webhook role** | Central gritz deployment | Currently broad; can be narrowed to metadata + event subscriptions | Server | Webhooks, OAuth account linking, event routing | Unchanged from accepted proposal |
+| **Agent role** | Operator-owned (NEW) **or** central gritz app (existing) | Whatever the operator's app grants | Runner (NEW) **or** Server (existing) | Minting installation tokens for git + agent API calls | New runner-local path is opt-in |
 
 The "split" framing is about **role**, not about forcing two apps. If an operator runs both apps the central one can be reduced to webhook-only permissions, but that's a follow-up they can do on their own schedule.
 
@@ -39,12 +39,12 @@ PAT-based workflows are completely orthogonal to this proposal — they don't go
 
 ### What's added (runner side)
 
-Three new runner flags, matching the existing `--github-private-key` / `XAGENT_GITHUB_APP_PRIVATE_KEY` pattern from the accepted proposal (but on the runner side):
+Three new runner flags, matching the existing `--github-private-key` / `GRITZ_GITHUB_APP_PRIVATE_KEY` pattern from the accepted proposal (but on the runner side):
 
 ```
---github-app-id           Agent GitHub App ID                XAGENT_GITHUB_APP_ID
---github-private-key      Agent GitHub App private key (PEM) XAGENT_GITHUB_APP_PRIVATE_KEY
---github-installation-id  Default installation ID (optional) XAGENT_GITHUB_INSTALLATION_ID
+--github-app-id           Agent GitHub App ID                GRITZ_GITHUB_APP_ID
+--github-private-key      Agent GitHub App private key (PEM) GRITZ_GITHUB_APP_PRIVATE_KEY
+--github-installation-id  Default installation ID (optional) GRITZ_GITHUB_INSTALLATION_ID
 ```
 
 Wired into `internal/command/runner.go` alongside the existing `--server`, `--workspaces`, `--key`, `--private-key` flags. The private-key value accepts either the PEM content directly or a path (detected by `-----BEGIN` prefix), reusing `githubx.ParsePrivateKey`.
@@ -75,25 +75,25 @@ The runner can populate the cache eagerly at startup by calling `GET /app/instal
 
 #### Token endpoint over the existing socket proxy
 
-The agent-facing interface doesn't change. Agents still call a `CreateGitHubToken` RPC over the Unix socket at `/xagent.sock`. The change is **who answers** the call when the runner-local app is configured.
+The agent-facing interface doesn't change. Agents still call a `CreateGitHubToken` RPC over the Unix socket at `/gritz.sock`. The change is **who answers** the call when the runner-local app is configured.
 
-`internal/runner/proxy.go` currently registers an `AgentFilter` (`internal/agentmcp/filter.go`) as the `xagentv1connect.XAgentServiceHandler` behind the socket. `AgentFilter.CreateGitHubToken` (filter.go:192) enforces `claims.HasScope(agentauth.ScopeGitHubToken)` and forwards to `p.client.CreateGitHubToken` (the server).
+`internal/runner/proxy.go` currently registers an `AgentFilter` (`internal/agentmcp/filter.go`) as the `gritzv1connect.GritzServiceHandler` behind the socket. `AgentFilter.CreateGitHubToken` (filter.go:192) enforces `claims.HasScope(agentauth.ScopeGitHubToken)` and forwards to `p.client.CreateGitHubToken` (the server).
 
 Change: add an optional `GitHubTokens` minter on `AgentFilter`. When present, the filter uses it; when nil, it forwards to the server exactly as today:
 
 ```go
 // internal/agentmcp/filter.go
 type AgentFilter struct {
-    xagentv1connect.UnimplementedXAgentServiceHandler
-    client       xagentv1connect.XAgentServiceClient
+    gritzv1connect.UnimplementedGritzServiceHandler
+    client       gritzv1connect.GritzServiceClient
     GitHubTokens GitHubTokenMinter // optional; nil = forward to server
 }
 
 type GitHubTokenMinter interface {
-    CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error)
+    CreateGitHubToken(ctx context.Context, req *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error)
 }
 
-func (p *AgentFilter) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+func (p *AgentFilter) CreateGitHubToken(ctx context.Context, req *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
     claims, err := p.claims(ctx)
     if err != nil {
         return nil, err
@@ -143,11 +143,11 @@ The server-side `CreateGitHubToken` handler ignores the new field for now — it
 
 All three agent-facing pieces from the accepted proposal already call `CreateGitHubToken` over the socket and need no changes:
 
-- `xagent tool git-credential` (`internal/command/git_credential.go`, package `gitcredential`) — git credential helper, called from `git config credential.https://github.com.helper`.
-- `xagent tool github-mcp` (`internal/command/github_mcp.go`, package `githubmcp`) — stdio MCP adapter that hot-swaps the upstream session via `internal/mcpswap`.
+- `gritz tool git-credential` (`internal/command/git_credential.go`, package `gitcredential`) — git credential helper, called from `git config credential.https://github.com.helper`.
+- `gritz tool github-mcp` (`internal/command/github_mcp.go`, package `githubmcp`) — stdio MCP adapter that hot-swaps the upstream session via `internal/mcpswap`.
 - The `get_github_token` MCP tool in `internal/agentmcp/xmcp.go` (gated by `agentauth.ScopeGitHubToken`).
 
-They use the in-container `XAGENT_SERVER` + `XAGENT_TOKEN` env vars to reach the socket. They don't know — and don't need to know — whether the call lands at the runner-local minter or is forwarded to the central server.
+They use the in-container `GRITZ_SERVER` + `GRITZ_TOKEN` env vars to reach the socket. They don't know — and don't need to know — whether the call lands at the runner-local minter or is forwarded to the central server.
 
 ### What's unchanged on the server
 
@@ -181,8 +181,8 @@ If an operator runs both the central webhook app and a runner-local agent app, b
 | Runner-side `CreateGitHubToken` answering | n/a | **New.** `AgentFilter.GitHubTokens` minter, used when configured; otherwise forwards to server. |
 | Repo→installation resolution | n/a | **New.** `githubapp.Resolver` in the runner, `GET /repos/{owner}/{repo}/installation`, with default-installation fallback. |
 | Per-token repo scoping | n/a | **New, optional.** New optional `repositories` field on `CreateGitHubTokenRequest`; honored by the runner-local minter, ignored by the server handler. |
-| `xagent tool git-credential` | Calls socket `CreateGitHubToken` | Same — unchanged. Lands at runner-local minter or server depending on runner config. |
-| `xagent tool github-mcp` | Calls socket `CreateGitHubToken` | Same — unchanged. |
+| `gritz tool git-credential` | Calls socket `CreateGitHubToken` | Same — unchanged. Lands at runner-local minter or server depending on runner config. |
+| `gritz tool github-mcp` | Calls socket `CreateGitHubToken` | Same — unchanged. |
 | `get_github_token` MCP tool | Calls socket `CreateGitHubToken` | Same — unchanged. |
 | `agentauth.ScopeGitHubToken` workspace scope | Required | Same — unchanged. |
 | PAT / `${env:GITHUB_TOKEN}` / `${sh:gh auth token}` workspace setups | Out of scope | Still out of scope. Orthogonal to both server and runner-local paths. |

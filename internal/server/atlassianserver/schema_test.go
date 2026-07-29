@@ -3,7 +3,7 @@ package atlassianserver
 import (
 	"testing"
 
-	"github.com/icholy/xagent/internal/eventrouter"
+	"github.com/icholy/gritz/internal/eventrouter"
 	"gotest.tools/v3/assert"
 )
 
@@ -20,7 +20,7 @@ func TestSchemaRegistration(t *testing.T) {
 		{
 			Key:         "body",
 			Label:       "Comment Body",
-			Placeholder: "xagent:",
+			Placeholder: "gritz:",
 			Help:        "Matched against the comment text.",
 		},
 		{

@@ -25,7 +25,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       // Proxy Connect RPC requests to the backend server
-      '/xagent.v1.XAgentService': {
+      '/gritz.v1.GritzService': {
         target: 'http://localhost:6464',
         changeOrigin: true,
       },

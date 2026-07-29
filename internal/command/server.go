@@ -12,26 +12,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/auth/oauthflow"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/server"
-	"github.com/icholy/xagent/internal/server/archiver"
-	"github.com/icholy/xagent/internal/server/atlassianserver"
-	"github.com/icholy/xagent/internal/server/githubserver"
-	"github.com/icholy/xagent/internal/server/notifyserver"
-	"github.com/icholy/xagent/internal/server/scheduler"
-	"github.com/icholy/xagent/internal/store"
-	"github.com/icholy/xagent/internal/x/logctx"
-	"github.com/icholy/xagent/internal/x/otelx"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/auth/oauthflow"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/server"
+	"github.com/icholy/gritz/internal/server/archiver"
+	"github.com/icholy/gritz/internal/server/atlassianserver"
+	"github.com/icholy/gritz/internal/server/githubserver"
+	"github.com/icholy/gritz/internal/server/notifyserver"
+	"github.com/icholy/gritz/internal/server/scheduler"
+	"github.com/icholy/gritz/internal/store"
+	"github.com/icholy/gritz/internal/x/logctx"
+	"github.com/icholy/gritz/internal/x/otelx"
 	"github.com/urfave/cli/v3"
 )
 
 var ServerCommand = &cli.Command{
 	Name:  "server",
-	Usage: "Start the xagent server",
+	Usage: "Start the gritz server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "addr",
@@ -43,37 +43,37 @@ var ServerCommand = &cli.Command{
 			Name:    "db",
 			Aliases: []string{"d"},
 			Usage:   "PostgreSQL connection string",
-			Sources: cli.EnvVars("XAGENT_DATABASE_URL"),
+			Sources: cli.EnvVars("GRITZ_DATABASE_URL"),
 		},
 		&cli.StringFlag{
 			Name:    "auth-domain",
 			Usage:   "ZITADEL domain (e.g. instance.zitadel.cloud)",
-			Sources: cli.EnvVars("XAGENT_AUTH_DOMAIN"),
+			Sources: cli.EnvVars("GRITZ_AUTH_DOMAIN"),
 		},
 		&cli.StringFlag{
 			Name:    "auth-client-id",
 			Usage:   "ZITADEL client ID",
-			Sources: cli.EnvVars("XAGENT_AUTH_CLIENT_ID"),
+			Sources: cli.EnvVars("GRITZ_AUTH_CLIENT_ID"),
 		},
 		&cli.StringFlag{
 			Name:    "auth-client-secret",
 			Usage:   "ZITADEL client secret",
-			Sources: cli.EnvVars("XAGENT_AUTH_CLIENT_SECRET"),
+			Sources: cli.EnvVars("GRITZ_AUTH_CLIENT_SECRET"),
 		},
 		&cli.StringFlag{
 			Name:    "base-url",
-			Usage:   "Base URL for the server (e.g. https://xagent.example.com)",
-			Sources: cli.EnvVars("XAGENT_BASE_URL"),
+			Usage:   "Base URL for the server (e.g. https://gritz.example.com)",
+			Sources: cli.EnvVars("GRITZ_BASE_URL"),
 		},
 		&cli.StringFlag{
 			Name:    "auth-encryption-key",
 			Usage:   "Hex-encoded 32-byte key for session encryption (generated if not set)",
-			Sources: cli.EnvVars("XAGENT_AUTH_ENCRYPTION_KEY"),
+			Sources: cli.EnvVars("GRITZ_AUTH_ENCRYPTION_KEY"),
 		},
 		&cli.StringFlag{
 			Name:    "auth-app-key",
 			Usage:   "Hex-encoded 32-byte Ed25519 seed for signing app JWTs (generated if not set)",
-			Sources: cli.EnvVars("XAGENT_AUTH_APP_KEY"),
+			Sources: cli.EnvVars("GRITZ_AUTH_APP_KEY"),
 		},
 		&cli.BoolFlag{
 			Name:  "no-auth",
@@ -82,70 +82,70 @@ var ServerCommand = &cli.Command{
 		&cli.BoolFlag{
 			Name:    "cors",
 			Usage:   "Enable permissive CORS headers (for development only)",
-			Sources: cli.EnvVars("XAGENT_CORS"),
+			Sources: cli.EnvVars("GRITZ_CORS"),
 		},
 		&cli.StringFlag{
 			Name:    "github-app-id",
 			Usage:   "GitHub App ID",
-			Sources: cli.EnvVars("XAGENT_GITHUB_APP_ID"),
+			Sources: cli.EnvVars("GRITZ_GITHUB_APP_ID"),
 		},
 		&cli.StringFlag{
 			Name:    "github-app-slug",
 			Usage:   "GitHub App slug (for install URL)",
-			Sources: cli.EnvVars("XAGENT_GITHUB_APP_SLUG"),
+			Sources: cli.EnvVars("GRITZ_GITHUB_APP_SLUG"),
 		},
 		&cli.StringFlag{
 			Name:    "github-client-id",
 			Usage:   "GitHub App OAuth client ID",
-			Sources: cli.EnvVars("XAGENT_GITHUB_CLIENT_ID"),
+			Sources: cli.EnvVars("GRITZ_GITHUB_CLIENT_ID"),
 		},
 		&cli.StringFlag{
 			Name:    "github-client-secret",
 			Usage:   "GitHub App OAuth client secret",
-			Sources: cli.EnvVars("XAGENT_GITHUB_CLIENT_SECRET"),
+			Sources: cli.EnvVars("GRITZ_GITHUB_CLIENT_SECRET"),
 		},
 		&cli.StringFlag{
 			Name:    "github-webhook-secret",
 			Usage:   "GitHub App webhook secret",
-			Sources: cli.EnvVars("XAGENT_GITHUB_WEBHOOK_SECRET"),
+			Sources: cli.EnvVars("GRITZ_GITHUB_WEBHOOK_SECRET"),
 		},
 		&cli.StringFlag{
 			Name:    "github-private-key",
 			Usage:   "GitHub App private key (PEM content)",
-			Sources: cli.EnvVars("XAGENT_GITHUB_APP_PRIVATE_KEY"),
+			Sources: cli.EnvVars("GRITZ_GITHUB_APP_PRIVATE_KEY"),
 		},
 		&cli.StringFlag{
 			Name:    "atlassian-client-id",
 			Usage:   "Atlassian OAuth client ID (for account linking)",
-			Sources: cli.EnvVars("XAGENT_ATLASSIAN_CLIENT_ID"),
+			Sources: cli.EnvVars("GRITZ_ATLASSIAN_CLIENT_ID"),
 		},
 		&cli.StringFlag{
 			Name:    "atlassian-client-secret",
 			Usage:   "Atlassian OAuth client secret",
-			Sources: cli.EnvVars("XAGENT_ATLASSIAN_CLIENT_SECRET"),
+			Sources: cli.EnvVars("GRITZ_ATLASSIAN_CLIENT_SECRET"),
 		},
 		&cli.DurationFlag{
 			Name:    "archive-poll",
 			Usage:   "How often to scan for tasks past their auto-archive deadline. 0 (default) disables the archiver.",
-			Sources: cli.EnvVars("XAGENT_ARCHIVE_POLL"),
+			Sources: cli.EnvVars("GRITZ_ARCHIVE_POLL"),
 		},
 		&cli.IntFlag{
 			Name:    "archive-batch",
 			Usage:   "Maximum number of tasks the archiver will archive per tick",
 			Value:   archiver.DefaultBatchSize,
-			Sources: cli.EnvVars("XAGENT_ARCHIVE_BATCH"),
+			Sources: cli.EnvVars("GRITZ_ARCHIVE_BATCH"),
 		},
 		&cli.DurationFlag{
 			Name:    "schedule-poll",
 			Usage:   "How often to scan for due schedules and fire them into tasks. 0 disables the scheduler.",
 			Value:   scheduler.DefaultInterval,
-			Sources: cli.EnvVars("XAGENT_SCHEDULE_POLL"),
+			Sources: cli.EnvVars("GRITZ_SCHEDULE_POLL"),
 		},
 		&cli.IntFlag{
 			Name:    "schedule-batch",
 			Usage:   "Maximum number of schedules the scheduler will fire per tick",
 			Value:   scheduler.DefaultBatchSize,
-			Sources: cli.EnvVars("XAGENT_SCHEDULE_BATCH"),
+			Sources: cli.EnvVars("GRITZ_SCHEDULE_BATCH"),
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {

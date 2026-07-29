@@ -1,6 +1,6 @@
 # Enrich GitHub PR review-comment events with code location
 
-Issue: https://github.com/icholy/xagent/issues/1306
+Issue: https://github.com/icholy/gritz/issues/1306
 
 ## Problem
 
@@ -30,7 +30,7 @@ The pipeline from webhook to agent is:
    `Description`, `URL`, and `Data` into a `model.ExternalPayload` and persists it as an
    `external` event. `Attrs` and `Meta` are routing/identity concerns and are **not
    persisted** — they never reach the agent.
-3. The persisted event's payload is the typed `xagentv1.ExternalPayload`
+3. The persisted event's payload is the typed `gritzv1.ExternalPayload`
    (`{description, url, data}`), stored as JSONB in the `events.payload` column.
 4. `get_my_task` (`internal/agentmcp/xmcp.go`, `taskDetailsToMap`) marshals each event
    with `protojson` and hands the raw JSON to the agent. **Whatever fields exist on the
@@ -95,7 +95,7 @@ churn.
 
 A generic string map on `ExternalPayload`.
 
-`proto/xagent/v1/xagent.proto`:
+`proto/gritz/v1/gritz.proto`:
 
 ```protobuf
 message ExternalPayload {

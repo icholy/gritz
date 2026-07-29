@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types/network"
-	"github.com/icholy/xagent/internal/agent"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/configfile"
-	"github.com/icholy/xagent/internal/x/expandvar"
+	"github.com/icholy/gritz/internal/agent"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/configfile"
+	"github.com/icholy/gritz/internal/x/expandvar"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,7 +20,7 @@ var defaultYAML = `workspaces:
   pets-workshop:
     description: Example Node.js pets workshop
     container:
-      image: ghcr.io/icholy/xagent-workspace-debian:latest
+      image: ghcr.io/icholy/gritz-workspace-debian:latest
       working_dir: /root
       environment:
         CLAUDE_CODE_OAUTH_TOKEN: ${env:CLAUDE_CODE_OAUTH_TOKEN}
@@ -230,8 +230,8 @@ type LambdaMicroVM struct {
 	EgressConnector string `yaml:"egress_connector"`
 	// IngressConnector is the network connector ARN granting inbound access so
 	// the runner can reach the in-VM shim over AWS's managed proxy (SSE lifecycle
-	// stream + /xagent/stop). Empty defaults to the managed ALL_INGRESS connector.
-	// An operator may instead supply a connector scoped to the xagent
+	// stream + /gritz/stop). Empty defaults to the managed ALL_INGRESS connector.
+	// An operator may instead supply a connector scoped to the gritz
 	// control-surface port for tighter, defense-in-depth security (the proxy auth
 	// token is already port-scoped).
 	IngressConnector string `yaml:"ingress_connector"`

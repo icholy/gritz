@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/pagination"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/pagination"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store"
 )
 
-func (s *Server) ListTasks(ctx context.Context, req *xagentv1.ListTasksRequest) (*xagentv1.ListTasksResponse, error) {
+func (s *Server) ListTasks(ctx context.Context, req *gritzv1.ListTasksRequest) (*gritzv1.ListTasksResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpTaskRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list tasks"))
@@ -35,8 +35,8 @@ func (s *Server) ListTasks(ctx context.Context, req *xagentv1.ListTasksRequest) 
 		}
 		return nil, connect.NewError(code, err)
 	}
-	resp := &xagentv1.ListTasksResponse{
-		Tasks:         make([]*xagentv1.Task, len(page.Items)),
+	resp := &gritzv1.ListTasksResponse{
+		Tasks:         make([]*gritzv1.Task, len(page.Items)),
 		NextPageToken: page.NextToken,
 	}
 	for i, t := range page.Items {
@@ -45,7 +45,7 @@ func (s *Server) ListTasks(ctx context.Context, req *xagentv1.ListTasksRequest) 
 	return resp, nil
 }
 
-func (s *Server) ListRunnerTasks(ctx context.Context, req *xagentv1.ListRunnerTasksRequest) (*xagentv1.ListRunnerTasksResponse, error) {
+func (s *Server) ListRunnerTasks(ctx context.Context, req *gritzv1.ListRunnerTasksRequest) (*gritzv1.ListRunnerTasksResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpTaskRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot list tasks"))
@@ -53,12 +53,12 @@ func (s *Server) ListRunnerTasks(ctx context.Context, req *xagentv1.ListRunnerTa
 	tasks, err := s.store.ListTasksForRunner(ctx, nil, req.Runner, caller.OrgID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return &xagentv1.ListRunnerTasksResponse{}, nil
+			return &gritzv1.ListRunnerTasksResponse{}, nil
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	resp := &xagentv1.ListRunnerTasksResponse{
-		Tasks: make([]*xagentv1.Task, len(tasks)),
+	resp := &gritzv1.ListRunnerTasksResponse{
+		Tasks: make([]*gritzv1.Task, len(tasks)),
 	}
 	for i, t := range tasks {
 		resp.Tasks[i] = t.Proto(s.baseURL)
@@ -66,7 +66,7 @@ func (s *Server) ListRunnerTasks(ctx context.Context, req *xagentv1.ListRunnerTa
 	return resp, nil
 }
 
-func (s *Server) CreateTask(ctx context.Context, req *xagentv1.CreateTaskRequest) (*xagentv1.CreateTaskResponse, error) {
+func (s *Server) CreateTask(ctx context.Context, req *gritzv1.CreateTaskRequest) (*gritzv1.CreateTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// No row exists yet, so authorize directly on the request attributes — the
 	// narrow create scope (workspace/runner) a privileged caller holds. The
@@ -156,12 +156,12 @@ func (s *Server) CreateTask(ctx context.Context, req *xagentv1.CreateTaskRequest
 		Time:           time.Now(),
 		ChannelMessage: fmt.Sprintf("Task %d created on %s/%s.", task.ID, task.Runner, task.Workspace),
 	})
-	return &xagentv1.CreateTaskResponse{
+	return &gritzv1.CreateTaskResponse{
 		Task: task.Proto(s.baseURL),
 	}, nil
 }
 
-func (s *Server) GetTask(ctx context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+func (s *Server) GetTask(ctx context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before the DB read. AllowOp ignores
 	// predicates, so a narrow task.read:{task.id:N} holder still passes here; this
@@ -180,12 +180,12 @@ func (s *Server) GetTask(ctx context.Context, req *xagentv1.GetTaskRequest) (*xa
 	if !caller.Scopes.Allow(authscope.OpTaskRead, task.ScopeAttr()...) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read task"))
 	}
-	return &xagentv1.GetTaskResponse{
+	return &gritzv1.GetTaskResponse{
 		Task: task.Proto(s.baseURL),
 	}, nil
 }
 
-func (s *Server) UpdateTask(ctx context.Context, req *xagentv1.UpdateTaskRequest) (*xagentv1.UpdateTaskResponse, error) {
+func (s *Server) UpdateTask(ctx context.Context, req *gritzv1.UpdateTaskRequest) (*gritzv1.UpdateTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before entering the transaction (AllowOp
 	// ignores predicates); the per-instance check runs inside the tx against the
@@ -279,10 +279,10 @@ func (s *Server) UpdateTask(ctx context.Context, req *xagentv1.UpdateTaskRequest
 	}
 	s.log.InfoContext(ctx, "task updated", "id", req.Id, "name", req.Name, "start", req.Start, "instructions_added", len(req.AddInstructions))
 	s.publish(notification)
-	return &xagentv1.UpdateTaskResponse{}, nil
+	return &gritzv1.UpdateTaskResponse{}, nil
 }
 
-func (s *Server) ArchiveTask(ctx context.Context, req *xagentv1.ArchiveTaskRequest) (*xagentv1.ArchiveTaskResponse, error) {
+func (s *Server) ArchiveTask(ctx context.Context, req *gritzv1.ArchiveTaskRequest) (*gritzv1.ArchiveTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before entering the transaction (AllowOp
 	// ignores predicates); the per-instance check runs inside the tx against the
@@ -345,10 +345,10 @@ func (s *Server) ArchiveTask(ctx context.Context, req *xagentv1.ArchiveTaskReque
 	}
 	s.log.InfoContext(ctx, "task archived", "id", req.Id)
 	s.publish(notification)
-	return &xagentv1.ArchiveTaskResponse{}, nil
+	return &gritzv1.ArchiveTaskResponse{}, nil
 }
 
-func (s *Server) UnarchiveTask(ctx context.Context, req *xagentv1.UnarchiveTaskRequest) (*xagentv1.UnarchiveTaskResponse, error) {
+func (s *Server) UnarchiveTask(ctx context.Context, req *gritzv1.UnarchiveTaskRequest) (*gritzv1.UnarchiveTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before entering the transaction (AllowOp
 	// ignores predicates); the per-instance check runs inside the tx against the
@@ -410,10 +410,10 @@ func (s *Server) UnarchiveTask(ctx context.Context, req *xagentv1.UnarchiveTaskR
 	}
 	s.log.InfoContext(ctx, "task unarchived", "id", req.Id)
 	s.publish(notification)
-	return &xagentv1.UnarchiveTaskResponse{}, nil
+	return &gritzv1.UnarchiveTaskResponse{}, nil
 }
 
-func (s *Server) CancelTask(ctx context.Context, req *xagentv1.CancelTaskRequest) (*xagentv1.CancelTaskResponse, error) {
+func (s *Server) CancelTask(ctx context.Context, req *gritzv1.CancelTaskRequest) (*gritzv1.CancelTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before entering the transaction (AllowOp
 	// ignores predicates); the per-instance check runs inside the tx against the
@@ -481,10 +481,10 @@ func (s *Server) CancelTask(ctx context.Context, req *xagentv1.CancelTaskRequest
 	}
 	s.log.InfoContext(ctx, "task cancelled", "id", req.Id)
 	s.publish(notification)
-	return &xagentv1.CancelTaskResponse{}, nil
+	return &gritzv1.CancelTaskResponse{}, nil
 }
 
-func (s *Server) RestartTask(ctx context.Context, req *xagentv1.RestartTaskRequest) (*xagentv1.RestartTaskResponse, error) {
+func (s *Server) RestartTask(ctx context.Context, req *gritzv1.RestartTaskRequest) (*gritzv1.RestartTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before entering the transaction (AllowOp
 	// ignores predicates); the per-instance check runs inside the tx against the
@@ -547,5 +547,5 @@ func (s *Server) RestartTask(ctx context.Context, req *xagentv1.RestartTaskReque
 	}
 	s.log.InfoContext(ctx, "task restarted", "id", req.Id)
 	s.publish(notification)
-	return &xagentv1.RestartTaskResponse{}, nil
+	return &gritzv1.RestartTaskResponse{}, nil
 }

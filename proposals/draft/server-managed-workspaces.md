@@ -1,6 +1,6 @@
 # Server-Managed Workspace Configurations
 
-Issue: https://github.com/icholy/xagent/issues/397
+Issue: https://github.com/icholy/gritz/issues/397
 
 ## Problem
 
@@ -37,7 +37,7 @@ The `config` column holds the raw YAML for an individual workspace entry (the va
 
 ### API Changes
 
-CRUD RPCs for individual workspace configs in `xagent.proto`. These support both CLI usage and a frontend editor (using [monaco-yaml](https://github.com/remcohaszing/monaco-yaml) for in-browser YAML editing).
+CRUD RPCs for individual workspace configs in `gritz.proto`. These support both CLI usage and a frontend editor (using [monaco-yaml](https://github.com/remcohaszing/monaco-yaml) for in-browser YAML editing).
 
 ```proto
 // Create or update a workspace config
@@ -136,17 +136,17 @@ The Web UI gets a workspace config editor page using [monaco-yaml](https://githu
 
 ### CLI Commands
 
-Add subcommands to the existing `xagent workspaces` command group (or create it if it doesn't exist):
+Add subcommands to the existing `gritz workspaces` command group (or create it if it doesn't exist):
 
 ```
-xagent workspaces push [--config path]   # Upload local YAML to server
-xagent workspaces pull [--output path]   # Download server YAML to local file or stdout
-xagent workspaces list                   # List workspace configs on the server
-xagent workspaces get <name>             # Get a single workspace config
-xagent workspaces delete <name>          # Delete a workspace config
+gritz workspaces push [--config path]   # Upload local YAML to server
+gritz workspaces pull [--output path]   # Download server YAML to local file or stdout
+gritz workspaces list                   # List workspace configs on the server
+gritz workspaces get <name>             # Get a single workspace config
+gritz workspaces delete <name>          # Delete a workspace config
 ```
 
-- `push` reads a local file (default `~/.config/xagent/workspaces.yaml`), validates it parses, splits it into individual workspace entries, then uploads each via `SetWorkspaceConfig`
+- `push` reads a local file (default `~/.config/gritz/workspaces.yaml`), validates it parses, splits it into individual workspace entries, then uploads each via `SetWorkspaceConfig`
 - `pull` downloads via `ListWorkspaceConfigs`, reassembles into a `workspaces.yaml` format, and writes to file or stdout
 - `list`, `get`, `delete` map directly to the corresponding RPCs
 
@@ -165,7 +165,7 @@ This is a per-workspace decision, not all-or-nothing. A runner can have some wor
 - Pull shared workspace definitions from the server without maintaining a full local config
 - Run with no local config at all, relying entirely on the server
 
-A runner deployed via Docker Compose only needs `XAGENT_SERVER` and `XAGENT_API_KEY` environment variables. Workspace configs are pulled from the server on demand.
+A runner deployed via Docker Compose only needs `GRITZ_SERVER` and `GRITZ_API_KEY` environment variables. Workspace configs are pulled from the server on demand.
 
 ### Variable Expansion
 
@@ -177,7 +177,7 @@ The existing `RegisterWorkspaces` RPC is removed. Workspace lifecycle is now ful
 
 The flow becomes:
 
-1. Configs are managed on the server via CLI (`xagent workspaces push`) or the Web UI editor
+1. Configs are managed on the server via CLI (`gritz workspaces push`) or the Web UI editor
 2. When a task arrives, the runner checks the local `workspaces.yaml` for a matching workspace definition
 3. If not found locally, the runner fetches the workspace config from the server via `GetWorkspaceConfig`
 4. Runner parses YAML and expands variables locally

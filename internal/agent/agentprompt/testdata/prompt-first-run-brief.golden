@@ -1,27 +1,27 @@
 # Task 1302 · first-run-brief L2
 
-- Workspace: xagent · Namespace: team-core
-- Task: https://xagent.choly.ca/ui/tasks/1302
+- Workspace: gritz · Namespace: team-core
+- Task: https://gritz.dev/ui/tasks/1302
 
 ## How to work this task
 If you have questions, problems, or take no action, respond on the platform from the most recent instruction or event url, suffixing your message with (task 1302).
-When you create a resource (PR, issue, comment), record it with xagent:create_link and subscribe=true so you receive replies, even after the task is complete. Use subscribe=false only for reference links you didn't create.
+When you create a resource (PR, issue, comment), record it with gritz:create_link and subscribe=true so you receive replies, even after the task is complete. Use subscribe=false only for reference links you didn't create.
 Prefer web URLs a user can visit over API URLs.
-Use xagent:report to log important observations. Your text responses are not visible to users — only tool calls are.
-If you need to re-check for updates mid-run, call xagent:get_my_task.
+Use gritz:report to log important observations. Your text responses are not visible to users — only tool calls are.
+If you need to re-check for updates mid-run, call gritz:get_my_task.
 
 This is your first run on this task. Its full context is below — you already have everything you need and do not need to call get_my_task to begin.
 
 ### Instruction — 2023-11-14 22:15 UTC
 Implement the first-run brief.
-Source: https://github.com/icholy/xagent/issues/1398
+Source: https://github.com/icholy/gritz/issues/1398
 
 ### External Event — 2023-11-14 22:13 UTC
 
 Type: github - review_requested
 Description: PR review requested
-URL: https://github.com/icholy/xagent/pull/1394
+URL: https://github.com/icholy/gritz/pull/1394
 
 ### Link: feat(agent): first-run brief — 2023-11-14 22:14 UTC
 the PR this task opened
-https://github.com/icholy/xagent/pull/1394 · (subscribed)
+https://github.com/icholy/gritz/pull/1394 · (subscribed)

@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: xagent
-      POSTGRES_PASSWORD: xagent
-      POSTGRES_DB: xagent
+      POSTGRES_USER: gritz
+      POSTGRES_PASSWORD: gritz
+      POSTGRES_DB: gritz
       PGPORT: "5433"
     network_mode: host
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U xagent -p 5433"]
+      test: ["CMD-SHELL", "pg_isready -U gritz -p 5433"]
       interval: 5s
       timeout: 5s
       retries: 5

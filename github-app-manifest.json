@@ -1,16 +1,16 @@
 {
-  "name": "xagent-icholy",
-  "url": "https://xagent.choly.ca",
+  "name": "gritz-icholy",
+  "url": "https://gritz.dev",
   "description": "Async agent orchestrator for Claude Code",
   "public": false,
   "request_oauth_on_install": false,
   "setup_on_update": false,
   "hook_attributes": {
-    "url": "https://xagent.choly.ca/webhook/github",
+    "url": "https://gritz.dev/webhook/github",
     "active": true
   },
-  "redirect_url": "https://xagent.choly.ca/github/callback",
-  "setup_url": "https://xagent.choly.ca/ui/github/setup",
+  "redirect_url": "https://gritz.dev/github/callback",
+  "setup_url": "https://gritz.dev/ui/github/setup",
   "default_events": [
     "issue_comment",
     "pull_request_review",

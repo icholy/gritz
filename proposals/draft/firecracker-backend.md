@@ -1,6 +1,6 @@
 # Firecracker Backend for the Runner
 
-Issue: https://github.com/icholy/xagent/issues/920
+Issue: https://github.com/icholy/gritz/issues/920
 
 ## Problem
 
@@ -15,7 +15,7 @@ The runner's sandbox runtime is abstracted behind `backend.Backend` (proposals/a
 A new package `internal/runner/backend/firecracker` implements `backend.Backend` by supervising one `firecracker` process per task. Selection follows the existing seam:
 
 ```
-xagent runner --backend firecracker
+gritz runner --backend firecracker
 ```
 
 The backend's job per task: turn the workspace's OCI image into an ext4 root filesystem, boot a microVM from it with a guest kernel, run `spec.Cmd` (the driver) inside via a minimal PID-1 init, and report the driver's exit code back through `backend.Exit`. The orchestrator (`runner.Runner`), driver, server API, and database are untouched — the driver already connects directly to the server with its task token and neither knows nor cares what runtime launched it.
@@ -24,7 +24,7 @@ The backend's job per task: turn the workspace's OCI image into an ext4 root fil
 
 - Linux with `/dev/kvm` (bare metal or nested virtualization)
 - root (TAP device creation, NAT rules, preserving uid/gid when unpacking image filesystems)
-- `firecracker` binary and a guest kernel (`vmlinux`) — fetched by `xagent download --firecracker`, see CLI below
+- `firecracker` binary and a guest kernel (`vmlinux`) — fetched by `gritz download --firecracker`, see CLI below
 - `e2fsprogs` (`mkfs.ext4 -d`, `resize2fs` — both operate on image files without mounting)
 - `iproute2` and nftables (TAP, bridge, masquerade)
 
@@ -38,7 +38,7 @@ Per the backend-interface proposal, backends get sibling config sections. `works
 workspaces:
   pets-workshop:
     firecracker:
-      image: ghcr.io/icholy/xagent-workspace-debian:latest
+      image: ghcr.io/icholy/gritz-workspace-debian:latest
       vcpus: 2            # default 2
       memory_mib: 2048    # default 2048
       disk_size_mib: 8192 # rootfs size incl. free space, default 8192
@@ -81,12 +81,12 @@ type Backend interface {
 
 ### State directory
 
-All backend state lives under a per-runner directory (default `/var/lib/xagent/firecracker/<runner-id>`):
+All backend state lives under a per-runner directory (default `/var/lib/gritz/firecracker/<runner-id>`):
 
 ```
 <state-dir>/
 ├── images/
-│   └── <image-digest>-<xagent-version>.ext4   # cached base rootfs images
+│   └── <image-digest>-<gritz-version>.ext4   # cached base rootfs images
 └── tasks/<task-id>/
     ├── rootfs.ext4       # per-task root filesystem (persists across restarts)
     ├── config.tar        # boot manifest + spec.Files, rebuilt every Start
@@ -105,9 +105,9 @@ The `tasks/<task-id>` directory is the sandbox for the purposes of the `Backend`
 
 1. Pull and flatten the image with `go-containerregistry` (already in the module graph), using `authn.DefaultKeychain` — the same `~/.docker/config.json` credentials `dockerx.ResolveRegistryAuth` resolves today.
 2. Unpack the flattened tar to a staging directory, preserving uid/gid and modes (this is the root requirement).
-3. Write the host-arch driver binary to `staging/usr/local/bin/xagent` (`backend.BinaryPath`) — baked into the base image because the kernel must be able to exec it as init before any other provisioning runs.
+3. Write the host-arch driver binary to `staging/usr/local/bin/gritz` (`backend.BinaryPath`) — baked into the base image because the kernel must be able to exec it as init before any other provisioning runs.
 4. `mkfs.ext4 -d staging base.ext4` — builds the filesystem from the directory without mounting anything.
-5. Cache at `images/<digest>-<xagent-version>.ext4`. The cache key includes the xagent version because the image embeds the driver binary.
+5. Cache at `images/<digest>-<gritz-version>.ext4`. The cache key includes the gritz version because the image embeds the driver binary.
 
 A fresh task copies the base (`cp --reflink=auto`, sparse fallback) to `tasks/<id>/rootfs.ext4`, then grows it to `disk_size_mib` with `truncate` + `resize2fs`. A restarted task reuses its existing `rootfs.ext4` — the same filesystem-reuse semantics as the Docker backend reusing a container.
 
@@ -118,10 +118,10 @@ Each `Start` configures a fresh firecracker process through its API socket — m
 ```
 console=ttyS0 reboot=k panic=1 pci=off
 ip=<guest-ip>::<gateway>:<netmask>::eth0:off
-init=/usr/local/bin/xagent -- tool vm-init
+init=/usr/local/bin/gritz -- tool vm-init
 ```
 
-The kernel configures eth0 itself (`ip=` / `CONFIG_IP_PNP`, enabled in the Firecracker project's CI kernels) and execs the xagent binary as PID 1. There is no dependence on the image's own init system, and no separate init artifact: the binary that is already required to be at `backend.BinaryPath` plays both roles.
+The kernel configures eth0 itself (`ip=` / `CONFIG_IP_PNP`, enabled in the Firecracker project's CI kernels) and execs the gritz binary as PID 1. There is no dependence on the image's own init system, and no separate init artifact: the binary that is already required to be at `backend.BinaryPath` plays both roles.
 
 The three drives:
 
@@ -145,20 +145,20 @@ type bootManifest struct {
 
 ### vm-init
 
-`xagent tool vm-init` (a hidden subcommand beside `tool agent-mcp`) is the guest PID 1:
+`gritz tool vm-init` (a hidden subcommand beside `tool agent-mcp`) is the guest PID 1:
 
-1. Mount `/proc`, `/sys`, and devtmpfs on `/dev`. Deliberately do **not** mount tmpfs on `/tmp`: the agent config (`/tmp/xagent/<task-id>.json`) carries the driver's `SetupCommandsCompleted` and `Started` markers and must persist across restarts, exactly as it does in a reused container.
-2. Set hostname `xagent-<task-id>`, add the link-local route to the MMDS address (169.254.169.254), write `/etc/resolv.conf` from the manifest's nameservers.
-3. Read the tar stream from `/dev/vdb`. The manifest entry is consumed on every boot; the remaining file entries are extracted only if `/xagent/.provisioned` is absent, which is then created. This reproduces the Docker backend's provision-at-create-only semantics, so a restart never clobbers agent-managed state.
+1. Mount `/proc`, `/sys`, and devtmpfs on `/dev`. Deliberately do **not** mount tmpfs on `/tmp`: the agent config (`/tmp/gritz/<task-id>.json`) carries the driver's `SetupCommandsCompleted` and `Started` markers and must persist across restarts, exactly as it does in a reused container.
+2. Set hostname `gritz-<task-id>`, add the link-local route to the MMDS address (169.254.169.254), write `/etc/resolv.conf` from the manifest's nameservers.
+3. Read the tar stream from `/dev/vdb`. The manifest entry is consumed on every boot; the remaining file entries are extracted only if `/gritz/.provisioned` is absent, which is then created. This reproduces the Docker backend's provision-at-create-only semantics, so a restart never clobbers agent-managed state.
 4. Spawn the driver: `manifest.Cmd` with `manifest.Env`, working directory, and optional setuid to `manifest.User`. As PID 1, reap orphaned children.
 5. Poll the MMDS stop flag (below) once per second; on stop, SIGTERM the driver — the in-guest mirror of the Docker backend's SIGTERM.
-6. When the driver exits, write `xagent-exit:<code>\n` to `/dev/vdc`, sync, and power off via `reboot(RB_POWER_OFF)`.
+6. When the driver exits, write `gritz-exit:<code>\n` to `/dev/vdc`, sync, and power off via `reboot(RB_POWER_OFF)`.
 
 One deliberate difference from Docker reuse: because cmd/env are delivered fresh on every boot, a restarted task's driver runs with the newly minted task token instead of the original one. The orchestrator already mints a token on every `Start`, so this only tightens the existing behavior.
 
 ### Networking
 
-- One bridge per runner (`xagent0`, gateway at the subnet's first address), subnet from `--firecracker-subnet` (default `172.30.0.0/16`).
+- One bridge per runner (`gritz0`, gateway at the subnet's first address), subnet from `--firecracker-subnet` (default `172.30.0.0/16`).
 - Per VM: a TAP device (`xat<task-id>`) attached to the bridge, a deterministic MAC derived from the task ID, and a guest IP allocated sequentially and persisted at `tasks/<id>/ip` so it is stable across restarts.
 - Egress via nftables masquerade of the subnet plus `ip_forward=1` — the same posture as Docker's default bridge.
 - Reachability constraint is unchanged from Docker bridge networking: the runner's `--server` URL must be reachable from the VM network. A localhost server must be addressed via the bridge gateway IP.
@@ -180,16 +180,16 @@ Exit-code fidelity follows the backend-interface contract: a missing or garbled 
 ### CLI
 
 ```
-xagent runner --backend firecracker \
-  [--firecracker-state-dir /var/lib/xagent/firecracker] \
+gritz runner --backend firecracker \
+  [--firecracker-state-dir /var/lib/gritz/firecracker] \
   [--firecracker-kernel <state-dir>/vmlinux] \
   [--firecracker-bin firecracker] \
   [--firecracker-subnet 172.30.0.0/16]
 ```
 
-All flags have `XAGENT_FIRECRACKER_*` env sources. `internal/command/runner.go`'s backend switch gains a `firecracker` case.
+All flags have `GRITZ_FIRECRACKER_*` env sources. `internal/command/runner.go`'s backend switch gains a `firecracker` case.
 
-`xagent download` gains a `--firecracker` flag that fetches two pinned artifacts into the state directory: the static `firecracker` release binary for the host arch (from the firecracker-microvm GitHub releases) and a known-good guest `vmlinux` (the Firecracker project's published CI kernels, which carry the required virtio-blk/net, ext4, and `CONFIG_IP_PNP` config). Versions are pinned as constants in the backend package so the kernel and firecracker are upgraded deliberately.
+`gritz download` gains a `--firecracker` flag that fetches two pinned artifacts into the state directory: the static `firecracker` release binary for the host arch (from the firecracker-microvm GitHub releases) and a known-good guest `vmlinux` (the Firecracker project's published CI kernels, which carry the required virtio-blk/net, ext4, and `CONFIG_IP_PNP` config). Versions are pinned as constants in the backend package so the kernel and firecracker are upgraded deliberately.
 
 ### Testing
 
@@ -205,7 +205,7 @@ The orchestrator (`runner.go`), `EventQueue`, proto definitions, database schema
 
 **OCI images as the rootfs source vs. a dedicated rootfs artifact.** Requiring workspaces to supply prebuilt ext4 images would remove the conversion step but fork the artifact pipeline: every workspace image would need a second build target, and registry auth, versioning, and distribution would be reinvented. Converting the existing images keeps `workspaces.yaml` portable across backends — the cost is a one-time conversion per image digest, amortized by the cache.
 
-**xagent as guest init vs. a separate init.** A dedicated minimal init binary (or relying on the image's systemd) would either add a release artifact or depend on what each image ships. The xagent binary is already required inside the sandbox at a fixed path; booting it as PID 1 with a `vm-init` subcommand adds no artifact and keeps guest behavior identical across images. The cost is PID-1 duties (reaping, mounts) in our code, which are small and testable.
+**gritz as guest init vs. a separate init.** A dedicated minimal init binary (or relying on the image's systemd) would either add a release artifact or depend on what each image ships. The gritz binary is already required inside the sandbox at a fixed path; booting it as PID 1 with a `vm-init` subcommand adds no artifact and keeps guest behavior identical across images. The cost is PID-1 duties (reaping, mounts) in our code, which are small and testable.
 
 **Raw tar config disk + raw status disk vs. vsock.** A vsock channel could deliver files, stop signals, and exit codes over one transport, but requires `CONFIG_VIRTIO_VSOCKETS` in the guest kernel, an AF_VSOCK dependency in the guest, and host-side socket multiplexing. Two raw block devices and a tar stream use nothing but `archive/tar` and preserve an exact parallel with the Docker backend's tar copy. The stop signal then needs its own channel, hence MMDS.
 
@@ -222,5 +222,5 @@ The orchestrator (`runner.go`), `EventQueue`, proto definitions, database schema
 1. **Jailer.** Production Firecracker deployments run under the `jailer` binary (chroot, cgroups, seccomp, dedicated uid per VM). Adopt it from the start, or land the backend first and harden in a follow-up?
 2. **Persistent caches across tasks.** Without volumes, every fresh task re-downloads dependencies. Is an optional extra block device (a per-workspace cache disk, attached read-write to one VM at a time) worth the contention rules it would need?
 3. **Kernel provenance.** Pinning the Firecracker project's CI kernels is convenient but depends on their artifact bucket. Should the release pipeline eventually build and publish a vmlinux alongside the prebuilt binaries?
-4. **Base image GC.** `images/*.ext4` accumulates one file per (digest, xagent version). Prune by LRU when unreferenced by any task directory, or leave it to the operator?
+4. **Base image GC.** `images/*.ext4` accumulates one file per (digest, gritz version). Prune by LRU when unreferenced by any task directory, or leave it to the operator?
 5. **Snapshot/restore.** Firecracker snapshots could cut boot+setup latency dramatically for hot workspaces. Out of scope here, but does the state layout need anything now to keep that door open?

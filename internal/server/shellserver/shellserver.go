@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/shell/shellrelay"
-	"github.com/icholy/xagent/internal/shell/shellwire"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/shell/shellrelay"
+	"github.com/icholy/gritz/internal/shell/shellwire"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -122,9 +122,9 @@ func New(opts Options) *Registry {
 // increment/decrement bookkeeping. Registration failures are logged rather
 // than fatal — metrics are best-effort and must not block serving shells.
 func (r *Registry) registerMetrics() {
-	meter := otel.Meter("github.com/icholy/xagent/internal/server/shellserver")
+	meter := otel.Meter("github.com/icholy/gritz/internal/server/shellserver")
 	_, err := meter.Int64ObservableGauge(
-		"xagent.shell.active_sessions",
+		"gritz.shell.active_sessions",
 		metric.WithDescription("Number of currently active shell rendezvous sessions."),
 		metric.WithUnit("{session}"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {

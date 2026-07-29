@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/icholy/xagent/internal/microvmshim"
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/microvmshim"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
 	"github.com/urfave/cli/v3"
 )
 
 // MicrovmShimCommand is the application entrypoint baked into Lambda MicroVMs
 // images. It serves the AWS lifecycle hooks (on the dedicated hook port) plus
-// the xagent control surface (on the ingress port), fetches the task's spec
+// the gritz control surface (on the ingress port), fetches the task's spec
 // bundle on /run, (re-)spawns and supervises the driver, and reports the
-// driver's exit over the /xagent/lifecycle SSE stream. It holds NO AWS
+// driver's exit over the /gritz/lifecycle SSE stream. It holds NO AWS
 // credentials and makes NO control-plane calls — suspend/resume/terminate are
 // the runner's. See the lambdamicrovm backend.
 var MicrovmShimCommand = &cli.Command{
@@ -23,7 +23,7 @@ var MicrovmShimCommand = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "addr",
-			Usage: "Address to serve the xagent control surface (/xagent/*) on; the ingress port the runner reaches over the proxy",
+			Usage: "Address to serve the gritz control surface (/gritz/*) on; the ingress port the runner reaches over the proxy",
 			Value: fmt.Sprintf(":%d", awsmicrovm.DefaultPort),
 		},
 		&cli.StringFlag{

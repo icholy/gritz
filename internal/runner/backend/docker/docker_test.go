@@ -5,8 +5,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/icholy/xagent/internal/runner/backend"
-	"github.com/icholy/xagent/internal/x/dockerx"
+	"github.com/icholy/gritz/internal/runner/backend"
+	"github.com/icholy/gritz/internal/x/dockerx"
 	"gotest.tools/v3/assert"
 )
 

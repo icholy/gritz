@@ -16,13 +16,13 @@ func TestGetTask_Permissions(t *testing.T) {
     srv := setupTestServer(t)
     ctxA, _ := createTestOrg(t, srv, testOrgOptions{Workspaces: true})
     ctxB, _ := createTestOrg(t, srv, testOrgOptions{Workspaces: true})
-    resp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+    resp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
         Name: "User A's Task", Runner: "test-runner", Workspace: "test-workspace",
     })
     assert.NilError(t, err)
 
     // Act - User B tries to get User A's task
-    _, err = srv.GetTask(ctxB, &xagentv1.GetTaskRequest{Id: resp.Task.Id})
+    _, err = srv.GetTask(ctxB, &gritzv1.GetTaskRequest{Id: resp.Task.Id})
 
     // Assert
     assert.ErrorContains(t, err, "not found")
@@ -106,7 +106,7 @@ func (fakeOrgResolver) ResolveOrg(ctx context.Context, userID string, orgID int6
 }
 ```
 
-See `internal/xagentclient/client_moq.go` (`ClientMock`) for a checked-in `*_moq.go` example.
+See `internal/gritzclient/client_moq.go` (`ClientMock`) for a checked-in `*_moq.go` example.
 
 ## Extending Generated Mocks
 
@@ -119,8 +119,8 @@ Reach for an extension when multiple tests (especially across packages) re-imple
 
 // SubmittedRunnerEvents returns every runner event submitted across all
 // SubmitRunnerEvents calls, flattened in submission order.
-func (m *ClientMock) SubmittedRunnerEvents() []*xagentv1.RunnerEvent {
-	var events []*xagentv1.RunnerEvent
+func (m *ClientMock) SubmittedRunnerEvents() []*gritzv1.RunnerEvent {
+	var events []*gritzv1.RunnerEvent
 	for _, call := range m.SubmitRunnerEventsCalls() {
 		events = append(events, call.SubmitRunnerEventsRequest.GetEvents()...)
 	}
@@ -134,7 +134,7 @@ which collapses the per-call count-and-index dance into one comparison:
 // Good: one whole-stream comparison via the extension
 assert.DeepEqual(t,
 	mock.SubmittedRunnerEvents(),
-	[]*xagentv1.RunnerEvent{
+	[]*gritzv1.RunnerEvent{
 		{TaskId: 1, Version: 7, Event: "started"},
 		{TaskId: 1, Version: 7, Event: "stopped"},
 	},
@@ -146,12 +146,12 @@ calls := mock.SubmitRunnerEventsCalls()
 assert.Assert(t, cmp.Len(calls, 2))
 assert.DeepEqual(t,
 	calls[0].SubmitRunnerEventsRequest,
-	&xagentv1.SubmitRunnerEventsRequest{Events: []*xagentv1.RunnerEvent{{TaskId: 1, Version: 7, Event: "started"}}},
+	&gritzv1.SubmitRunnerEventsRequest{Events: []*gritzv1.RunnerEvent{{TaskId: 1, Version: 7, Event: "started"}}},
 	protocmp.Transform(),
 )
 assert.DeepEqual(t,
 	calls[1].SubmitRunnerEventsRequest,
-	&xagentv1.SubmitRunnerEventsRequest{Events: []*xagentv1.RunnerEvent{{TaskId: 1, Version: 7, Event: "stopped"}}},
+	&gritzv1.SubmitRunnerEventsRequest{Events: []*gritzv1.RunnerEvent{{TaskId: 1, Version: 7, Event: "stopped"}}},
 	protocmp.Transform(),
 )
 ```
@@ -162,7 +162,7 @@ Do NOT add an extension overfit to one test case. An extension must be a general
 
 ```go
 // Good: general — returns the whole events; any test can compare any fields
-func (m *ClientMock) SubmittedRunnerEvents() []*xagentv1.RunnerEvent
+func (m *ClientMock) SubmittedRunnerEvents() []*gritzv1.RunnerEvent
 
 // Bad: overfit — a single-field projection only one test will ever want
 func (m *ClientMock) SubmittedRunnerEventVersions() []int64
@@ -257,14 +257,14 @@ calls := mock.SubmitRunnerEventsCalls()
 assert.Assert(t, cmp.Len(calls, 2))
 assert.DeepEqual(t,
     calls[0].SubmitRunnerEventsRequest,
-    &xagentv1.SubmitRunnerEventsRequest{
-        Events: []*xagentv1.RunnerEvent{{TaskId: 1, Event: "stopped"}},
+    &gritzv1.SubmitRunnerEventsRequest{
+        Events: []*gritzv1.RunnerEvent{{TaskId: 1, Event: "stopped"}},
     },
     protocmp.Transform(),
 )
 ```
 
-`protocmp.Transform()` is **required**, not optional: `assert.DeepEqual` runs go-cmp, and go-cmp refuses to touch the unexported internal state every proto embeds (`state`, `sizeCache`, `unknownFields`). Without the transform the assertion fails outright with `cannot handle unexported field at {*xagentv1.SubmitRunnerEventsRequest}.state`. The transform exposes the public fields (and applies proto equality semantics). Do **not** reach for `cmpx.OnlyFields` / `cmpopts.IgnoreFields` on a proto -- if a field is genuinely noise, drop it with `protocmp.IgnoreFields(&xagentv1.RunnerEvent{}, "field_name")` (proto snake_case names).
+`protocmp.Transform()` is **required**, not optional: `assert.DeepEqual` runs go-cmp, and go-cmp refuses to touch the unexported internal state every proto embeds (`state`, `sizeCache`, `unknownFields`). Without the transform the assertion fails outright with `cannot handle unexported field at {*gritzv1.SubmitRunnerEventsRequest}.state`. The transform exposes the public fields (and applies proto equality semantics). Do **not** reach for `cmpx.OnlyFields` / `cmpopts.IgnoreFields` on a proto -- if a field is genuinely noise, drop it with `protocmp.IgnoreFields(&gritzv1.RunnerEvent{}, "field_name")` (proto snake_case names).
 
 Whole-value `assert.DeepEqual` pays off for proto messages and **named** structs, where the expected literal is clean. It does **not** pay off for moq's anonymous per-call arg structs (per the note above) -- there the literal means re-spelling the unnamed type inline, which reads worse than asserting the fields individually (or projecting one field across the log with `testx.ExtractField`).
 

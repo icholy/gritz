@@ -1,17 +1,17 @@
-# Share a GitHub Installation Across Multiple xagent Orgs
+# Share a GitHub Installation Across Multiple gritz Orgs
 
-Issue: https://github.com/icholy/xagent/issues/1019
+Issue: https://github.com/icholy/gritz/issues/1019
 
 ## Problem
 
-The GitHub integration enforces a **1-to-1 mapping between an xagent org and a GitHub App installation**. Two coworkers who each own a separate xagent org but share one work GitHub org cannot both use the integration: only the first to link wins, and the second is locked out.
+The GitHub integration enforces a **1-to-1 mapping between an gritz org and a GitHub App installation**. Two coworkers who each own a separate gritz org but share one work GitHub org cannot both use the integration: only the first to link wins, and the second is locked out.
 
 Two mechanisms tie an installation to a single org today:
 
 1. **A unique index** — `orgs.github_installation_id BIGINT` + `CREATE UNIQUE INDEX idx_orgs_github_installation_id ON orgs(github_installation_id)` (`internal/store/sql/migrations/20260517000001_github_installation.sql`). A second org physically cannot store the same `installation_id`.
 2. **The claim-flow authorization** — `LinkGitHubInstallation` requires the linking user to be the GitHub user who initiated the install (`pending.Options.GitHub.SenderGitHubUserID != user.GitHubUserID → PermissionDenied`) and consumes the single-use pending row on first link (`internal/server/apiserver/github.go:50-58`).
 
-The blast radius is narrow. Inbound webhook routing **does not use the installation linkage at all** — it looks up the xagent user by GitHub *author* ID and routes to that user's org memberships and routing rules (`internal/server/githubserver/webhook.go:55-76`, `internal/eventrouter/eventrouter.go`). So a coworker's GitHub activity already routes into their own org. The `github_installation_id` is consumed in only two places:
+The blast radius is narrow. Inbound webhook routing **does not use the installation linkage at all** — it looks up the gritz user by GitHub *author* ID and routes to that user's org memberships and routing rules (`internal/server/githubserver/webhook.go:55-76`, `internal/eventrouter/eventrouter.go`). So a coworker's GitHub activity already routes into their own org. The `github_installation_id` is consumed in only two places:
 
 - **Emoji reactions** — `react()` loads the matched org and uses `org.GitHubInstallationID` to mint an installation token and add 🚀/👀 (`internal/server/githubserver/reactions.go:42-53`). An org with no installation silently gets no reactions.
 - **Claim/uninstall bookkeeping** — `SetOrgGitHubInstallation` / `ClearGitHubInstallation` and the `GetOrgSettings` display field.

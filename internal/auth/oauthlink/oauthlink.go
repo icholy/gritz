@@ -56,7 +56,7 @@ func New(cfg Config) *Handler {
 }
 
 func (h *Handler) cookieName() string {
-	return fmt.Sprintf("xagent_%s_state", h.provider)
+	return fmt.Sprintf("gritz_%s_state", h.provider)
 }
 
 func (h *Handler) cookiePath() string {

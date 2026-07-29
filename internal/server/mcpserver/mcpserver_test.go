@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/x/mcptest"
-	"github.com/icholy/xagent/internal/xagentclient"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/x/mcptest"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gotest.tools/v3/assert"
 )
 
-func setupSession(t *testing.T, client *xagentclient.ClientMock, opts ...Option) *mcp.ClientSession {
+func setupSession(t *testing.T, client *gritzclient.ClientMock, opts ...Option) *mcp.ClientSession {
 	t.Helper()
 	srv := NewServer(client, opts...)
 
@@ -28,7 +28,7 @@ func setupSession(t *testing.T, client *xagentclient.ClientMock, opts ...Option)
 }
 
 func TestListTools(t *testing.T) {
-	session := setupSession(t, &xagentclient.ClientMock{})
+	session := setupSession(t, &gritzclient.ClientMock{})
 
 	resp, err := session.ListTools(t.Context(), &mcp.ListToolsParams{})
 	assert.NilError(t, err)
@@ -48,20 +48,20 @@ func TestListTools(t *testing.T) {
 }
 
 func TestArchiveTask(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		ArchiveTaskFunc: func(ctx context.Context, req *xagentv1.ArchiveTaskRequest) (*xagentv1.ArchiveTaskResponse, error) {
+	client := &gritzclient.ClientMock{
+		ArchiveTaskFunc: func(ctx context.Context, req *gritzv1.ArchiveTaskRequest) (*gritzv1.ArchiveTaskResponse, error) {
 			assert.Equal(t, req.Id, int64(42))
-			return &xagentv1.ArchiveTaskResponse{}, nil
+			return &gritzv1.ArchiveTaskResponse{}, nil
 		},
-		GetTaskFunc: func(ctx context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+		GetTaskFunc: func(ctx context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
 			assert.Equal(t, req.Id, int64(42))
-			return &xagentv1.GetTaskResponse{
-				Task: &xagentv1.Task{
+			return &gritzv1.GetTaskResponse{
+				Task: &gritzv1.Task{
 					Id:        42,
 					Name:      "test",
 					Workspace: "ws",
-					Status:    xagentv1.TaskStatus_COMPLETED,
-					Url:       "https://xagent.example.com/ui/tasks/42?org=7",
+					Status:    gritzv1.TaskStatus_COMPLETED,
+					Url:       "https://gritz.example.com/ui/tasks/42?org=7",
 				},
 			}, nil
 		},
@@ -83,24 +83,24 @@ func TestArchiveTask(t *testing.T) {
 		"name":      "test",
 		"workspace": "ws",
 		"status":    "COMPLETED",
-		"url":       "https://xagent.example.com/ui/tasks/42?org=7",
+		"url":       "https://gritz.example.com/ui/tasks/42?org=7",
 	})
 }
 
 func TestCreateTask_UsesServerURL(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		CreateTaskFunc: func(ctx context.Context, req *xagentv1.CreateTaskRequest) (*xagentv1.CreateTaskResponse, error) {
+	client := &gritzclient.ClientMock{
+		CreateTaskFunc: func(ctx context.Context, req *gritzv1.CreateTaskRequest) (*gritzv1.CreateTaskResponse, error) {
 			assert.Equal(t, req.Workspace, "ws")
 			assert.Equal(t, req.Runner, "r1")
 			assert.Equal(t, len(req.Instructions), 1)
 			assert.Equal(t, req.Instructions[0].Text, "do it")
-			return &xagentv1.CreateTaskResponse{
-				Task: &xagentv1.Task{
+			return &gritzv1.CreateTaskResponse{
+				Task: &gritzv1.Task{
 					Id:        42,
 					Name:      "test",
 					Workspace: "ws",
-					Status:    xagentv1.TaskStatus_PENDING,
-					Url:       "https://xagent.example.com/ui/tasks/42?org=7",
+					Status:    gritzv1.TaskStatus_PENDING,
+					Url:       "https://gritz.example.com/ui/tasks/42?org=7",
 				},
 			}, nil
 		},
@@ -124,19 +124,19 @@ func TestCreateTask_UsesServerURL(t *testing.T) {
 		"name":      "test",
 		"workspace": "ws",
 		"status":    "PENDING",
-		"url":       "https://xagent.example.com/ui/tasks/42?org=7",
+		"url":       "https://gritz.example.com/ui/tasks/42?org=7",
 	})
 }
 
 func TestCreateTask_AutoArchiveParam(t *testing.T) {
 	// With no server default: a provided param is parsed and forwarded, and
 	// omitting it leaves auto_archive unset.
-	var got *xagentv1.CreateTaskRequest
-	client := &xagentclient.ClientMock{
-		CreateTaskFunc: func(ctx context.Context, req *xagentv1.CreateTaskRequest) (*xagentv1.CreateTaskResponse, error) {
+	var got *gritzv1.CreateTaskRequest
+	client := &gritzclient.ClientMock{
+		CreateTaskFunc: func(ctx context.Context, req *gritzv1.CreateTaskRequest) (*gritzv1.CreateTaskResponse, error) {
 			got = req
-			return &xagentv1.CreateTaskResponse{
-				Task: &xagentv1.Task{Id: 1, Workspace: "ws", Status: xagentv1.TaskStatus_PENDING},
+			return &gritzv1.CreateTaskResponse{
+				Task: &gritzv1.Task{Id: 1, Workspace: "ws", Status: gritzv1.TaskStatus_PENDING},
 			}, nil
 		},
 	}
@@ -173,12 +173,12 @@ func TestCreateTask_AutoArchiveParam(t *testing.T) {
 func TestCreateTask_DefaultAutoArchive(t *testing.T) {
 	// With a server default: it applies when the param is omitted, and the
 	// per-call param overrides it.
-	var got *xagentv1.CreateTaskRequest
-	client := &xagentclient.ClientMock{
-		CreateTaskFunc: func(ctx context.Context, req *xagentv1.CreateTaskRequest) (*xagentv1.CreateTaskResponse, error) {
+	var got *gritzv1.CreateTaskRequest
+	client := &gritzclient.ClientMock{
+		CreateTaskFunc: func(ctx context.Context, req *gritzv1.CreateTaskRequest) (*gritzv1.CreateTaskResponse, error) {
 			got = req
-			return &xagentv1.CreateTaskResponse{
-				Task: &xagentv1.Task{Id: 1, Workspace: "ws", Status: xagentv1.TaskStatus_PENDING},
+			return &gritzv1.CreateTaskResponse{
+				Task: &gritzv1.Task{Id: 1, Workspace: "ws", Status: gritzv1.TaskStatus_PENDING},
 			}, nil
 		},
 	}
@@ -215,40 +215,40 @@ func TestCreateTask_DefaultAutoArchive(t *testing.T) {
 
 func TestGetTask_EventNative(t *testing.T) {
 	var eventFetches int
-	client := &xagentclient.ClientMock{
-		GetTaskFunc: func(ctx context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+	client := &gritzclient.ClientMock{
+		GetTaskFunc: func(ctx context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
 			assert.Equal(t, req.Id, int64(7))
-			return &xagentv1.GetTaskResponse{
-				Task: &xagentv1.Task{
+			return &gritzv1.GetTaskResponse{
+				Task: &gritzv1.Task{
 					Id:        7,
 					Name:      "test",
 					Workspace: "ws",
 					Runner:    "r1",
-					Status:    xagentv1.TaskStatus_RUNNING,
-					Url:       "https://xagent.example.com/ui/tasks/7?org=7",
+					Status:    gritzv1.TaskStatus_RUNNING,
+					Url:       "https://gritz.example.com/ui/tasks/7?org=7",
 				},
 			}, nil
 		},
-		ListEventsByTaskFunc: func(ctx context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
+		ListEventsByTaskFunc: func(ctx context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
 			eventFetches++
 			assert.Equal(t, req.TaskId, int64(7))
 			// The full stream, all arms, no type filter.
 			assert.Equal(t, len(req.Types), 0)
-			return &xagentv1.ListEventsByTaskResponse{
-				Events: []*xagentv1.Event{
-					{Id: 1, TaskId: 7, Payload: &xagentv1.Event_Instruction{
-						Instruction: &xagentv1.InstructionPayload{Text: "do it"},
+			return &gritzv1.ListEventsByTaskResponse{
+				Events: []*gritzv1.Event{
+					{Id: 1, TaskId: 7, Payload: &gritzv1.Event_Instruction{
+						Instruction: &gritzv1.InstructionPayload{Text: "do it"},
 					}},
-					{Id: 2, TaskId: 7, Payload: &xagentv1.Event_Report{
-						Report: &xagentv1.ReportPayload{Content: "working"},
+					{Id: 2, TaskId: 7, Payload: &gritzv1.Event_Report{
+						Report: &gritzv1.ReportPayload{Content: "working"},
 					}},
 				},
 			}, nil
 		},
-		ListLinksFunc: func(ctx context.Context, req *xagentv1.ListLinksRequest) (*xagentv1.ListLinksResponse, error) {
+		ListLinksFunc: func(ctx context.Context, req *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
 			assert.Equal(t, req.TaskId, int64(7))
-			return &xagentv1.ListLinksResponse{
-				Links: []*xagentv1.TaskLink{
+			return &gritzv1.ListLinksResponse{
+				Links: []*gritzv1.TaskLink{
 					{Id: 10, Relevance: "pr", Url: "https://example.com/pr/1", Subscribe: true},
 				},
 			}, nil
@@ -298,16 +298,16 @@ func TestGetTask_EventNative(t *testing.T) {
 }
 
 func TestListTasks_UsesTaskURLFromResponse(t *testing.T) {
-	client := &xagentclient.ClientMock{
-		ListTasksFunc: func(ctx context.Context, req *xagentv1.ListTasksRequest) (*xagentv1.ListTasksResponse, error) {
-			return &xagentv1.ListTasksResponse{
-				Tasks: []*xagentv1.Task{
+	client := &gritzclient.ClientMock{
+		ListTasksFunc: func(ctx context.Context, req *gritzv1.ListTasksRequest) (*gritzv1.ListTasksResponse, error) {
+			return &gritzv1.ListTasksResponse{
+				Tasks: []*gritzv1.Task{
 					{
 						Id:        1,
 						Name:      "t1",
 						Workspace: "ws",
-						Status:    xagentv1.TaskStatus_RUNNING,
-						Url:       "https://xagent.example.com/ui/tasks/1?org=7",
+						Status:    gritzv1.TaskStatus_RUNNING,
+						Url:       "https://gritz.example.com/ui/tasks/1?org=7",
 					},
 				},
 			}, nil
@@ -329,7 +329,7 @@ func TestListTasks_UsesTaskURLFromResponse(t *testing.T) {
 			"name":      "t1",
 			"workspace": "ws",
 			"status":    "RUNNING",
-			"url":       "https://xagent.example.com/ui/tasks/1?org=7",
+			"url":       "https://gritz.example.com/ui/tasks/1?org=7",
 		},
 	})
 }

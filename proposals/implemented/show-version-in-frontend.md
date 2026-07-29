@@ -1,16 +1,16 @@
 # Show Server Version in the Frontend
 
-Issue: https://github.com/icholy/xagent/issues/601
+Issue: https://github.com/icholy/gritz/issues/601
 
 ## Problem
 
-There is no way to see which version of xagent is running from the web UI. The CLI exposes version via `xagent version` using `runtime/debug.ReadBuildInfo()`, but this information is not available to the frontend.
+There is no way to see which version of gritz is running from the web UI. The CLI exposes version via `gritz version` using `runtime/debug.ReadBuildInfo()`, but this information is not available to the frontend.
 
 ## Design
 
 ### 1. Extend `PingResponse` with a version field
 
-In `proto/xagent/v1/xagent.proto`, add a `version` field to the existing `PingResponse`:
+In `proto/gritz/v1/gritz.proto`, add a `version` field to the existing `PingResponse`:
 
 ```protobuf
 message PingResponse {
@@ -55,8 +55,8 @@ func String() string {
 Update the `Ping` handler in `internal/server/apiserver/apiserver.go`:
 
 ```go
-func (s *Server) Ping(ctx context.Context, req *xagentv1.PingRequest) (*xagentv1.PingResponse, error) {
-    return &xagentv1.PingResponse{
+func (s *Server) Ping(ctx context.Context, req *gritzv1.PingRequest) (*gritzv1.PingResponse, error) {
+    return &gritzv1.PingResponse{
         Version: version.String(),
     }, nil
 }
@@ -89,7 +89,7 @@ This is placed at the end of `SettingsPage`, after the `Tabs` block, so it appea
 
 | File | Change |
 |------|--------|
-| `proto/xagent/v1/xagent.proto` | Add `version` field to `PingResponse` |
+| `proto/gritz/v1/gritz.proto` | Add `version` field to `PingResponse` |
 | `internal/version/version.go` | New package with shared version resolution |
 | `internal/command/version.go` | Use `version.String()` |
 | `internal/server/apiserver/apiserver.go` | Return version in `Ping` |

@@ -1,6 +1,6 @@
 # Switch auth provider from Zitadel Cloud to Ory Network
 
-Issue: https://github.com/icholy/xagent/issues/703
+Issue: https://github.com/icholy/gritz/issues/703
 
 ## Problem
 
@@ -31,14 +31,14 @@ Ory Network's plan structure (from [ory.com/pricing](https://www.ory.com/pricing
 | Growth | $9,350 | 2 | 5 | 20 | 1 | 9,000 rpm | standard |
 | Enterprise | custom | custom | custom | — | custom | 18,000 rpm | 24/7 SLA |
 
-The honest read on what xagent needs:
+The honest read on what gritz needs:
 
-- **OIDC issuer URL on a custom domain — not required.** Today the issuer is `*.zitadel.cloud`; we already trust the third party to host the login origin. On Ory, the issuer becomes `<slug>.projects.oryapis.com` and the Account Experience lives at `<slug>.projects.oryapis.com/login`. xagent's own `xagent.choly.ca` is unchanged — it's the redirect target, not the issuer. So we don't need the "1 custom domain" Production-tier perk for the issuer itself.
+- **OIDC issuer URL on a custom domain — not required.** Today the issuer is `*.zitadel.cloud`; we already trust the third party to host the login origin. On Ory, the issuer becomes `<slug>.projects.oryapis.com` and the Account Experience lives at `<slug>.projects.oryapis.com/login`. gritz's own `gritz.dev` is unchanged — it's the redirect target, not the issuer. So we don't need the "1 custom domain" Production-tier perk for the issuer itself.
 - **Rate limits — Development tier is fine.** Development is 5 rps burst / 150 rpm sustained ([rate-limits docs](https://www.ory.com/docs/guides/rate-limits)). Our cookie session is encrypted client-side (see `apiauth.WithCookieSession` / `httphelper.NewCookieHandler` wiring in `internal/auth/apiauth/apiauth.go:174`), so the only Ory API calls per user are login + occasional token refresh — well under the 150 rpm cap for a deployment of a handful of users.
-- **PII policy — the real friction.** Ory's docs are explicit: *"Ory Network doesn't guarantee GDPR-compliant PII handling in staging and development projects. Staging and development projects are for test data only."* That's a policy / contractual statement, not a technical block. For xagent today (small private deployment, no GDPR-regulated user base) it's acceptable; the moment xagent serves third-party EU users we'd need to upgrade.
+- **PII policy — the real friction.** Ory's docs are explicit: *"Ory Network doesn't guarantee GDPR-compliant PII handling in staging and development projects. Staging and development projects are for test data only."* That's a policy / contractual statement, not a technical block. For gritz today (small private deployment, no GDPR-regulated user base) it's acceptable; the moment gritz serves third-party EU users we'd need to upgrade.
 - **"0 production environments" is not technically enforced.** Development projects do full OIDC and accept real users. The free tier really does work; it's just unsupported and rate-limited.
 
-**Recommended tier: Developer (free), with the understanding that we move to Production ($770/yr + ~$21/mo credit covers ~150 aDAU before per-aDAU billing kicks in) if and when xagent grows to having real third-party users where the GDPR caveat matters.**
+**Recommended tier: Developer (free), with the understanding that we move to Production ($770/yr + ~$21/mo credit covers ~150 aDAU before per-aDAU billing kicks in) if and when gritz grows to having real third-party users where the GDPR caveat matters.**
 
 ### Code changes in `internal/auth/apiauth/apiauth.go`
 
@@ -87,30 +87,30 @@ Inside `apiauth.New`, the structure stays the same — `authN` becomes a `*rp.Re
 
 ### Config / secrets / deployment changes
 
-- **CLI flags** in `internal/command/server.go:43–71` — rename `--auth-domain` → `--auth-issuer-url`, env var `XAGENT_AUTH_DOMAIN` → `XAGENT_AUTH_ISSUER_URL`. The other three (`--auth-client-id`, `--auth-client-secret`, `--auth-encryption-key`, `--auth-app-key`) keep their names and meanings.
+- **CLI flags** in `internal/command/server.go:43–71` — rename `--auth-domain` → `--auth-issuer-url`, env var `GRITZ_AUTH_DOMAIN` → `GRITZ_AUTH_ISSUER_URL`. The other three (`--auth-client-id`, `--auth-client-secret`, `--auth-encryption-key`, `--auth-app-key`) keep their names and meanings.
 - **Comment update** at `internal/command/server.go:44` — `Usage: "ZITADEL domain (...)"` → `Usage: "OIDC issuer URL (...)"`.
-- **`fly.toml` comment** at `fly.toml:12` — rename the env var in the documenting comment. The actual Fly secrets are rotated via `fly secrets set XAGENT_AUTH_ISSUER_URL=... XAGENT_AUTH_CLIENT_ID=... XAGENT_AUTH_CLIENT_SECRET=...` at switchover. The encryption key (`XAGENT_AUTH_ENCRYPTION_KEY`) is unchanged — it encrypts our session cookie, not anything Ory sees.
-- **Ory project setup** — one-time manual: create a Developer-tier project on `console.ory.sh`, create an OAuth2 Client (`POST /admin/clients` or via Console) with `redirect_uri = https://xagent.choly.ca/auth/callback`, `post_logout_redirect_uri = https://xagent.choly.ca`, `grant_types = [authorization_code, refresh_token]`, `response_types = [code]`, `scope = openid profile email`. Capture client ID + secret, set as Fly secrets.
-- **No `xagent-config` repo touch.** This codebase is the only one we control for the auth integration. (The only reference to a `xagent-config` repo in this codebase is a Docker Compose network name in a finished proposal — there is no separate config repo for xagent.)
+- **`fly.toml` comment** at `fly.toml:12` — rename the env var in the documenting comment. The actual Fly secrets are rotated via `fly secrets set GRITZ_AUTH_ISSUER_URL=... GRITZ_AUTH_CLIENT_ID=... GRITZ_AUTH_CLIENT_SECRET=...` at switchover. The encryption key (`GRITZ_AUTH_ENCRYPTION_KEY`) is unchanged — it encrypts our session cookie, not anything Ory sees.
+- **Ory project setup** — one-time manual: create a Developer-tier project on `console.ory.sh`, create an OAuth2 Client (`POST /admin/clients` or via Console) with `redirect_uri = https://gritz.dev/auth/callback`, `post_logout_redirect_uri = https://gritz.dev`, `grant_types = [authorization_code, refresh_token]`, `response_types = [code]`, `scope = openid profile email`. Capture client ID + secret, set as Fly secrets.
+- **No `gritz-config` repo touch.** This codebase is the only one we control for the auth integration. (The only reference to a `gritz-config` repo in this codebase is a Docker Compose network name in a finished proposal — there is no separate config repo for gritz.)
 - **No DB schema change.** The `users.id` column already stores the OIDC `sub` as `TEXT PRIMARY KEY` (`internal/store/sql/migrations/20240101000001_initial.sql:5`). It doesn't care whether the value came from Zitadel or Ory.
 
 ### User / account migration
 
 Existing Zitadel users have `users.id` set to the Zitadel `sub`, which is opaque and will not match what Ory issues for the same email. Three options, in increasing effort:
 
-1. **Re-register.** Tell the current user(s) to sign up fresh on Ory. Their old `users` row (and the `orgs` / `org_members` rows attached to it) become orphaned. Existing tasks linked to the old user via FKs would either need a manual `UPDATE users.id = ...` per affected user, or the old account stays around purely for historical task ownership while real work moves to the new account. **For a deployment with ~1 user (xagent.choly.ca), this is the path of least code.**
+1. **Re-register.** Tell the current user(s) to sign up fresh on Ory. Their old `users` row (and the `orgs` / `org_members` rows attached to it) become orphaned. Existing tasks linked to the old user via FKs would either need a manual `UPDATE users.id = ...` per affected user, or the old account stays around purely for historical task ownership while real work moves to the new account. **For a deployment with ~1 user (gritz.dev), this is the path of least code.**
 2. **Email-matched ID rewrite.** Run a one-shot SQL migration after each user's first Ory login that finds the old `users` row by email, copies the new Ory-issued `sub` into a new row, and updates all `tasks.user_id` / `org_members.user_id` / etc. FKs. Need to inventory every FK on `users.id` first; sqlc generated code in `internal/store/` will pin this down.
 3. **Email-as-stable-ID switch.** Stop using `sub` as the primary key; use email instead. Largest change, would survive a future IdP swap, but breaks the "email is mutable / sub is permanent" guarantee that OIDC offers.
 
-**Recommended: option 1.** xagent is small enough that "re-register, then I'll fix up FKs by hand if needed" is honest and cheap. Ory's recovery flow handles "set a password" via the Account Experience automatically, so there's no migration tooling to write.
+**Recommended: option 1.** gritz is small enough that "re-register, then I'll fix up FKs by hand if needed" is honest and cheap. Ory's recovery flow handles "set a password" via the Account Experience automatically, so there's no migration tooling to write.
 
-Note that **API keys (`xat_*`) and app JWTs are unaffected** — they're issued and verified entirely by xagent (see `internal/auth/apiauth/key.go` and `jwt.go`) and don't go through OIDC at all. Existing API keys keep working through and after the switch.
+Note that **API keys (`xat_*`) and app JWTs are unaffected** — they're issued and verified entirely by gritz (see `internal/auth/apiauth/key.go` and `jwt.go`) and don't go through OIDC at all. Existing API keys keep working through and after the switch.
 
 ### Switchover plan
 
 1. Implement the apiauth change on a branch behind the existing config (so the binary supports either IdP depending on env vars). Land it.
 2. Stand up the Ory Developer project, configure OAuth2 client, point a staging Fly app at it, verify autofill works in 1Password / browser keychain / Bitwarden.
-3. Switch the production Fly secrets atomically (`fly secrets set` of all four `XAGENT_AUTH_*` vars in one command — Fly applies them together on the next deploy).
+3. Switch the production Fly secrets atomically (`fly secrets set` of all four `GRITZ_AUTH_*` vars in one command — Fly applies them together on the next deploy).
 4. Each existing user logs out (clearing the old session cookie) and signs in again via Ory; that triggers `UserResolver.Provision` (`internal/server/storeauth.go:44`) which idempotently creates the new `users` row and a default org.
 5. Once stable, delete the Zitadel-go dependency from `go.mod` and remove the comment about ZITADEL from `fly.toml` / `internal/command/server.go`.
 
@@ -131,6 +131,6 @@ The case against switching at all is: we are trading one third-party hosted-logi
 ## Open Questions
 
 1. **OIDC library choice.** Option A (`zitadel/oidc/v3` directly) leaves the dep in place but de-Zitadelifies its usage; Option B (`coreos/go-oidc` + `golang.org/x/oauth2`) is cleaner long-term. Worth deciding before the implementation PR opens.
-2. **Account Experience flow style.** Ory defaults to identifier-first login (two-page). xagent could either accept that (autofill still works because both pages carry the right `autocomplete` attributes) or disable it via the Ory project config to get a single-page form. Worth trying both in staging before deciding.
-3. **`XAGENT_AUTH_DEVICE_CLIENT_ID`.** `fly.toml:15` references this var but no current code in `internal/command/server.go` reads it — it may be a leftover from a previous flow or a forthcoming feature. If it's the OAuth 2.1 device-flow client ID (used by the local stdio `xagent mcp` proxy / CLI auth), the Ory equivalent is a second OAuth2 client configured with `grant_types: [urn:ietf:params:oauth:grant-type:device_code]`. Worth confirming before switchover.
+2. **Account Experience flow style.** Ory defaults to identifier-first login (two-page). gritz could either accept that (autofill still works because both pages carry the right `autocomplete` attributes) or disable it via the Ory project config to get a single-page form. Worth trying both in staging before deciding.
+3. **`GRITZ_AUTH_DEVICE_CLIENT_ID`.** `fly.toml:15` references this var but no current code in `internal/command/server.go` reads it — it may be a leftover from a previous flow or a forthcoming feature. If it's the OAuth 2.1 device-flow client ID (used by the local stdio `gritz mcp` proxy / CLI auth), the Ory equivalent is a second OAuth2 client configured with `grant_types: [urn:ietf:params:oauth:grant-type:device_code]`. Worth confirming before switchover.
 4. **What to do with orphaned Zitadel `users` rows.** Leave them in place for task-ownership history, or hard-delete after migration? Affects how we treat `tasks.user_id` foreign keys post-switch.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/store"
 )
 
 func main() {

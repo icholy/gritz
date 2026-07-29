@@ -4,18 +4,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 
 	// Blank-imported so its init registers the eventrouter schemas TestEvent
 	// routes against (see event_types_test.go).
-	_ "github.com/icholy/xagent/internal/server/githubserver"
+	_ "github.com/icholy/gritz/internal/server/githubserver"
 )
 
 // TestTestEvent is a sanity check on the dry-run handler: it composes a
@@ -29,20 +29,20 @@ func TestTestEvent(t *testing.T) {
 	ctx := createCtx(t, org)
 	err := srv.store.SetOrgRoutingRules(ctx, nil, org.OrgID, []model.RoutingRule{
 		{Source: "github", Type: "issue_comment", Wakeup: true,
-			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}},
+			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}},
 	})
 	assert.NilError(t, err)
 
-	resp, err := srv.TestEvent(ctx, &xagentv1.TestEventRequest{
+	resp, err := srv.TestEvent(ctx, &gritzv1.TestEventRequest{
 		Source: "github",
 		Type:   "issue_comment",
-		Attrs:  map[string]string{"body": "xagent: do it", "url": "https://github.com/o/r/issues/1"},
+		Attrs:  map[string]string{"body": "gritz: do it", "url": "https://github.com/o/r/issues/1"},
 	})
 	assert.NilError(t, err)
 
 	// The matched rule is reported straight through, and the dry run never fires.
 	assert.Assert(t, !resp.Fired)
-	assert.DeepEqual(t, resp.Matches, []*xagentv1.TestEventMatch{
+	assert.DeepEqual(t, resp.Matches, []*gritzv1.TestEventMatch{
 		{OrgId: org.OrgID, RuleIndex: 0, WouldWake: true},
 	}, protocmp.Transform())
 
@@ -67,18 +67,18 @@ func TestTestEventFireCreatesTask(t *testing.T) {
 	ctx := createCtx(t, org)
 	err := srv.store.SetOrgRoutingRules(ctx, nil, org.OrgID, []model.RoutingRule{
 		{Source: "github", Type: "issue_comment",
-			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}},
+			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}},
 			Create:     &model.CreateTaskAction{Workspace: "default", Runner: "r", Prompt: "Do it."}},
 	})
 	assert.NilError(t, err)
 
 	url := "https://github.com/o/r/issues/1"
 	details := map[string]string{"path": "main.go", "line": "42"}
-	resp, err := srv.TestEvent(ctx, &xagentv1.TestEventRequest{
+	resp, err := srv.TestEvent(ctx, &gritzv1.TestEventRequest{
 		Source:      "github",
 		Type:        "issue_comment",
 		Description: "alice commented",
-		Attrs:       map[string]string{"body": "xagent: do it", "url": url},
+		Attrs:       map[string]string{"body": "gritz: do it", "url": url},
 		Details:     details,
 		Fire:        true,
 	})
@@ -106,7 +106,7 @@ func TestTestEventFireCreatesTask(t *testing.T) {
 	assert.DeepEqual(t, event.Payload, &model.ExternalPayload{
 		Description: "alice commented",
 		URL:         url,
-		Data:        "xagent: do it",
+		Data:        "gritz: do it",
 		Details:     details,
 		Source:      "github",
 		EventType:   "issue_comment",
@@ -130,16 +130,16 @@ func TestTestEventFireWakesSubscribedTask(t *testing.T) {
 	})
 	err := srv.store.SetOrgRoutingRules(ctx, nil, org.OrgID, []model.RoutingRule{
 		{Source: "github", Type: "issue_comment", Wakeup: true,
-			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}},
+			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}},
 	})
 	assert.NilError(t, err)
 
 	details := map[string]string{"path": "main.go"}
-	resp, err := srv.TestEvent(ctx, &xagentv1.TestEventRequest{
+	resp, err := srv.TestEvent(ctx, &gritzv1.TestEventRequest{
 		Source:      "github",
 		Type:        "issue_comment",
 		Description: "follow-up comment",
-		Attrs:       map[string]string{"body": "xagent: again", "url": url},
+		Attrs:       map[string]string{"body": "gritz: again", "url": url},
 		Details:     details,
 		Fire:        true,
 	})
@@ -170,7 +170,7 @@ func TestTestEventFireWakesSubscribedTask(t *testing.T) {
 	assert.DeepEqual(t, event.Payload, &model.ExternalPayload{
 		Description: "follow-up comment",
 		URL:         url,
-		Data:        "xagent: again",
+		Data:        "gritz: again",
 		Details:     details,
 		Source:      "github",
 		EventType:   "issue_comment",
@@ -196,15 +196,15 @@ func TestTestEventFireSkipsOutboundSideEffects(t *testing.T) {
 	ctx := createCtx(t, org)
 	err := srv.store.SetOrgRoutingRules(ctx, nil, org.OrgID, []model.RoutingRule{
 		{Source: "github", Type: "issue_comment",
-			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}},
+			Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}},
 			Create:     &model.CreateTaskAction{Workspace: "default", Runner: "r"}},
 	})
 	assert.NilError(t, err)
 
-	resp, err := srv.TestEvent(ctx, &xagentv1.TestEventRequest{
+	resp, err := srv.TestEvent(ctx, &gritzv1.TestEventRequest{
 		Source: "github",
 		Type:   "issue_comment",
-		Attrs:  map[string]string{"body": "xagent: go", "url": "https://github.com/o/r/issues/1"},
+		Attrs:  map[string]string{"body": "gritz: go", "url": "https://github.com/o/r/issues/1"},
 		Fire:   true,
 	})
 	assert.NilError(t, err)
@@ -230,18 +230,18 @@ func TestTestEventFireRequiresOrgWrite(t *testing.T) {
 	})
 
 	// Dry run is allowed.
-	_, err := srv.TestEvent(ctx, &xagentv1.TestEventRequest{
+	_, err := srv.TestEvent(ctx, &gritzv1.TestEventRequest{
 		Source: "github",
 		Type:   "issue_comment",
-		Attrs:  map[string]string{"body": "xagent: go", "url": "https://github.com/o/r/issues/1"},
+		Attrs:  map[string]string{"body": "gritz: go", "url": "https://github.com/o/r/issues/1"},
 	})
 	assert.NilError(t, err)
 
 	// Fire is denied.
-	_, err = srv.TestEvent(ctx, &xagentv1.TestEventRequest{
+	_, err = srv.TestEvent(ctx, &gritzv1.TestEventRequest{
 		Source: "github",
 		Type:   "issue_comment",
-		Attrs:  map[string]string{"body": "xagent: go", "url": "https://github.com/o/r/issues/1"},
+		Attrs:  map[string]string{"body": "gritz: go", "url": "https://github.com/o/r/issues/1"},
 		Fire:   true,
 	})
 	assert.Assert(t, err != nil)

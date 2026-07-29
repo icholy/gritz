@@ -1,6 +1,6 @@
 # GitHub App Installation Token API
 
-Issue: https://github.com/icholy/xagent/issues/542
+Issue: https://github.com/icholy/gritz/issues/542
 
 ## Problem
 
@@ -29,14 +29,14 @@ type Config struct {
 New server flag and env var:
 
 ```
---github-private-key    GitHub App private key (PEM)    XAGENT_GITHUB_PRIVATE_KEY
+--github-private-key    GitHub App private key (PEM)    GRITZ_GITHUB_PRIVATE_KEY
 ```
 
 The value can be either the PEM content directly or a file path (detect by checking for `-----BEGIN`). This follows the same pattern GitHub Actions uses for `APP_PRIVATE_KEY`.
 
 ### New RPC: CreateGitHubToken
 
-Add a new RPC to the `XAgentService`:
+Add a new RPC to the `GritzService`:
 
 ```protobuf
 rpc CreateGitHubToken(CreateGitHubTokenRequest) returns (CreateGitHubTokenResponse);
@@ -60,7 +60,7 @@ The handler:
 3. Calls the GitHub API `POST /app/installations/{installation_id}/access_tokens` with the JWT.
 4. Returns the installation token and its expiry.
 
-Authentication: This endpoint requires a valid xagent API key or session (same as other RPCs). Tokens use the full installation permissions — no additional scoping for now.
+Authentication: This endpoint requires a valid gritz API key or session (same as other RPCs). Tokens use the full installation permissions — no additional scoping for now.
 
 ### Implementation
 
@@ -68,7 +68,7 @@ Use the `github.com/bradleyfalzon/ghinstallation/v2` library for app authenticat
 
 ```go
 // internal/server/apiserver/github.go
-func (s *Server) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+func (s *Server) CreateGitHubToken(ctx context.Context, req *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
     if s.githubAppKey == nil {
         return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("GitHub App private key not configured"))
     }
@@ -91,7 +91,7 @@ func (s *Server) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitH
         return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create installation token: %w", err))
     }
 
-    return &xagentv1.CreateGitHubTokenResponse{
+    return &gritzv1.CreateGitHubTokenResponse{
         Token:     token,
         ExpiresAt: timestamppb.New(transport.Expiry),
     }, nil
@@ -102,12 +102,12 @@ func (s *Server) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitH
 
 Git operations inside the container — the initial clone, plus any later `git fetch`/`push` from the agent — need a token. Injecting `GITHUB_TOKEN` into the container environment goes stale after 1h, breaking any git call made after that.
 
-Instead, add a `tool git-credential` subcommand to the xagent binary (already mounted in the container as the agent driver). In-container agent helpers live under the `tool` namespace. The runner adds a `git config` line to the workspace's pre-clone setup commands, scoped to `github.com` so non-GitHub URLs fall through to git's default behavior:
+Instead, add a `tool git-credential` subcommand to the gritz binary (already mounted in the container as the agent driver). In-container agent helpers live under the `tool` namespace. The runner adds a `git config` line to the workspace's pre-clone setup commands, scoped to `github.com` so non-GitHub URLs fall through to git's default behavior:
 
 ```yaml
 commands:
-  - git config --global credential.https://github.com.helper "!xagent tool git-credential"
-  - git clone --bundle-uri http://gitbundler/xagent.bundle https://github.com/icholy/xagent.git
+  - git config --global credential.https://github.com.helper "!gritz tool git-credential"
+  - git clone --bundle-uri http://gitbundler/gritz.bundle https://github.com/icholy/gritz.git
 ```
 
 The clone URL no longer contains an inline token.
@@ -134,16 +134,16 @@ Add a tool to the agent MCP server (`internal/agentmcp/xmcp.go`) for the rare ca
 type getGitHubTokenInput struct{}
 ```
 
-This calls `CreateGitHubToken` on the server via the existing Unix socket proxy. Primary GitHub API access happens through the github MCP server (fronted by the `xagent tool github-mcp` adapter — see below), and git uses the credential helper, so this tool is a fallback.
+This calls `CreateGitHubToken` on the server via the existing Unix socket proxy. Primary GitHub API access happens through the github MCP server (fronted by the `gritz tool github-mcp` adapter — see below), and git uses the credential helper, so this tool is a fallback.
 
 ### Installation ID Discovery via Setup Page
 
-When a user installs the GitHub App, GitHub redirects them to the app's **setup URL** with the `installation_id` as a query parameter. The setup URL points to a frontend page where the user can choose which xagent org to associate the installation with.
+When a user installs the GitHub App, GitHub redirects them to the app's **setup URL** with the `installation_id` as a query parameter. The setup URL points to a frontend page where the user can choose which gritz org to associate the installation with.
 
 GitHub Apps support a `setup_url` configuration (set in the GitHub App settings). Configure it to point to the frontend:
 
 ```
-Setup URL: https://xagent.example.com/ui/github/setup
+Setup URL: https://gritz.example.com/ui/github/setup
 ```
 
 #### Frontend Route
@@ -187,12 +187,12 @@ message LinkGitHubInstallationResponse {}
 The handler uses the caller's org from auth context:
 
 ```go
-func (s *Server) LinkGitHubInstallation(ctx context.Context, req *xagentv1.LinkGitHubInstallationRequest) (*xagentv1.LinkGitHubInstallationResponse, error) {
+func (s *Server) LinkGitHubInstallation(ctx context.Context, req *gritzv1.LinkGitHubInstallationRequest) (*gritzv1.LinkGitHubInstallationResponse, error) {
     caller := apiauth.Caller(ctx)
     if err := s.store.SetOrgGitHubInstallation(ctx, nil, caller.OrgID, req.InstallationId); err != nil {
         return nil, connect.NewError(connect.CodeInternal, err)
     }
-    return &xagentv1.LinkGitHubInstallationResponse{}, nil
+    return &gritzv1.LinkGitHubInstallationResponse{}, nil
 }
 ```
 
@@ -234,7 +234,7 @@ message CreateGitHubTokenRequest {
 ```
 
 ```go
-func (s *Server) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitHubTokenRequest) (*xagentv1.CreateGitHubTokenResponse, error) {
+func (s *Server) CreateGitHubToken(ctx context.Context, req *gritzv1.CreateGitHubTokenRequest) (*gritzv1.CreateGitHubTokenResponse, error) {
     caller := apiauth.Caller(ctx)
     org, err := s.store.GetOrg(ctx, nil, caller.OrgID)
     if err != nil {
@@ -247,15 +247,15 @@ func (s *Server) CreateGitHubToken(ctx context.Context, req *xagentv1.CreateGitH
 }
 ```
 
-### GitHub MCP Adapter: `xagent tool github-mcp`
+### GitHub MCP Adapter: `gritz tool github-mcp`
 
 The agent's primary GitHub API path is GitHub's MCP server at `https://api.githubcopilot.com/mcp/`. Its `Authorization: Bearer <token>` header needs the same installation token, which expires hourly — so a long-lived upstream session would break after 1h.
 
-Add a `tool github-mcp` subcommand to the xagent binary that fronts the GitHub MCP server and hot-swaps its upstream session as the token rotates. It builds on the vendored `internal/mcpswap` package (a single-upstream MCP adapter): an `mcpswap.Upstream` holds one live session to the GitHub MCP server and forwards requests via `Upstream.Dispatch`; `Upstream.Swap` atomically replaces the active session without dropping in-flight requests. mcpswap ships no rotation policy — the subcommand owns it.
+Add a `tool github-mcp` subcommand to the gritz binary that fronts the GitHub MCP server and hot-swaps its upstream session as the token rotates. It builds on the vendored `internal/mcpswap` package (a single-upstream MCP adapter): an `mcpswap.Upstream` holds one live session to the GitHub MCP server and forwards requests via `Upstream.Dispatch`; `Upstream.Swap` atomically replaces the active session without dropping in-flight requests. mcpswap ships no rotation policy — the subcommand owns it.
 
 The subcommand:
 
-1. Reads `XAGENT_SERVER` and `XAGENT_TOKEN` from the environment (already exported into every container by the runner) and builds an xagent client over the Unix socket proxy.
+1. Reads `GRITZ_SERVER` and `GRITZ_TOKEN` from the environment (already exported into every container by the runner) and builds an gritz client over the Unix socket proxy.
 2. On startup, calls `CreateGitHubToken`, builds a `StreamableClientTransport` to `https://api.githubcopilot.com/mcp/` with the `Authorization: Bearer <token>` header, and `Swap`s it in.
 3. Tracks the returned `expires_at` and re-fetches before expiry, calling `Swap` again with a fresh transport so the upstream session reopens with the new token.
 4. Serves `Upstream.Dispatch` over stdio to the agent's MCP client.
@@ -266,11 +266,11 @@ Because it reads its credentials ambiently from the container environment and th
 mcp_servers:
   github:
     type: stdio
-    command: xagent
+    command: gritz
     args: ["tool", "github-mcp"]
 ```
 
-A later ergonomic layer can add a built-in `type: "xagent:github"` that the runner rewrites into this stdio invocation, so workspace authors don't repeat the boilerplate.
+A later ergonomic layer can add a built-in `type: "gritz:github"` that the runner rewrites into this stdio invocation, so workspace authors don't repeat the boilerplate.
 
 ## Trade-offs
 
@@ -280,9 +280,9 @@ A later ergonomic layer can add a built-in `type: "xagent:github"` that the runn
 
 **`ghinstallation` library**: Use `github.com/bradleyfalzon/ghinstallation/v2` for JWT signing, token caching, and the GitHub API call. It handles the complexity of app authentication and is widely used.
 
-**Credential helper vs. env injection**: Injecting `GITHUB_TOKEN` at container start is simpler but the token goes stale after 1h, breaking any later git operation. A credential helper that hits the server on every git call avoids that — token refresh stays server-side via `ghinstallation`'s cache. The cost is a small extra binary surface (`xagent tool git-credential`) and one `git config` line in the setup commands.
+**Credential helper vs. env injection**: Injecting `GITHUB_TOKEN` at container start is simpler but the token goes stale after 1h, breaking any later git operation. A credential helper that hits the server on every git call avoids that — token refresh stays server-side via `ghinstallation`'s cache. The cost is a small extra binary surface (`gritz tool git-credential`) and one `git config` line in the setup commands.
 
-**`gh` CLI and other env-reading tools**: With no env injection, anything that reads `GITHUB_TOKEN` from the environment loses auth. The agent's primary GitHub API path is the github MCP server (via the `xagent tool github-mcp` adapter), so this is rarely a problem. For the occasional shell-out, the `get_github_token` MCP tool provides a raw token on demand.
+**`gh` CLI and other env-reading tools**: With no env injection, anything that reads `GITHUB_TOKEN` from the environment loses auth. The agent's primary GitHub API path is the github MCP server (via the `gritz tool github-mcp` adapter), so this is rarely a problem. For the occasional shell-out, the `get_github_token` MCP tool provides a raw token on demand.
 
 **gitbundler**: The gitbundler service that produces clone bundles runs outside the container and still reads its credentials from `${env:...}` at startup. Migrating it to installation tokens is a separate change — out of scope here.
 

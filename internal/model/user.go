@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -27,11 +27,11 @@ func (u *User) HasGitHub() bool {
 }
 
 // GitHubAccountProto converts the user's GitHub info to the protobuf representation.
-func (u *User) GitHubAccountProto() *xagentv1.GitHubAccount {
+func (u *User) GitHubAccountProto() *gritzv1.GitHubAccount {
 	if !u.HasGitHub() {
 		return nil
 	}
-	return &xagentv1.GitHubAccount{
+	return &gritzv1.GitHubAccount{
 		GithubUserId:   u.GitHubUserID,
 		GithubUsername: u.GitHubUsername,
 		CreatedAt:      timestamppb.New(u.CreatedAt),
@@ -44,11 +44,11 @@ func (u *User) HasAtlassian() bool {
 }
 
 // AtlassianAccountProto converts the user's Atlassian info to the protobuf representation.
-func (u *User) AtlassianAccountProto() *xagentv1.AtlassianAccount {
+func (u *User) AtlassianAccountProto() *gritzv1.AtlassianAccount {
 	if !u.HasAtlassian() {
 		return nil
 	}
-	return &xagentv1.AtlassianAccount{
+	return &gritzv1.AtlassianAccount{
 		AtlassianAccountId: u.AtlassianAccountID,
 		AtlassianUsername:  u.AtlassianUsername,
 		CreatedAt:          timestamppb.New(u.CreatedAt),

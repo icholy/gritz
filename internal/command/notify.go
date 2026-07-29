@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/x/notify"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/x/notify"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -26,23 +26,23 @@ var NotifyCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
+			Value:   gritzclient.DefaultURL,
 		},
 		&cli.StringFlag{
 			Name:     "token",
 			Usage:    "Authentication token",
-			Sources:  cli.EnvVars("XAGENT_TOKEN"),
+			Sources:  cli.EnvVars("GRITZ_TOKEN"),
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:  "title",
 			Usage: "Title shown on each system notification",
-			Value: "xagent",
+			Value: "gritz",
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		title := cmd.String("title")
-		nc := xagentclient.NewNotificationClient(xagentclient.NotificationClientOptions{
+		nc := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
 			BaseURL: cmd.String("server"),
 			Token:   cmd.String("token"),
 			Handler: func(n model.Notification) {

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/icholy/xagent/internal/x/common"
+	"github.com/icholy/gritz/internal/x/common"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

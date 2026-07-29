@@ -4,7 +4,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "xagent",
+      "package-name": "gritz",
       "include-component-in-tag": false,
       "changelog-sections": [
         { "type": "feat",     "section": "Features" },

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/icholy/xagent/internal/configfile"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/configfile"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -21,8 +21,8 @@ var TaskListCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
-			Sources: cli.EnvVars("XAGENT_SERVER"),
+			Value:   gritzclient.DefaultURL,
+			Sources: cli.EnvVars("GRITZ_SERVER"),
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -34,9 +34,9 @@ var TaskListCommand = &cli.Command{
 		if cfg.Token == "" {
 			return fmt.Errorf("not authenticated, run setup first")
 		}
-		client := xagentclient.New(xagentclient.Options{BaseURL: serverURL, Token: cfg.Token})
+		client := gritzclient.New(gritzclient.Options{BaseURL: serverURL, Token: cfg.Token})
 
-		resp, err := client.ListTasks(ctx, &xagentv1.ListTasksRequest{})
+		resp, err := client.ListTasks(ctx, &gritzv1.ListTasksRequest{})
 		if err != nil {
 			return fmt.Errorf("failed to list tasks: %w", err)
 		}

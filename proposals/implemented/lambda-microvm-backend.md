@@ -1,8 +1,8 @@
 # AWS Lambda MicroVMs Backend for the Runner
 
-Issue: https://github.com/icholy/xagent/issues/1048
+Issue: https://github.com/icholy/gritz/issues/1048
 
-> **Revision (per [#1081](https://github.com/icholy/xagent/issues/1081)).** This
+> **Revision (per [#1081](https://github.com/icholy/gritz/issues/1081)).** This
 > proposal originally had the in-VM shim **self-terminate** its own MicroVM when
 > the driver exited, using `lambda-microvms:TerminateMicrovm` granted to the
 > (untrusted) agent's execution role. The investigation in #1081 verified two
@@ -14,7 +14,7 @@ Issue: https://github.com/icholy/xagent/issues/1048
 > credentials) and has the in-VM shim **notify** the runner of driver completion
 > over an **SSE stream through AWS's managed auth-token proxy**, with the control
 > plane as the liveness authority. Implementation follows in
-> [#1054](https://github.com/icholy/xagent/pull/1054).
+> [#1054](https://github.com/icholy/gritz/pull/1054).
 >
 > **Refinement.** Driver exit drives a **`suspend-microvm`**, not a
 > `terminate-microvm`. This makes the MicroVM lifecycle symmetric with Docker — an
@@ -100,7 +100,7 @@ Several facts about Lambda MicroVMs drive the design.
    application exposes HTTP hooks Lambda calls at each transition. The
    `/terminate` hook runs *before* resources are released — a last-chance SIGTERM
    on real teardown (distinct from the runner's own graceful-stop path, which uses
-   an xagent-owned endpoint — see the shim section).
+   an gritz-owned endpoint — see the shim section).
    `--maximum-duration-in-seconds` (≤28,800 = 8 h) caps total
    lifetime; `list-microvms` enumerates VMs (filterable by image). On cost:
    **running** VMs incur compute charges, **suspended** VMs incur only
@@ -147,13 +147,13 @@ with `aws/signer/v4`), plus `s3` for spec staging. Selection follows the existin
 seam in `internal/command/runner.go`:
 
 ```
-xagent runner --backend lambda-microvm
+gritz runner --backend lambda-microvm
 ```
 
 Per task, the backend:
 
 1. Ensures a **MicroVM image** exists for the workspace (cached by image digest +
-   xagent version), building it via the S3 + `create-microvm-image` flow on first
+   gritz version), building it via the S3 + `create-microvm-image` flow on first
    use, or using a pre-built ARN from config.
 2. Stages `spec.Files` (+ `spec.Cmd`/`spec.Env`) to **S3** and presigns a GET URL
    — the Lambda analog of the Docker backend's `CopyToContainer` tar and the
@@ -162,7 +162,7 @@ Per task, the backend:
 3. Calls `run-microvm` with the image ARN, egress connector, `NO_INGRESS`, the
    idle policy disabled (see below), `--maximum-duration-in-seconds` from the
    workspace, and a `--run-hook-payload` carrying the presigned URL. The returned
-   `{microvmId, endpoint}` is tagged `xagent.task=<id>` / `xagent.runner=<id>`,
+   `{microvmId, endpoint}` is tagged `gritz.task=<id>` / `gritz.runner=<id>`,
    and the runner persists it as the task's handle.
 
 An in-image **shim** receives the `/run` hook, fetches the staged bundle,
@@ -195,7 +195,7 @@ resumes with full filesystem + memory state — no re-clone, no re-setup.
   none of them. IAM cannot express "act on the VM I am running in":
   `terminate-microvm` / `suspend-microvm` take a `microvmId`, there is no "self"
   concept, and the VM's id is only assigned at `run-microvm` time. The tightest
-  achievable scope is a fleet tag-condition (e.g. `aws:ResourceTag/xagent: true`),
+  achievable scope is a fleet tag-condition (e.g. `aws:ResourceTag/gritz: true`),
   which still lets compromised agent code terminate or suspend **sibling tasks'**
   VMs — a cross-task denial of service. Lifecycle control belongs with the trusted
   runner, not inside the untrusted sandbox, mirroring how the Docker backend keeps
@@ -205,8 +205,8 @@ resumes with full filesystem + memory state — no re-clone, no re-setup.
   supervises the driver (`proc.Wait()`), so it pushes lifecycle events the instant
   they happen — most importantly `driver-exited`, carrying the driver's **real
   process exit code**. The stream is served on the shim's HTTP server (port 8080,
-  alongside the Lambda hooks) at an xagent-owned path (e.g.
-  `GET /xagent/lifecycle`, `Accept: text/event-stream`) and is reached by the
+  alongside the Lambda hooks) at an gritz-owned path (e.g.
+  `GET /gritz/lifecycle`, `Accept: text/event-stream`) and is reached by the
   runner over the managed proxy. Unknown event types are ignored by the runner;
   only `driver-exited{code}` is load-bearing. The last `driver-exited` is
   **sticky**: a fresh connection replays it immediately, so an exit that happened
@@ -292,7 +292,7 @@ sequenceDiagram
 
     R->>CP: CreateMicrovmAuthToken(microvmId, allowedPorts=8080)
     CP-->>R: token
-    R->>Shim: GET /xagent/lifecycle (X-aws-proxy-auth, via proxy)
+    R->>Shim: GET /gritz/lifecycle (X-aws-proxy-auth, via proxy)
     Note over R,Shim: SSE stream open
 
     Drv->>Server: report terminal status (driver-owned events)
@@ -319,7 +319,7 @@ sequenceDiagram
     CP->>Shim: POST /resume
     Shim->>Drv: re-spawn driver (files already provisioned), supervise proc.Wait()
     Drv->>Server: connect (task token), process new work
-    R->>Shim: reopen SSE /xagent/lifecycle (new token, via proxy)
+    R->>Shim: reopen SSE /gritz/lifecycle (new token, via proxy)
     Note over R,Shim: runs until the next driver exit, then suspend again
 ```
 
@@ -333,7 +333,7 @@ sequenceDiagram
     participant CP as Control plane
     participant Shim as Shim (in VM)
 
-    R->>Shim: SSE /xagent/lifecycle (via proxy)
+    R->>Shim: SSE /gritz/lifecycle (via proxy)
     Note over R,Shim: stream drops (network glitch / conn-age cap / token expiry)
     R->>CP: GetMicrovm(microvmId)
     alt RUNNING
@@ -361,7 +361,7 @@ sequenceDiagram
     participant Server
 
     Note over R: Signal (graceful stop)
-    R->>Shim: POST /xagent/stop (via proxy)
+    R->>Shim: POST /gritz/stop (via proxy)
     Shim->>Drv: SIGTERM, grace period, then SIGKILL
     Drv->>Server: report terminal status
     Drv--)Shim: process exits
@@ -378,21 +378,21 @@ sequenceDiagram
 
 Lambda MicroVMs require the application to be an HTTP server exposing the
 lifecycle hooks, and there is no tar-copy file-injection phase. So, like the
-AgentCore backend bakes the binary in and runs `xagent tool agentcore-shim`, and
-the Firecracker backend boots `xagent tool vm-init` as PID 1, the MicroVM image
-bakes the xagent binary in and runs a new hidden subcommand as its application:
+AgentCore backend bakes the binary in and runs `gritz tool agentcore-shim`, and
+the Firecracker backend boots `gritz tool vm-init` as PID 1, the MicroVM image
+bakes the gritz binary in and runs a new hidden subcommand as its application:
 
 ```
-xagent tool microvm-shim      # beside `tool agent-mcp`, `tool vm-init`, `tool agentcore-shim`
+gritz tool microvm-shim      # beside `tool agent-mcp`, `tool vm-init`, `tool agentcore-shim`
 ```
 
 `microvm-shim` (`internal/microvmshim`) is a minimal HTTP server (listening on
 Lambda's default port 8080) that serves two distinct surfaces: the **AWS
 lifecycle hooks** under `/aws/lambda-microvms/runtime/v1/` (Lambda → shim, routed
-by `awsmicrovm.Handler`), and the **xagent control surface** under `/xagent/`
-(runner → shim over the managed proxy) — the `/xagent/lifecycle` SSE stream and
-the `/xagent/stop` graceful-stop endpoint. The two never overlap: the runner only
-ever calls `/xagent/...`, and Lambda only ever calls the AWS hooks.
+by `awsmicrovm.Handler`), and the **gritz control surface** under `/gritz/`
+(runner → shim over the managed proxy) — the `/gritz/lifecycle` SSE stream and
+the `/gritz/stop` graceful-stop endpoint. The two never overlap: the runner only
+ever calls `/gritz/...`, and Lambda only ever calls the AWS hooks.
 
 The shim decouples two things the old design conflated: **provisioning files**
 (happens once, on the first run) and **spawning the driver** (happens on every
@@ -409,14 +409,14 @@ run — the first `/run` and every `/resume`).
   resources are released, as a last-chance SIGTERM. The **runner never POSTs it**;
   in the normal suspend-on-exit flow the driver has already exited by the time a VM
   is terminated (on archive), so it is typically a no-op. Graceful stop is
-  `/xagent/stop`, not this hook.
-- **`GET /xagent/lifecycle`** (xagent control surface) — the SSE stream described
+  `/gritz/stop`, not this hook.
+- **`GET /gritz/lifecycle`** (gritz control surface) — the SSE stream described
   above. Emits `driver-exited{code}` when `proc.Wait()` returns, plus optional
   `started` / keep-alive events. The last `driver-exited` is **sticky**: a fresh
   connection receives it immediately, so a completion that happened while the runner
   was disconnected (VM still up) is delivered on reconnect rather than lost. The
   runner is the only consumer, over the managed proxy.
-- **`POST /xagent/stop`** (xagent control surface) — the runner's graceful-stop
+- **`POST /gritz/stop`** (gritz control surface) — the runner's graceful-stop
   request, reached over the proxy: SIGTERM → grace → SIGKILL the running driver,
   the in-microVM mirror of the Docker backend's SIGTERM→SIGKILL. This is what
   `Signal` calls; the driver catches SIGTERM, owns its terminal report, and its
@@ -451,7 +451,7 @@ type bundle struct {
 ```
 
 Files are provisioned only on a fresh sandbox and skipped on a resumed VM (gated
-by a `/xagent/.provisioned` marker), reproducing the Docker backend's
+by a `/gritz/.provisioned` marker), reproducing the Docker backend's
 provision-at-create-only semantics so a resume never clobbers the driver's
 `SetupCommandsCompleted`/`Started` markers in `agent.ConfigPath(taskID)`. The
 driver, by contrast, is (re-)spawned on **every** run — `/run` for the first,
@@ -467,7 +467,7 @@ S3 and built with `create-microvm-image --code-artifact uri=s3://…/app.zip
 --base-image-arn <al2023> --build-role-arn <role> --hooks '{"port":9000,...}'`.
 Two distinct bases are involved: the Dockerfile `FROM` is the **container** base
 (e.g. `public.ecr.aws/lambda/microvms:al2023-minimal`) into which the arm64
-xagent binary (at `backend.BinaryPath`) and the `xagent tool microvm-shim`
+gritz binary (at `backend.BinaryPath`) and the `gritz tool microvm-shim`
 entrypoint are installed; `--base-image-arn` (`…:aws:microvm-image:al2023-1`) is
 the **separate MicroVM OS base** the snapshot boots on. The snapshot is gated by
 the **`/ready` build hook returning 200**; hooks (including the build-time
@@ -476,9 +476,9 @@ declared **at image-creation time** via `--hooks port=9000` (matching
 `awsmicrovm.HookPort`) with **required per-hook timeouts** (image hooks ≤3600s,
 microvm hooks ≤60s) — they are NOT baked into the Dockerfile. The build role
 trusts `lambda.amazonaws.com` (`sts:AssumeRole` + `sts:TagSession`) and allows
-`s3:GetObject` on the artifact plus CloudWatch Logs. xagent ships a base image
+`s3:GetObject` on the artifact plus CloudWatch Logs. gritz ships a base image
 and a `Dockerfile` fragment to make this a short build; full auto-build/push is
-an open question. The image cache key includes the xagent version, since the
+an open question. The image cache key includes the gritz version, since the
 image embeds the driver binary (same reasoning as the Firecracker rootfs and
 AgentCore runtime caches). See `internal/runner/backend/lambdamicrovm/README.md`
 for the full recipe and IAM policies.
@@ -493,12 +493,12 @@ the proposed `firecracker:` / `agent_core:`:
 workspaces:
   pets-workshop:
     lambda_microvm:
-      image_identifier: arn:aws:lambda:us-east-1:123456789012:microvm-image/xagent-pets   # optional pre-built image
-      image_source: ghcr.io/icholy/xagent-workspace-debian:latest                          # build from this if image_identifier unset
+      image_identifier: arn:aws:lambda:us-east-1:123456789012:microvm-image/gritz-pets   # optional pre-built image
+      image_source: ghcr.io/icholy/gritz-workspace-debian:latest                          # build from this if image_identifier unset
       region: us-east-1                 # default: AWS SDK resolution
-      execution_role: arn:aws:iam::123456789012:role/xagent-microvm
+      execution_role: arn:aws:iam::123456789012:role/gritz-microvm
       egress_connector: arn:aws:lambda:us-east-1:aws:network-connector:aws-network-connector:INTERNET_EGRESS
-      staging_bucket: my-xagent-staging  # S3 bucket for the spec bundle
+      staging_bucket: my-gritz-staging  # S3 bucket for the spec bundle
       max_duration_seconds: 14400        # default 14400 (4h), max 28800
       environment:
         CLAUDE_CODE_OAUTH_TOKEN: ${env:CLAUDE_CODE_OAUTH_TOKEN}
@@ -565,14 +565,14 @@ The handle's index id (`Handle.ID`, the reverse-index key the runner resolves
 back to a task) is the **`microvmId`**. `Handle.Data` carries what the backend
 needs to reach and manage the VM but not for identity — most importantly the VM
 **`endpoint`**, so the runner can reach the proxy (mint a token, open the SSE
-stream, POST `/xagent/stop`), **reconnect** after a stream drop, and drive
+stream, POST `/gritz/stop`), **reconnect** after a stream drop, and drive
 suspend/resume — without first re-listing. The same handle is what `Launch`
 receives as `reuse` to `resume-microvm` a suspended VM:
 
 ```go
 // stored opaque in Handle.Data (taskstate.Record.Data), never decoded by the store
 type handleData struct {
-	Endpoint    string `json:"endpoint"`      // VM proxy endpoint, for SSE + /xagent/stop
+	Endpoint    string `json:"endpoint"`      // VM proxy endpoint, for SSE + /gritz/stop
 	ImageARN    string `json:"image_arn"`
 	StageBucket string `json:"stage_bucket"`  // staged spec bundle, cleaned on Destroy
 	StageKey    string `json:"stage_key"`
@@ -595,9 +595,9 @@ the runner's.
 | Method | Implementation |
 |---|---|
 | `ValidateWorkspace` | Require `execution_role`, `staging_bucket`, `egress_connector`, and `image_identifier` or `image_source`; bound `max_duration_seconds`. |
-| `Launch` | **Fresh (`reuse` nil):** ensure the MicroVM image ARN for the workspace (use `image_identifier`, else build from `image_source` via S3 zip + `create-microvm-image`, cached by digest+version). Build the bundle from `spec`, upload to `s3://<staging_bucket>/<runner>/<task>.json`, presign a GET URL. `run-microvm` with the image ARN, `NO_INGRESS`, the egress connector, idle policy disabled, `--maximum-duration-in-seconds`, and the presigned URL as `--run-hook-payload`. Tag the returned VM (`xagent.task`, `xagent.runner`). Return the `Handle` (id = `microvmId`, `Data` = endpoint + image + staging). **Reuse (`reuse` non-nil):** `resume-microvm` the suspended VM identified by the handle, preserving memory + disk; the `/resume` hook re-spawns the driver. This is the resume path — the MicroVM analog of reusing an exited Docker container. |
+| `Launch` | **Fresh (`reuse` nil):** ensure the MicroVM image ARN for the workspace (use `image_identifier`, else build from `image_source` via S3 zip + `create-microvm-image`, cached by digest+version). Build the bundle from `spec`, upload to `s3://<staging_bucket>/<runner>/<task>.json`, presign a GET URL. `run-microvm` with the image ARN, `NO_INGRESS`, the egress connector, idle policy disabled, `--maximum-duration-in-seconds`, and the presigned URL as `--run-hook-payload`. Tag the returned VM (`gritz.task`, `gritz.runner`). Return the `Handle` (id = `microvmId`, `Data` = endpoint + image + staging). **Reuse (`reuse` non-nil):** `resume-microvm` the suspended VM identified by the handle, preserving memory + disk; the `/resume` hook re-spawns the driver. This is the resume path — the MicroVM analog of reusing an exited Docker container. |
 | `Probe` | `GetMicrovm` on the handle id. `RUNNING` → `StateRunning`; **`SUSPENDED`** / `TERMINATED` / `FAILED` / not-found → **`StateExited`**. A suspended-after-completion VM must look like an exited-but-preserved container so the existing restart/archive machinery works unchanged: `Start` → `Probe StateExited` → `Launch(reuse)` → resume, and `Prune`-on-archive → `Destroy` → terminate. |
-| `Signal` | Graceful stop: over the managed proxy, POST the shim's `/xagent/stop` endpoint (SIGTERM → grace → SIGKILL the driver). The driver catches SIGTERM and owns its terminal report to the server; the shim emits `driver-exited` over SSE, and `Watch` then suspends the VM like any other completion. Returns `signalled=true` if a running VM was reached. Does **not** POST the AWS `/terminate` hook and does **not** `terminate-microvm` — that is `Destroy`'s job. |
+| `Signal` | Graceful stop: over the managed proxy, POST the shim's `/gritz/stop` endpoint (SIGTERM → grace → SIGKILL the driver). The driver catches SIGTERM and owns its terminal report to the server; the shim emits `driver-exited` over SSE, and `Watch` then suspends the VM like any other completion. Returns `signalled=true` if a running VM was reached. Does **not** POST the AWS `/terminate` hook and does **not** `terminate-microvm` — that is `Destroy`'s job. |
 | `Destroy` | The **only** terminate path, reached via `Prune` on task archive/delete: `terminate-microvm` on the handle id (idempotent; also fires `/terminate` as a final SIGTERM backstop), then delete the staged S3 object. Destroying an absent/already-terminated VM is not an error. |
 | `Watch` | Maintain a per-VM SSE stream for each of this runner's tracked VMs (discovered via `ListMicrovms` tag-filtered to the runner, endpoints from the listing): mint a token, connect, and on `driver-exited{code}` **call `suspend-microvm` itself**, then `handle(HandleExit{ID: microvmId, ExitCode: code})`. Because the suspend is done in the backend, the orchestrator stays untouched — it sees a sandbox that "exited" (Docker-identically) and never knows the VM is merely suspended. On a stream drop, arbitrate via `GetMicrovm` — reconnect if `RUNNING` (the sticky `driver-exited` covers an exit during the gap), emit an exit only if non-`RUNNING` (last SSE code, else `-1`). A periodic `ListMicrovms` sweep is the reconcile backstop for VMs that went terminal while disconnected. Emits no exit on a bare drop. |
 | `Close` | Stop the SSE streams and the reconcile sweep; leave microVMs running/suspended — they outlive the runner, exactly as containers do today. |
@@ -646,20 +646,20 @@ keeping many tasks suspended.
 ### CLI
 
 ```
-xagent runner --backend lambda-microvm \
+gritz runner --backend lambda-microvm \
   [--lambda-microvm-region us-east-1] \
   [--lambda-microvm-reconcile 30s]
 ```
 
-All flags have `XAGENT_LAMBDA_MICROVM_*` env sources; AWS credentials/region also
+All flags have `GRITZ_LAMBDA_MICROVM_*` env sources; AWS credentials/region also
 resolve through the standard SDK chain. The state directory is the shared
 `taskstate` store's, not a backend-private one. `internal/command/runner.go`'s
 backend switch gains a `lambda-microvm` case constructing
 `lambdamicrovm.New(...)` with the runner id, region, the `ListMicrovms` reconcile
 interval, and a logger.
 
-`xagent download` is not extended — there is no host kernel or hypervisor binary
-to fetch; the AWS SDK is compiled in. Instead, `xagent` publishes the MicroVM base
+`gritz download` is not extended — there is no host kernel or hypervisor binary
+to fetch; the AWS SDK is compiled in. Instead, `gritz` publishes the MicroVM base
 image and `Dockerfile` fragment (see image contract above).
 
 ### Package layout
@@ -701,9 +701,9 @@ the hook routing (with a load-bearing `/resume` that re-spawns the driver).
 - The `microvm-shim` handlers are unit-tested in `internal/microvmshim` against a
   fake driver binary: `/run` payload decode + provision-once gating + background
   spawn; **`/resume` re-spawns the driver without re-provisioning** (the
-  load-bearing resume path); `/xagent/stop` and the AWS `/terminate` hook both
+  load-bearing resume path); `/gritz/stop` and the AWS `/terminate` hook both
   SIGTERM→SIGKILL the driver; and the
-  `/xagent/lifecycle` SSE stream emitting `driver-exited{code}` with the fake's
+  `/gritz/lifecycle` SSE stream emitting `driver-exited{code}` with the fake's
   real exit code, including **sticky replay** to a connection that attaches after
   the exit. A test asserts the shim makes **no** control-plane call (no creds).
 - `Watch` is tested against an httptest SSE server plus a fake control plane:
@@ -740,7 +740,7 @@ image.
 | Work survives runner restart | yes (container) | yes (VM) | **uncertain** (held request) | **yes (autonomous VM, re-adopted by id)** |
 | On driver exit | container exits (state preserved, no cost) | VM stays up | hard teardown | **`suspend-microvm` (state preserved, snapshot-storage only, no compute)** |
 | Reuse on next run | restart exited container | restart VM | re-invoke (fresh) | **`resume-microvm` (full memory + disk, driver re-spawned)** |
-| Graceful stop (SIGTERM) | yes | yes (MMDS poll) | **no** (hard teardown) | **yes (`/xagent/stop` over the proxy)** |
+| Graceful stop (SIGTERM) | yes | yes (MMDS poll) | **no** (hard teardown) | **yes (`/gritz/stop` over the proxy)** |
 | Exit notification | docker `die` event | poll | held-request return | **SSE `driver-exited{code}` (true exit code) + control-plane backstop** |
 | Teardown authority | host (no socket in guest) | host | service | **runner only — no creds in guest** |
 | File injection | tar copy | config disk | invocation payload | **S3 bundle + presigned URL** |
@@ -755,7 +755,7 @@ control-plane credential inside the sandbox.
 **Runner-driven lifecycle vs. in-guest self-termination.** The earlier design had
 the shim terminate its own VM on driver exit, which needed `TerminateMicrovm` in
 the (untrusted) execution role. Per #1081 that grant cannot be scoped to "self" —
-only to xagent's fleet — so it hands compromised agent code a cross-task DoS, and
+only to gritz's fleet — so it hands compromised agent code a cross-task DoS, and
 it lets a buggy/compromised guest manufacture a "clean exit" at any moment. Moving
 all lifecycle control (suspend, resume, terminate) to the trusted runner removes
 the credential from the guest entirely and tightens the clean-exit signal to a
@@ -804,7 +804,7 @@ familiar in an AWS deployment that is already running microVMs.
 **Persistent server is mandated by the hook contract.** An earlier framing
 justified the long-lived shim server by suspend/resume alone; #1081 corrected
 that. The server is required because `/run` is the **only** channel the per-task
-spec arrives on, `/xagent/stop` is the graceful-stop seam (and the AWS `/terminate`
+spec arrives on, `/gritz/stop` is the graceful-stop seam (and the AWS `/terminate`
 hook the last-chance one), and `/resume` re-spawns the driver on the next run — all
 demand a server that stays up for the sandbox's whole lifetime. (Suspend/resume now
 ride on it as core, not as the justification for it.) The server stays; what the

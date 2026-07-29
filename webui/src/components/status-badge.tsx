@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { TaskStatus, type Task } from '@/gen/xagent/v1/xagent_pb'
+import { TaskStatus, type Task } from '@/gen/gritz/v1/gritz_pb'
 
 const statusStyles: Record<TaskStatus, string> = {
   [TaskStatus.UNSPECIFIED]: 'bg-gray-100 text-gray-600 border-gray-200',

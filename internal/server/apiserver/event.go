@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/pagination"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/pagination"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store"
 )
 
-func (s *Server) ListExternalEvents(ctx context.Context, req *xagentv1.ListExternalEventsRequest) (*xagentv1.ListExternalEventsResponse, error) {
+func (s *Server) ListExternalEvents(ctx context.Context, req *gritzv1.ListExternalEventsRequest) (*gritzv1.ListExternalEventsResponse, error) {
 	const maxLimit = 100
 	limit := cmp.Or(int(req.Limit), maxLimit)
 	if limit < 0 || limit > maxLimit {
@@ -33,12 +33,12 @@ func (s *Server) ListExternalEvents(ctx context.Context, req *xagentv1.ListExter
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.ListExternalEventsResponse{
+	return &gritzv1.ListExternalEventsResponse{
 		Events: model.ProtoMap(events),
 	}, nil
 }
 
-func (s *Server) GetEvent(ctx context.Context, req *xagentv1.GetEventRequest) (*xagentv1.GetEventResponse, error) {
+func (s *Server) GetEvent(ctx context.Context, req *gritzv1.GetEventRequest) (*gritzv1.GetEventResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpEventRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read event"))
@@ -50,12 +50,12 @@ func (s *Server) GetEvent(ctx context.Context, req *xagentv1.GetEventRequest) (*
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return &xagentv1.GetEventResponse{
+	return &gritzv1.GetEventResponse{
 		Event: event.Proto(),
 	}, nil
 }
 
-func (s *Server) DeleteEvent(ctx context.Context, req *xagentv1.DeleteEventRequest) (*xagentv1.DeleteEventResponse, error) {
+func (s *Server) DeleteEvent(ctx context.Context, req *gritzv1.DeleteEventRequest) (*gritzv1.DeleteEventResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpEventWrite) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot write event"))
@@ -72,10 +72,10 @@ func (s *Server) DeleteEvent(ctx context.Context, req *xagentv1.DeleteEventReque
 		ClientID:  caller.ClientID,
 		Time:      time.Now(),
 	})
-	return &xagentv1.DeleteEventResponse{}, nil
+	return &gritzv1.DeleteEventResponse{}, nil
 }
 
-func (s *Server) ListEventsByTask(ctx context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
+func (s *Server) ListEventsByTask(ctx context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.AllowOp(authscope.OpTaskRead) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot read task"))
@@ -104,7 +104,7 @@ func (s *Server) ListEventsByTask(ctx context.Context, req *xagentv1.ListEventsB
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
-		return &xagentv1.ListEventsByTaskResponse{
+		return &gritzv1.ListEventsByTaskResponse{
 			Events: model.ProtoMap(events),
 		}, nil
 	}
@@ -126,7 +126,7 @@ func (s *Server) ListEventsByTask(ctx context.Context, req *xagentv1.ListEventsB
 	// The primary (forward) walk goes toward older rows, so the store's NextToken
 	// is the timeline's "previous" (scroll-back) page; the reverse (backward) walk
 	// is the newer/live-follow "next".
-	return &xagentv1.ListEventsByTaskResponse{
+	return &gritzv1.ListEventsByTaskResponse{
 		Events:        model.ProtoMap(page.Items),
 		PrevPageToken: page.NextToken,
 		NextPageToken: page.PrevToken,

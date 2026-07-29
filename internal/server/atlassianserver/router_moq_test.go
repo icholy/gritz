@@ -5,7 +5,7 @@ package atlassianserver
 
 import (
 	"context"
-	"github.com/icholy/xagent/internal/eventrouter"
+	"github.com/icholy/gritz/internal/eventrouter"
 	"sync"
 )
 

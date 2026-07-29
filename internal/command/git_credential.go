@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 
-	"github.com/icholy/xagent/internal/gitcredential"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/gitcredential"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -16,17 +16,17 @@ var GitCredentialCommand = &cli.Command{
 		&cli.StringFlag{
 			Name:    "server",
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
-			Sources: cli.EnvVars("XAGENT_SERVER"),
+			Value:   gritzclient.DefaultURL,
+			Sources: cli.EnvVars("GRITZ_SERVER"),
 		},
 		&cli.StringFlag{
 			Name:    "token",
 			Usage:   "Authentication token",
-			Sources: cli.EnvVars("XAGENT_TOKEN"),
+			Sources: cli.EnvVars("GRITZ_TOKEN"),
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
-		client := xagentclient.New(xagentclient.Options{
+		client := gritzclient.New(gritzclient.Options{
 			BaseURL: cmd.String("server"),
 			Token:   cmd.String("token"),
 		})

@@ -12,23 +12,23 @@ import (
 	"regexp"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/agent"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/runner/backend"
-	"github.com/icholy/xagent/internal/runner/taskstate"
-	"github.com/icholy/xagent/internal/runner/workspace"
-	"github.com/icholy/xagent/internal/x/outbox"
-	"github.com/icholy/xagent/internal/x/safesem"
-	"github.com/icholy/xagent/internal/x/wakeup"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/agent"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/runner/backend"
+	"github.com/icholy/gritz/internal/runner/taskstate"
+	"github.com/icholy/gritz/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/x/outbox"
+	"github.com/icholy/gritz/internal/x/safesem"
+	"github.com/icholy/gritz/internal/x/wakeup"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"golang.org/x/sync/errgroup"
 )
 
 type Runner struct {
 	backend     backend.Backend
 	store       *taskstate.Store
-	client      xagentclient.Client
+	client      gritzclient.Client
 	serverURL   string
 	workspaces  *workspace.Config
 	runnerID    string
@@ -41,14 +41,14 @@ type Runner struct {
 }
 
 type Options struct {
-	Client xagentclient.Client
+	Client gritzclient.Client
 	// Backend is the sandbox runtime that hosts task drivers.
 	Backend backend.Backend
 	// Store is the runner-local source of truth for the task→sandbox-handle
 	// mapping. The runner is the only writer; backends never touch it.
 	Store *taskstate.Store
 	// ServerURL is the server URL injected into sandboxes so the driver and the
-	// injected xagent MCP server connect directly to the server. It is the runner's
+	// injected gritz MCP server connect directly to the server. It is the runner's
 	// own configured --server value; the sandbox reaches the same server the runner
 	// does. The runner authenticates the token-minting RPC with its own xat_ key.
 	ServerURL   string
@@ -156,14 +156,14 @@ func (r *Runner) Close() error {
 
 // RegisterWorkspaces sends the available workspace names to the server.
 func (r *Runner) RegisterWorkspaces(ctx context.Context) error {
-	workspaces := make([]*xagentv1.RegisteredWorkspace, 0, len(r.workspaces.Workspaces))
+	workspaces := make([]*gritzv1.RegisteredWorkspace, 0, len(r.workspaces.Workspaces))
 	for name, ws := range r.workspaces.Workspaces {
-		workspaces = append(workspaces, &xagentv1.RegisteredWorkspace{
+		workspaces = append(workspaces, &gritzv1.RegisteredWorkspace{
 			Name:        name,
 			Description: ws.Description,
 		})
 	}
-	_, err := r.client.RegisterWorkspaces(ctx, &xagentv1.RegisterWorkspacesRequest{
+	_, err := r.client.RegisterWorkspaces(ctx, &gritzv1.RegisterWorkspacesRequest{
 		RunnerId:   r.runnerID,
 		Workspaces: workspaces,
 	})
@@ -175,7 +175,7 @@ func (r *Runner) RegisterWorkspaces(ctx context.Context) error {
 }
 
 func (r *Runner) Poll(ctx context.Context) error {
-	resp, err := r.client.ListRunnerTasks(ctx, &xagentv1.ListRunnerTasksRequest{Runner: r.runnerID})
+	resp, err := r.client.ListRunnerTasks(ctx, &gritzv1.ListRunnerTasksRequest{Runner: r.runnerID})
 	if err != nil {
 		return err
 	}
@@ -338,12 +338,12 @@ func (r *Runner) Load(ctx context.Context) error {
 // running but whose server status is still RUNNING — the driver's terminal report was
 // lost, so "failed" is the honest outcome (see the driver-owned-events proposal).
 func (r *Runner) failIfTaskRunning(ctx context.Context, taskID, version int64) {
-	task, err := r.client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: taskID})
+	task, err := r.client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: taskID})
 	if err != nil {
 		r.log.Error("failed to get task", "task", taskID, "err", err)
 		return
 	}
-	if task.Task.Status != xagentv1.TaskStatus_RUNNING {
+	if task.Task.Status != gritzv1.TaskStatus_RUNNING {
 		return
 	}
 	r.log.Error("load: sandbox exited without reporting", "task", taskID)
@@ -432,7 +432,7 @@ func (r *Runner) Kill(ctx context.Context, task *model.Task) (bool, error) {
 }
 
 // spec assembles the sandbox spec for a task: the task token, the driver
-// invocation, and the agent config with the injected xagent MCP server.
+// invocation, and the agent config with the injected gritz MCP server.
 func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, error) {
 	ws, err := r.workspaces.Get(task.Workspace)
 	if err != nil {
@@ -446,7 +446,7 @@ func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, err
 	// supplies only the task id and capability flags and the server derives the
 	// task's workspace/runner/org from the row and signs a narrow app JWT. The
 	// driver and injected MCP server present it directly to the server.
-	tokenResp, err := r.client.CreateTaskToken(ctx, &xagentv1.CreateTaskTokenRequest{
+	tokenResp, err := r.client.CreateTaskToken(ctx, &gritzv1.CreateTaskTokenRequest{
 		TaskId:       task.ID,
 		Capabilities: ws.Capabilities,
 	})
@@ -468,7 +468,7 @@ func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, err
 	for _, capability := range ws.Capabilities {
 		mcpArgs = append(mcpArgs, "--capability", capability)
 	}
-	cfg.McpServers["xagent"] = agent.McpServer{
+	cfg.McpServers["gritz"] = agent.McpServer{
 		Type:    "stdio",
 		Command: backend.BinaryPath,
 		Args:    mcpArgs,
@@ -488,16 +488,16 @@ func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, err
 			"--token", token,
 		},
 		Env: []string{
-			fmt.Sprintf("XAGENT_TASK_ID=%d", task.ID),
-			fmt.Sprintf("XAGENT_TOKEN=%s", token),
-			"XAGENT_SERVER=" + r.serverURL,
+			fmt.Sprintf("GRITZ_TASK_ID=%d", task.ID),
+			fmt.Sprintf("GRITZ_TOKEN=%s", token),
+			"GRITZ_SERVER=" + r.serverURL,
 		},
 		Files: []backend.File{
 			// Allow non-root agents to write to this directory.
 			{Path: path.Dir(agent.DefaultConfigStore.Path(task.ID)), Mode: 0777, Dir: true},
 			{Path: agent.DefaultConfigStore.Path(task.ID), Data: cfgData, Mode: 0666},
 			// Pre-create the log dir 0777 so a non-root driver can write the
-			// append-only /xagent/log file (the driver's MkdirAll is only a
+			// append-only /gritz/log file (the driver's MkdirAll is only a
 			// fallback for a directly-invoked driver).
 			{Path: path.Dir(agent.DefaultLogPath), Mode: 0777, Dir: true},
 		},
@@ -627,7 +627,7 @@ func (r *Runner) Prune(ctx context.Context) error {
 			continue
 		}
 		// Fetch task
-		resp, err := r.client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: sb.TaskID})
+		resp, err := r.client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: sb.TaskID})
 		if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
 			r.log.Error("failed to get task", "task", sb.TaskID, "err", err)
 			continue

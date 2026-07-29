@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -20,8 +20,8 @@ type Org struct {
 }
 
 // Proto converts an Org to its protobuf representation.
-func (o *Org) Proto() *xagentv1.Org {
-	return &xagentv1.Org{
+func (o *Org) Proto() *gritzv1.Org {
+	return &gritzv1.Org{
 		Id:        o.ID,
 		Name:      o.Name,
 		Owner:     o.Owner,
@@ -46,8 +46,8 @@ type OrgMemberWithUser struct {
 }
 
 // Proto converts an OrgMemberWithUser to its protobuf representation.
-func (m *OrgMemberWithUser) Proto() *xagentv1.OrgMember {
-	return &xagentv1.OrgMember{
+func (m *OrgMemberWithUser) Proto() *gritzv1.OrgMember {
+	return &gritzv1.OrgMember{
 		OrgId:     m.OrgID,
 		UserId:    m.UserID,
 		Email:     m.Email,

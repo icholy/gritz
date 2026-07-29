@@ -1,11 +1,11 @@
 # `channel_mute` / `channel_unmute` / `channel_muted`: per-task mute for the channel bridge
 
-Issue: https://github.com/icholy/xagent/issues/1156
+Issue: https://github.com/icholy/gritz/issues/1156
 
 ## Problem
 
-An agent running `xagent mcp --channel` receives a Claude Code channel
-notification (`<channel source="xagent">…</channel>`) for **every**
+An agent running `gritz mcp --channel` receives a Claude Code channel
+notification (`<channel source="gritz">…</channel>`) for **every**
 channel-worthy lifecycle transition in its org — task queued / completed /
 cancelled / archived / restart-requested / woken-by-event. That firehose
 includes tasks the agent created and is no longer waiting on, and tasks created
@@ -19,11 +19,11 @@ subscribed to everything, exactly as today.
 
 ### How channel notifications reach an agent today
 
-The push half lives entirely in the local stdio bridge, `xagent mcp --channel`
+The push half lives entirely in the local stdio bridge, `gritz mcp --channel`
 (`internal/command/mcp.go`):
 
 1. The bridge opens an SSE subscription to the server's **per-org** stream
-   (`GET /events`) via `xagentclient.NewNotificationClient`.
+   (`GET /events`) via `gritzclient.NewNotificationClient`.
 2. For every `model.Notification` that arrives, the handler forwards it to the
    host Claude Code session as a `notifications/claude/channel` event **iff**
    `n.ChannelMessage != ""` (`internal/command/mcp.go:93`):
@@ -34,7 +34,7 @@ The push half lives entirely in the local stdio bridge, `xagent mcp --channel`
            return
        }
        if err := transport.SendChannel(ctx, mcpchannel.Params{Content: n.ChannelMessage}); err != nil {
-           slog.Warn("xagent channel: failed to send", "error", err)
+           slog.Warn("gritz channel: failed to send", "error", err)
        }
    },
    ```
@@ -48,14 +48,14 @@ The only two filters that exist today are both client-side, in the bridge:
 - **own-`ClientID` suppression** — `NotificationClient` drops notifications
   stamped with the bridge's own client id so the agent doesn't echo its own
   `create_task` / `update_task` mutations
-  (`internal/xagentclient/notificationclient.go:140`).
+  (`internal/gritzclient/notificationclient.go:140`).
 
 Neither filter is scoped to *which tasks the agent still cares about*. Every
 channel-worthy transition for **any** task in the org is forwarded.
 
 This proposal is scoped to that bridge. In-container agents
 (`internal/agentmcp`) do not consume channels yet; when they do, they reuse this
-same `xagent mcp --channel` code path and inherit this mechanism unchanged.
+same `gritz mcp --channel` code path and inherit this mechanism unchanged.
 
 ### Relationship to #793
 
@@ -103,7 +103,7 @@ Concretely, introduce a small package `internal/mcpbridge` that owns the
 local-bridge-specific half of the channel feature. The two existing candidate
 homes don't fit:
 
-- **`internal/x/mcpchannel`** is, by its own package doc, *"xagent-agnostic: it
+- **`internal/x/mcpchannel`** is, by its own package doc, *"gritz-agnostic: it
   knows only the Claude Code channel protocol and the MCP SDK."* The mute set
   speaks `model.Notification`, task ids, and the task-resource shape — the
   opposite. `mcpbridge` instead *depends on* `mcpchannel` for the transport /
@@ -117,7 +117,7 @@ sender, and the forwarding gate:
 
 ```go
 // Package mcpbridge implements the local stdio MCP bridge: it re-exposes
-// the user-facing xagent tools and forwards task-change notifications to
+// the user-facing gritz tools and forwards task-change notifications to
 // the host Claude Code session as channel events, subject to a per-process
 // per-task mute set (subscribe-all by default).
 package mcpbridge
@@ -130,7 +130,7 @@ type ChannelSender interface {
 }
 
 // Channel owns the per-process mute set and the forwarding gate. One
-// Channel is created per `xagent mcp --channel` process.
+// Channel is created per `gritz mcp --channel` process.
 type Channel struct {
     sender ChannelSender
 
@@ -196,7 +196,7 @@ func (c *Channel) Forward(ctx context.Context, n model.Notification) {
         return // this task has been muted by the agent
     }
     if err := c.sender.SendChannel(ctx, mcpchannel.Params{Content: n.ChannelMessage}); err != nil {
-        slog.Warn("xagent channel: failed to send", "error", err)
+        slog.Warn("gritz channel: failed to send", "error", err)
     }
 }
 ```
@@ -240,7 +240,7 @@ Sketch (`Channel.AddTools` in `internal/mcpbridge`):
 func (c *Channel) AddTools(server *mcp.Server) {
     mcp.AddTool(server, &mcp.Tool{
         Name: "channel_mute",
-        Description: "Stop receiving xagent channel notifications (queued, " +
+        Description: "Stop receiving gritz channel notifications (queued, " +
             "woken, completed, failed, cancelled, archived) for the given " +
             "tasks. You are subscribed to every task by default; call this to " +
             "mute tasks you no longer care about. Re-enable with " +
@@ -271,7 +271,7 @@ only constructs and wires the pieces:
 
 ```go
 transport := mcpchannel.NewTransport(&mcp.StdioTransport{})
-server := mcp.NewServer(&mcp.Implementation{Name: "xagent", Version: "1.0.0"},
+server := mcp.NewServer(&mcp.Implementation{Name: "gritz", Version: "1.0.0"},
     &mcp.ServerOptions{Instructions: mcpserver.Instructions, Capabilities: &capabilities})
 mcpserver.AddTools(server, client, toolOpts...) // user-facing proxy tools (unchanged)
 
@@ -287,14 +287,14 @@ if err != nil {
 }
 if ch != nil {
     go func() {
-        nc := xagentclient.NewNotificationClient(xagentclient.NotificationClientOptions{
+        nc := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
             BaseURL:  cmd.String("server"),
             Token:    cmd.String("token"),
             ClientID: clientID,
             Handler:  func(n model.Notification) { ch.Forward(ctx, n) },
         })
         if err := nc.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-            slog.Warn("xagent channel: stream ended", "error", err)
+            slog.Warn("gritz channel: stream ended", "error", err)
         }
     }()
 }
@@ -430,7 +430,7 @@ all current *and future* tasks), which this design explicitly rejects.
 
 4. **Surfacing the model to the agent.** Unlike #793, no discovery is strictly
    required — the default is the status quo, so an agent that never learns about
-   the tools simply keeps its current behaviour. Still, the `xagent mcp` server
+   the tools simply keeps its current behaviour. Still, the `gritz mcp` server
    `Instructions` (and/or the orchestrator skill) should mention that
    `channel_mute(task_ids)` exists for silencing finished tasks, so agents
    actually use it. Where to put that is an implementation detail.

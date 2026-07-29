@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"testing"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/xagentclient"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -22,25 +22,25 @@ const testTaskVersion = 7
 
 // setupDriver writes cfg for task 1 in a temporary config dir and returns a
 // driver backed by a mock client whose SubmitRunnerEvents always acks.
-func setupDriver(t *testing.T, cfg *Config) (*Driver, *xagentclient.ClientMock) {
+func setupDriver(t *testing.T, cfg *Config) (*Driver, *gritzclient.ClientMock) {
 	t.Helper()
 	store := ConfigStore(t.TempDir())
 	assert.NilError(t, store.Save(1, cfg))
-	mock := &xagentclient.ClientMock{
-		SubmitRunnerEventsFunc: func(_ context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+	mock := &gritzclient.ClientMock{
+		SubmitRunnerEventsFunc: func(_ context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
 		// run() forks on shell_session; an empty one takes the normal agent path.
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-			return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, Version: testTaskVersion}}, nil
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+			return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, Version: testTaskVersion}}, nil
 		},
 		// A first (non-wake) run seeds the event cursor from the tail token.
-		ListEventsByTaskFunc: func(_ context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
-			return &xagentv1.ListEventsByTaskResponse{NextPageToken: "tail-token"}, nil
+		ListEventsByTaskFunc: func(_ context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
+			return &gritzv1.ListEventsByTaskResponse{NextPageToken: "tail-token"}, nil
 		},
 		// A first (non-wake) run fetches the task's standing links for the prompt.
-		ListLinksFunc: func(_ context.Context, req *xagentv1.ListLinksRequest) (*xagentv1.ListLinksResponse, error) {
-			return &xagentv1.ListLinksResponse{}, nil
+		ListLinksFunc: func(_ context.Context, req *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
+			return &gritzv1.ListLinksResponse{}, nil
 		},
 	}
 	// Log is required; tests that don't inspect output use the discard log.
@@ -60,7 +60,7 @@ func TestDriverRun(t *testing.T) {
 	assert.NilError(t, err)
 	assert.DeepEqual(t,
 		mock.SubmittedRunnerEvents(),
-		[]*xagentv1.RunnerEvent{
+		[]*gritzv1.RunnerEvent{
 			{TaskId: 1, Version: testTaskVersion, Event: "started"},
 			{TaskId: 1, Version: testTaskVersion, Event: "stopped"},
 		},
@@ -75,7 +75,7 @@ func TestDriverRun_DrainsEventsToTail(t *testing.T) {
 	// next_page_token across all three and persist the final one.
 	store := ConfigStore(t.TempDir())
 	assert.NilError(t, store.Save(1, &Config{Type: TypeDummy}))
-	pages := map[string]*xagentv1.ListEventsByTaskResponse{
+	pages := map[string]*gritzv1.ListEventsByTaskResponse{
 		"":   {NextPageToken: "p1", More: true},
 		"p1": {NextPageToken: "p2", More: true},
 		"p2": {NextPageToken: "tail"}, // More defaults to false → tail reached
@@ -83,19 +83,19 @@ func TestDriverRun_DrainsEventsToTail(t *testing.T) {
 	// The iterator mutates the request's PageToken in place, so the recorded call
 	// requests all alias one pointer — capture the token at call time instead.
 	var seenTokens []string
-	mock := &xagentclient.ClientMock{
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+	mock := &gritzclient.ClientMock{
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-			return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, Version: testTaskVersion}}, nil
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+			return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, Version: testTaskVersion}}, nil
 		},
-		ListEventsByTaskFunc: func(_ context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
+		ListEventsByTaskFunc: func(_ context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
 			seenTokens = append(seenTokens, req.GetPageToken())
 			return pages[req.GetPageToken()], nil
 		},
-		ListLinksFunc: func(_ context.Context, req *xagentv1.ListLinksRequest) (*xagentv1.ListLinksResponse, error) {
-			return &xagentv1.ListLinksResponse{}, nil
+		ListLinksFunc: func(_ context.Context, req *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
+			return &gritzv1.ListLinksResponse{}, nil
 		},
 	}
 	driver := &Driver{TaskID: 1, Client: mock, Log: DiscardDriverLog, Config: store}
@@ -116,16 +116,16 @@ func TestDrainEvents_RequestsServerSideTypeFilter(t *testing.T) {
 	// Arrange - the drain pushes the instruction + external filter to the server
 	// via the request's Types field (the server does the filtering), then returns
 	// the events it gets back and the tail token.
-	page := &xagentv1.ListEventsByTaskResponse{
+	page := &gritzv1.ListEventsByTaskResponse{
 		NextPageToken: "tail",
-		Events: []*xagentv1.Event{
-			{Id: 1, Payload: &xagentv1.Event_Instruction{Instruction: &xagentv1.InstructionPayload{Text: "do the thing"}}},
-			{Id: 3, Payload: &xagentv1.Event_External{External: &xagentv1.ExternalPayload{Description: "PR comment"}}},
+		Events: []*gritzv1.Event{
+			{Id: 1, Payload: &gritzv1.Event_Instruction{Instruction: &gritzv1.InstructionPayload{Text: "do the thing"}}},
+			{Id: 3, Payload: &gritzv1.Event_External{External: &gritzv1.ExternalPayload{Description: "PR comment"}}},
 		},
 	}
 	var gotTypes []string
-	mock := &xagentclient.ClientMock{
-		ListEventsByTaskFunc: func(_ context.Context, req *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
+	mock := &gritzclient.ClientMock{
+		ListEventsByTaskFunc: func(_ context.Context, req *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
 			gotTypes = req.GetTypes()
 			return page, nil
 		},
@@ -156,18 +156,18 @@ func TestDriverRun_EventTokenNotAdvancedOnError(t *testing.T) {
 		NextEventToken: "old-token",
 		Dummy:          &DummyOptions{Error: "dummy agent failed on purpose"},
 	}))
-	mock := &xagentclient.ClientMock{
-		SubmitRunnerEventsFunc: func(_ context.Context, _ *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
-			return &xagentv1.SubmitRunnerEventsResponse{}, nil
+	mock := &gritzclient.ClientMock{
+		SubmitRunnerEventsFunc: func(_ context.Context, _ *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
+			return &gritzv1.SubmitRunnerEventsResponse{}, nil
 		},
-		GetTaskFunc: func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
-			return &xagentv1.GetTaskResponse{Task: &xagentv1.Task{Id: req.Id, Version: testTaskVersion}}, nil
+		GetTaskFunc: func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
+			return &gritzv1.GetTaskResponse{Task: &gritzv1.Task{Id: req.Id, Version: testTaskVersion}}, nil
 		},
-		ListEventsByTaskFunc: func(_ context.Context, _ *xagentv1.ListEventsByTaskRequest) (*xagentv1.ListEventsByTaskResponse, error) {
-			return &xagentv1.ListEventsByTaskResponse{NextPageToken: "new-token"}, nil
+		ListEventsByTaskFunc: func(_ context.Context, _ *gritzv1.ListEventsByTaskRequest) (*gritzv1.ListEventsByTaskResponse, error) {
+			return &gritzv1.ListEventsByTaskResponse{NextPageToken: "new-token"}, nil
 		},
-		ListLinksFunc: func(_ context.Context, req *xagentv1.ListLinksRequest) (*xagentv1.ListLinksResponse, error) {
-			return &xagentv1.ListLinksResponse{}, nil
+		ListLinksFunc: func(_ context.Context, req *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
+			return &gritzv1.ListLinksResponse{}, nil
 		},
 	}
 	driver := &Driver{TaskID: 1, Client: mock, Log: DiscardDriverLog, Config: store}
@@ -198,12 +198,12 @@ func TestDriverRun_AgentError(t *testing.T) {
 	assert.NilError(t, err)
 	assert.DeepEqual(t,
 		mock.SubmittedRunnerEvents(),
-		[]*xagentv1.RunnerEvent{
+		[]*gritzv1.RunnerEvent{
 			{TaskId: 1, Version: testTaskVersion, Event: "started"},
 			{TaskId: 1, Version: testTaskVersion, Event: "failed"},
 		},
 		protocmp.Transform(),
-		protocmp.IgnoreFields(&xagentv1.RunnerEvent{}, "reason"),
+		protocmp.IgnoreFields(&gritzv1.RunnerEvent{}, "reason"),
 	)
 }
 
@@ -222,12 +222,12 @@ func TestDriverRun_AgentConfiguredError(t *testing.T) {
 	assert.NilError(t, err)
 	assert.DeepEqual(t,
 		mock.SubmittedRunnerEvents(),
-		[]*xagentv1.RunnerEvent{
+		[]*gritzv1.RunnerEvent{
 			{TaskId: 1, Version: testTaskVersion, Event: "started"},
 			{TaskId: 1, Version: testTaskVersion, Event: "failed"},
 		},
 		protocmp.Transform(),
-		protocmp.IgnoreFields(&xagentv1.RunnerEvent{}, "reason"),
+		protocmp.IgnoreFields(&gritzv1.RunnerEvent{}, "reason"),
 	)
 }
 
@@ -246,12 +246,12 @@ func TestDriverRun_SetupCommandError(t *testing.T) {
 	assert.NilError(t, err)
 	assert.DeepEqual(t,
 		mock.SubmittedRunnerEvents(),
-		[]*xagentv1.RunnerEvent{
+		[]*gritzv1.RunnerEvent{
 			{TaskId: 1, Version: testTaskVersion, Event: "started"},
 			{TaskId: 1, Version: testTaskVersion, Event: "failed"},
 		},
 		protocmp.Transform(),
-		protocmp.IgnoreFields(&xagentv1.RunnerEvent{}, "reason"),
+		protocmp.IgnoreFields(&gritzv1.RunnerEvent{}, "reason"),
 	)
 }
 
@@ -268,11 +268,11 @@ func TestDriverRun_Sigterm(t *testing.T) {
 		Dummy: &DummyOptions{Sleep: -1},
 	})
 	started := make(chan struct{})
-	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
+	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
 		if req.Events[0].Event == "started" {
 			close(started)
 		}
-		return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		return &gritzv1.SubmitRunnerEventsResponse{}, nil
 	}
 	go func() {
 		// Run's SIGTERM handler is registered before the started event is
@@ -288,7 +288,7 @@ func TestDriverRun_Sigterm(t *testing.T) {
 	assert.NilError(t, err)
 	assert.DeepEqual(t,
 		mock.SubmittedRunnerEvents(),
-		[]*xagentv1.RunnerEvent{
+		[]*gritzv1.RunnerEvent{
 			{TaskId: 1, Version: testTaskVersion, Event: "started"},
 			{TaskId: 1, Version: testTaskVersion, Event: "stopped"},
 		},
@@ -300,7 +300,7 @@ func TestDriverRun_StartedSubmitError(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	driver, mock := setupDriver(t, &Config{Type: TypeDummy})
-	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
+	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
 		return nil, errors.New("server unreachable")
 	}
 
@@ -315,11 +315,11 @@ func TestDriverRun_StoppedSubmitError(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	driver, mock := setupDriver(t, &Config{Type: TypeDummy})
-	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
+	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
 		if req.Events[0].Event == "stopped" {
 			return nil, errors.New("server unreachable")
 		}
-		return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		return &gritzv1.SubmitRunnerEventsResponse{}, nil
 	}
 
 	// Act
@@ -336,11 +336,11 @@ func TestDriverRun_FailedSubmitError(t *testing.T) {
 		Type:  TypeDummy,
 		Dummy: &DummyOptions{Commands: []string{"false"}},
 	})
-	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *xagentv1.SubmitRunnerEventsRequest) (*xagentv1.SubmitRunnerEventsResponse, error) {
+	mock.SubmitRunnerEventsFunc = func(_ context.Context, req *gritzv1.SubmitRunnerEventsRequest) (*gritzv1.SubmitRunnerEventsResponse, error) {
 		if req.Events[0].Event == "failed" {
 			return nil, errors.New("server unreachable")
 		}
-		return &xagentv1.SubmitRunnerEventsResponse{}, nil
+		return &gritzv1.SubmitRunnerEventsResponse{}, nil
 	}
 
 	// Act
@@ -355,7 +355,7 @@ func TestDriverRun_GetTaskError(t *testing.T) {
 	t.Parallel()
 	// Arrange - GetTask (hoisted to the top of Run) fails before any event
 	driver, mock := setupDriver(t, &Config{Type: TypeDummy})
-	mock.GetTaskFunc = func(_ context.Context, req *xagentv1.GetTaskRequest) (*xagentv1.GetTaskResponse, error) {
+	mock.GetTaskFunc = func(_ context.Context, req *gritzv1.GetTaskRequest) (*gritzv1.GetTaskResponse, error) {
 		return nil, errors.New("server unreachable")
 	}
 

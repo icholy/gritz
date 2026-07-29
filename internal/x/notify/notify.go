@@ -35,7 +35,7 @@ $template = @"
 $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($template)
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("xagent").Show($toast)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("gritz").Show($toast)
 `, title, message)
 		return exec.Command("powershell", "-Command", script).Run()
 	default:

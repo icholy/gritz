@@ -7,10 +7,10 @@ import (
 	"fmt"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
 // CreateTaskToken mints a narrow app JWT for a task. The runner calls it instead
@@ -20,7 +20,7 @@ import (
 // minted token is an ordinary apiauth.AppClaims signed with the server's app key,
 // so it verifies on the normal app-JWT path; its authority lives entirely in its
 // narrow scopes. See proposals/implemented/eliminate-runner-socket-proxy.md §1/§2/§7.
-func (s *Server) CreateTaskToken(ctx context.Context, req *xagentv1.CreateTaskTokenRequest) (*xagentv1.CreateTaskTokenResponse, error) {
+func (s *Server) CreateTaskToken(ctx context.Context, req *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	if !caller.Scopes.Allow(authscope.OpTaskTokenCreate) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot mint task tokens"))
@@ -53,5 +53,5 @@ func (s *Server) CreateTaskToken(ctx context.Context, req *xagentv1.CreateTaskTo
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	s.log.InfoContext(ctx, "task token minted")
-	return &xagentv1.CreateTaskTokenResponse{Token: token}, nil
+	return &gritzv1.CreateTaskTokenResponse{Token: token}, nil
 }

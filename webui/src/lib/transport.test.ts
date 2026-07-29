@@ -39,7 +39,7 @@ describe('AuthTransport', () => {
   })
 
   it('drops a stale org on 403 and retries against the default org', async () => {
-    localStorage.setItem('xagent_org_id', '5')
+    localStorage.setItem('gritz_org_id', '5')
 
     server.use(
       http.get('/auth/token', ({ request }) => {

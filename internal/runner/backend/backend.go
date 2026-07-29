@@ -17,7 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/icholy/xagent/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/runner/workspace"
 )
 
 // ErrGone means the sandbox a reuse handle refers to no longer exists. Launch
@@ -36,8 +36,8 @@ type ExitCode int
 const ExitLost ExitCode = -1
 
 // BinaryPath is the path inside the sandbox where backends provision the
-// xagent driver binary. Spec.Cmd and the injected MCP server reference it.
-const BinaryPath = "/usr/local/bin/xagent"
+// gritz driver binary. Spec.Cmd and the injected MCP server reference it.
+const BinaryPath = "/usr/local/bin/gritz"
 
 // Handle identifies a backend's sandbox. ID is the index key (a container id,
 // an AWS microVM id, ...) — unique and stable for the sandbox's lifetime — and
@@ -67,7 +67,7 @@ type Spec struct {
 	TaskID    int64
 	Workspace *workspace.Workspace
 	Cmd       []string // driver invocation
-	Env       []string // XAGENT_TASK_ID / XAGENT_TOKEN / XAGENT_SERVER
+	Env       []string // GRITZ_TASK_ID / GRITZ_TOKEN / GRITZ_SERVER
 	Files     []File   // agent config; the driver binary is the backend's job
 }
 

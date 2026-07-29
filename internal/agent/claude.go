@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/icholy/xagent/internal/agent/toollog"
+	"github.com/icholy/gritz/internal/agent/toollog"
 )
 
 // ClaudeAgent implements Agent using Claude Code CLI.

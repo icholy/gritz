@@ -2,27 +2,27 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: xagent
-      POSTGRES_PASSWORD: xagent
-      POSTGRES_DB: xagent
+      POSTGRES_USER: gritz
+      POSTGRES_PASSWORD: gritz
+      POSTGRES_DB: gritz
       PGPORT: "5433"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U xagent -p 5433"]
+      test: ["CMD-SHELL", "pg_isready -U gritz -p 5433"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   server:
-    image: ghcr.io/icholy/xagent-server:latest
-    command: ["./xagent", "server", "--no-auth"]
+    image: ghcr.io/icholy/gritz-server:latest
+    command: ["./gritz", "server", "--no-auth"]
     ports:
       - "6464:6464"
     env_file: .env
     environment:
-      XAGENT_BASE_URL: http://localhost:6464
-      XAGENT_DATABASE_URL: postgres://xagent:xagent@postgres:5433/xagent?sslmode=disable
+      GRITZ_BASE_URL: http://localhost:6464
+      GRITZ_DATABASE_URL: postgres://gritz:gritz@postgres:5433/gritz?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy

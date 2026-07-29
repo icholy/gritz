@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { ShellSessions, isShellActive } from './shell-sessions'
 import type { Client } from '@connectrpc/connect'
-import type { XAgentService } from '@/gen/xagent/v1/xagent_pb'
+import type { GritzService } from '@/gen/gritz/v1/gritz_pb'
 
 // These tests exercise the entry-lifecycle logic and never call open(), so the
 // client is never invoked; a bare cast stands in for it.
-const stubClient = {} as Client<typeof XAgentService>
+const stubClient = {} as Client<typeof GritzService>
 
 const KEY = '7'
 

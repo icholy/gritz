@@ -8,10 +8,10 @@ import (
 	"connectrpc.com/connect"
 	"github.com/cenkalti/backoff/v5"
 
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/x/outbox"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/x/outbox"
+	"github.com/icholy/gritz/internal/gritzclient"
 )
 
 // RunnerEventOutboxOptions configures the runner's durable event outbox.
@@ -25,7 +25,7 @@ type RunnerEventOutboxOptions struct {
 	// so events survive a restart.
 	StoreDir string
 	// Client delivers events to the server via SubmitRunnerEvents.
-	Client xagentclient.Client
+	Client gritzclient.Client
 	// Backoff is the retry policy for transient delivery failures.
 	Backoff backoff.BackOff
 	// Log receives delivery diagnostics.
@@ -51,8 +51,8 @@ func NewRunnerEventOutbox(opts RunnerEventOutboxOptions) (*outbox.Outbox[model.R
 	return outbox.New(outbox.Options[model.RunnerEvent]{
 		Store: store,
 		Deliver: func(ctx context.Context, ev model.RunnerEvent) (permanent bool, err error) {
-			_, err = opts.Client.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-				Events: []*xagentv1.RunnerEvent{ev.Proto()},
+			_, err = opts.Client.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+				Events: []*gritzv1.RunnerEvent{ev.Proto()},
 			})
 			return isPermanentError(err), err
 		},

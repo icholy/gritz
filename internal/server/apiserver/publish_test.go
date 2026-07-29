@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )
@@ -25,7 +25,7 @@ func TestCreateTask_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
@@ -53,13 +53,13 @@ func TestUpdateTask_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id: resp.Task.Id, Name: "updated",
 	})
 	assert.NilError(t, err)
@@ -87,13 +87,13 @@ func TestCancelTask_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	_, err = srv.CancelTask(ctx, &xagentv1.CancelTaskRequest{Id: resp.Task.Id})
+	_, err = srv.CancelTask(ctx, &gritzv1.CancelTaskRequest{Id: resp.Task.Id})
 	assert.NilError(t, err)
 
 	assert.DeepEqual(t, pub.PublishedNotifications(), []model.Notification{{
@@ -118,7 +118,7 @@ func TestArchiveTask_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
@@ -130,7 +130,7 @@ func TestArchiveTask_Publishes(t *testing.T) {
 	assert.NilError(t, st.UpdateTask(ctx, nil, dbTask))
 	pub.ResetCalls()
 
-	_, err = srv.ArchiveTask(ctx, &xagentv1.ArchiveTaskRequest{Id: resp.Task.Id})
+	_, err = srv.ArchiveTask(ctx, &gritzv1.ArchiveTaskRequest{Id: resp.Task.Id})
 	assert.NilError(t, err)
 
 	notifications := pub.PublishedNotifications()
@@ -158,15 +158,15 @@ func TestUploadLogs_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	_, err = srv.UploadLogs(ctx, &xagentv1.UploadLogsRequest{
+	_, err = srv.UploadLogs(ctx, &gritzv1.UploadLogsRequest{
 		TaskId: resp.Task.Id,
-		Entries: []*xagentv1.LogEntry{
+		Entries: []*gritzv1.LogEntry{
 			{Type: "llm", Content: "hello"},
 		},
 	})
@@ -191,13 +191,13 @@ func TestCreateLink_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	linkResp, err := srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{
+	linkResp, err := srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{
 		TaskId: resp.Task.Id,
 		Url:    "https://example.com",
 		Title:  "test",
@@ -226,14 +226,14 @@ func TestUpdateTask_ChannelMessage_QueuedOnStart(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	// Move past the queued/start state so the next UpdateTask works from
 	// a non-queued task; then re-queue via Start: true.
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{TaskId: resp.Task.Id, Event: string(model.RunnerEventStarted), Version: 1},
 			{TaskId: resp.Task.Id, Event: string(model.RunnerEventStopped), Version: 1},
 		},
@@ -241,7 +241,7 @@ func TestUpdateTask_ChannelMessage_QueuedOnStart(t *testing.T) {
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id: resp.Task.Id, Start: true,
 	})
 	assert.NilError(t, err)
@@ -263,21 +263,21 @@ func TestUpdateTask_NoChannelMessage_NameOnly(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	// Transition to Running so PendingRunner == "" and the helper stays silent
 	// on a name-only update.
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{TaskId: resp.Task.Id, Event: string(model.RunnerEventStarted), Version: 1},
 		},
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	_, err = srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{
+	_, err = srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{
 		Id: resp.Task.Id, Name: "renamed",
 	})
 	assert.NilError(t, err)
@@ -298,14 +298,14 @@ func TestSubmitRunnerEvents_Publishes(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
 
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{
 				TaskId:  taskResp.Task.Id,
 				Event:   string(model.RunnerEventStarted),
@@ -337,7 +337,7 @@ func TestSubmitRunnerEvents_NotApplied_DoesNotPublish(t *testing.T) {
 	org := teststore.CreateOrg(t, st, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "r", Name: "w"}}})
 	ctx := createCtx(t, org)
 
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
 	})
 	assert.NilError(t, err)
@@ -345,8 +345,8 @@ func TestSubmitRunnerEvents_NotApplied_DoesNotPublish(t *testing.T) {
 
 	// Stale version: ApplyRunnerEvent returns false and the notification's
 	// Ignore field is set inside the tx, so publish is a no-op.
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{TaskId: taskResp.Task.Id, Event: string(model.RunnerEventStarted), Version: 999},
 		},
 	})

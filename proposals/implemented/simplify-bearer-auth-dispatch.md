@@ -1,6 +1,6 @@
 # Simplify HTTP authentication dispatch
 
-Issue: https://github.com/icholy/xagent/issues/622
+Issue: https://github.com/icholy/gritz/issues/622
 
 ## Problem
 
@@ -14,21 +14,21 @@ n8n's MCP Client Tool node only refreshes its OAuth2 access token when a request
 if (response.status !== 401 || !onUnauthorized) return response;
 ```
 
-xagent's `RequireAuth` middleware (`internal/auth/apiauth/apiauth.go:266`) reaches the `default:` branch for any request without `X-Auth-Type`. For such requests it tries `validateAppToken`; if the JWT is expired (the app JWT TTL is 5 minutes — see `AppTokenTTL` in `internal/auth/apiauth/jwt.go:23`) it falls through to `a.cookie.RequireAuthentication()`. For a cookieless Bearer request, zitadel's cookie middleware responds with an OIDC login redirect, not a `401`. n8n never sees `401`, never refreshes, and the MCP connection dies after 5 minutes.
+gritz's `RequireAuth` middleware (`internal/auth/apiauth/apiauth.go:266`) reaches the `default:` branch for any request without `X-Auth-Type`. For such requests it tries `validateAppToken`; if the JWT is expired (the app JWT TTL is 5 minutes — see `AppTokenTTL` in `internal/auth/apiauth/jwt.go:23`) it falls through to `a.cookie.RequireAuthentication()`. For a cookieless Bearer request, zitadel's cookie middleware responds with an OIDC login redirect, not a `401`. n8n never sees `401`, never refreshes, and the MCP connection dies after 5 minutes.
 
-A minimal fix has already landed on `master`: in the `default:` branch, if the request carries `Authorization: Bearer …` and the token fails to validate, return `401` instead of falling through to cookie auth. This unblocks n8n and any other OAuth-style client (`pull from xagentclient/token.go`-shaped clients are not affected since they set `X-Auth-Type`).
+A minimal fix has already landed on `master`: in the `default:` branch, if the request carries `Authorization: Bearer …` and the token fails to validate, return `401` instead of falling through to cookie auth. This unblocks n8n and any other OAuth-style client (`pull from gritzclient/token.go`-shaped clients are not affected since they set `X-Auth-Type`).
 
 ### `X-Auth-Type` is dead weight everywhere else
 
 After the OAuth 2.1 work (`proposals/accepted/mcp-oauth.md`), three distinct identities can already be told apart from the `Authorization` header alone:
 
 - `Authorization: Bearer xat_…` — API key (the `xat_` prefix is the marker, see `IsKey` in `internal/auth/apiauth/token.go:29`)
-- `Authorization: Bearer <jwt>` — app JWT issued by xagent
+- `Authorization: Bearer <jwt>` — app JWT issued by gritz
 - no `Authorization` header — cookie session (browser UI)
 
-The fourth case — `Authorization: Bearer <zitadel OIDC access token>` with `X-Auth-Type: bearer` — exists for exactly one consumer: the `xagent setup` command (`internal/command/setup.go:65-78`) does a device-flow login, exchanges the OIDC access token at `GET /auth/token` (via `xagentclient.GetToken` in `internal/xagentclient/token.go:18`) for an app JWT, and then uses that JWT once to call `CreateKey`. After that the CLI persists the `xat_…` key and the zitadel bearer path is never used again from inside this repo.
+The fourth case — `Authorization: Bearer <zitadel OIDC access token>` with `X-Auth-Type: bearer` — exists for exactly one consumer: the `gritz setup` command (`internal/command/setup.go:65-78`) does a device-flow login, exchanges the OIDC access token at `GET /auth/token` (via `gritzclient.GetToken` in `internal/gritzclient/token.go:18`) for an app JWT, and then uses that JWT once to call `CreateKey`. After that the CLI persists the `xat_…` key and the zitadel bearer path is never used again from inside this repo.
 
-So the `X-Auth-Type` header, the `AuthTypeBearer` switch case, the zitadel `oauth.IntrospectionContext` middleware, and the entire `xagentclient/token.go` round-trip exist to support a one-time bootstrap that runs once per machine and could just as easily be done in the web UI.
+So the `X-Auth-Type` header, the `AuthTypeBearer` switch case, the zitadel `oauth.IntrospectionContext` middleware, and the entire `gritzclient/token.go` round-trip exist to support a one-time bootstrap that runs once per machine and could just as easily be done in the web UI.
 
 ## Design
 
@@ -52,7 +52,7 @@ The change: in the `default:` branch of `RequireAuth`, if `Authorization: Bearer
 
 This unblocks n8n's reactive refresh, fixes Claude.ai's connector after expiry, and is a no-op for cookie-only and API-key callers.
 
-### Phase 2 — Remove `xagent setup` and its `/auth/token` consumer
+### Phase 2 — Remove `gritz setup` and its `/auth/token` consumer
 
 Delete:
 
@@ -61,20 +61,20 @@ Delete:
 - `internal/auth/deviceauth/` (only consumer is `setup`; verify with `grep -r deviceauth`)
 - The `/device/config` discovery route in `internal/server/server.go:83` and the `handleDeviceConfig` handler, together with the `Discovery` field on `server.Options` and `deviceauth.DiscoveryConfig` plumbing in `internal/command/server.go:216`
 
-After this, nothing in the codebase sends `X-Auth-Type: bearer`. `/auth/token` still exists for the web UI (which calls it via cookie auth — see `webui/src/lib/transport.ts:57`), and that is handled in Phase 3. `xagentclient/token.go` likewise stays alive in Phase 2 since the web UI's flow has its own pathway, but the function `GetToken` becomes unused from Go and can be removed in this phase (it has no callers once `setup.go` is gone).
+After this, nothing in the codebase sends `X-Auth-Type: bearer`. `/auth/token` still exists for the web UI (which calls it via cookie auth — see `webui/src/lib/transport.ts:57`), and that is handled in Phase 3. `gritzclient/token.go` likewise stays alive in Phase 2 since the web UI's flow has its own pathway, but the function `GetToken` becomes unused from Go and can be removed in this phase (it has no callers once `setup.go` is gone).
 
-**Replacement bootstrap path.** No new CLI command. Users mint an API key in the Web UI (`webui/src/routes/keys.new.tsx`, which already calls the `CreateKey` RPC) and put it into `~/.config/xagent/config.yaml` manually. The README is updated to describe this:
+**Replacement bootstrap path.** No new CLI command. Users mint an API key in the Web UI (`webui/src/routes/keys.new.tsx`, which already calls the `CreateKey` RPC) and put it into `~/.config/gritz/config.yaml` manually. The README is updated to describe this:
 
 1. Log into the Web UI
 2. Go to **Keys → New** and create a key
-3. Copy the returned `xat_…` value into `~/.config/xagent/config.yaml` under `token:`
+3. Copy the returned `xat_…` value into `~/.config/gritz/config.yaml` under `token:`
 
-The two other things `xagent setup` does today — generating the agent private key and scaffolding `workspaces.yaml` — already have working defaults without `setup`:
+The two other things `gritz setup` does today — generating the agent private key and scaffolding `workspaces.yaml` — already have working defaults without `setup`:
 
 - The runner generates an ephemeral Ed25519 private key on startup if one isn't configured (`internal/command/runner.go:115-122`), with a warning about reconnect-on-restart. Users who want a persistent key can use the existing `--private-key` flag or set one in the config file directly. No change needed.
 - `workspaces.yaml` is loaded if present (`workspace.LoadConfig` in `internal/runner/workspace/`); the README mentions creating one. The `workspace.CreateDefault` helper currently only runs from `setup.go` and is the one piece of `setup` we lose. Either inline the same scaffolding into the runner's first-run path or, simpler, leave it to the user to create the file (the runner already handles a missing file).
 
-Net result of Phase 2: one less command, no new code, README gains a "Getting started" section that says "make an API key in the Web UI, put it in `~/.config/xagent/config.yaml`".
+Net result of Phase 2: one less command, no new code, README gains a "Getting started" section that says "make an API key in the Web UI, put it in `~/.config/gritz/config.yaml`".
 
 ### Phase 3 — Remove the zitadel bearer middleware
 
@@ -85,7 +85,7 @@ Delete:
 - The `bearer` field on `Auth` (`apiauth.go:130`) and the `middleware.New(authZ)` initialization in `New()` (`apiauth.go:208`)
 - The `authorization.New(...)` block in `New()` (`apiauth.go:200-206`) and the `authorization`/`oauth` imports
 - The `AuthTypeBearer` switch cases in `RequireAuth`, `CheckAuth`, and `User`
-- `internal/xagentclient/token.go` (no consumers left after Phase 2)
+- `internal/gritzclient/token.go` (no consumers left after Phase 2)
 
 What stays:
 
@@ -103,10 +103,10 @@ Final cleanup. After this phase, `RequireAuth` and `CheckAuth` are a single bran
 Delete:
 
 - `AuthTypeHeader`, `AuthTypeKey`, `AuthTypeApp`, `AuthTypeBearer` constants in `apiauth.go:24-30`. Keep `AuthTypeCookie` only if `UserInfo.Type` is still consumed somewhere (audit log uses it in `AuditName()` — replace `AuthTypeKey` comparison with a check on the token shape, e.g. an `IsAPIKey bool` field on `UserInfo` set at validation time).
-- The `AuthType` field on `xagentclient.AuthTransport` (`internal/xagentclient/transport.go:14`) and the corresponding header set on `transport.go:20`.
-- The `AuthType` field on `xagentclient.Options` (`internal/xagentclient/client.go:39`) and its propagation in `New()` (`client.go:61`).
+- The `AuthType` field on `gritzclient.AuthTransport` (`internal/gritzclient/transport.go:14`) and the corresponding header set on `transport.go:20`.
+- The `AuthType` field on `gritzclient.Options` (`internal/gritzclient/client.go:39`) and its propagation in `New()` (`client.go:61`).
 - The `AuthType: "app"` literal in `internal/command/setup.go:87` is already removed in Phase 2.
-- The `X-Auth-Type: key` set in `n8n-node/nodes/XAgent/XAgentExecutor.ts:27` (this is the in-repo n8n node; the published `n8n-nodes-xagent` package proposed in `proposals/draft/n8n-community-node.md` does not set this header in its sample code, so the proposal there is already consistent).
+- The `X-Auth-Type: key` set in `n8n-node/nodes/Gritz/GritzExecutor.ts:27` (this is the in-repo n8n node; the published `n8n-nodes-gritz` package proposed in `proposals/draft/n8n-community-node.md` does not set this header in its sample code, so the proposal there is already consistent).
 - The `X-Auth-Type: app` set in `webui/src/lib/transport.ts:88`. The server detects app JWTs by shape, so the UI just drops this one header line and otherwise behaves identically.
 - All `switch r.Header.Get(AuthTypeHeader)` blocks in `RequireAuth`, `CheckAuth`, and `User`. Replace with a single helper, conceptually:
 
@@ -131,13 +131,13 @@ Delete:
 
 **Keep `/auth/token` vs. delete it.** An earlier draft of this proposal had Phase 3 deleting `/auth/token` and migrating the web UI to cookie-only auth with an `X-Org-ID` header. That conflated two separate concerns: removing the zitadel OIDC bearer dispatch (genuinely dead code after Phase 2) and replacing the web UI's token mechanism (no good reason to touch). `/auth/token` is a perfectly fine cookie-authenticated endpoint that mints scoped app JWTs; the only thing leaving Phase 3 is the OIDC-bearer arrival path into it.
 
-**Just delete `xagent setup` vs. introducing a replacement command.** A previous draft proposed an `xagent login <key>` command that would write the key to config and scaffold defaults. We're not doing that: `xagent setup` is removed and the README documents creating an API key in the Web UI and copying it to `~/.config/xagent/config.yaml` by hand. The CLI gains no new bootstrap surface area. This trades one-command first-run UX for less code to maintain.
+**Just delete `gritz setup` vs. introducing a replacement command.** A previous draft proposed an `gritz login <key>` command that would write the key to config and scaffold defaults. We're not doing that: `gritz setup` is removed and the README documents creating an API key in the Web UI and copying it to `~/.config/gritz/config.yaml` by hand. The CLI gains no new bootstrap surface area. This trades one-command first-run UX for less code to maintain.
 
 **OIDC token introspection vs. local app JWT validation.** The zitadel bearer middleware was doing token introspection against the zitadel JWKS. Once removed, the only "is this caller authenticated?" check on Bearer headers is local: `Ed25519.Verify` on app JWTs and a DB lookup on `xat_` keys. This is strictly less infrastructure dependency on zitadel for API calls. SSO login (`/auth/login` → `/auth/callback`) still goes through zitadel since the cookie middleware stays.
 
 ## Open questions
 
-1. **Dev user shortcut.** `useDevUser` (`apiauth.go:255`) currently bypasses all branches: with `DevUser` set, every request is the dev user regardless of header. The new `RequireAuth` collapses to "Bearer → validate, no Bearer → cookie middleware (or dev user)". A request from the web UI in dev mode arrives with no `Authorization` header, so it hits the cookie/dev-user branch and works. A request from the CLI in dev mode arrives with `Authorization: Bearer xat_…`, hits `validateKey` against an empty database, and `401`s — which is the same behavior as today. Confirmed safe, but the dev-mode `xagent` CLI usage path needs a docs note: in dev mode, the CLI talks to the server *without* an `Authorization` header (so it gets the dev user), or with a real key minted against the dev DB.
+1. **Dev user shortcut.** `useDevUser` (`apiauth.go:255`) currently bypasses all branches: with `DevUser` set, every request is the dev user regardless of header. The new `RequireAuth` collapses to "Bearer → validate, no Bearer → cookie middleware (or dev user)". A request from the web UI in dev mode arrives with no `Authorization` header, so it hits the cookie/dev-user branch and works. A request from the CLI in dev mode arrives with `Authorization: Bearer xat_…`, hits `validateKey` against an empty database, and `401`s — which is the same behavior as today. Confirmed safe, but the dev-mode `gritz` CLI usage path needs a docs note: in dev mode, the CLI talks to the server *without* an `Authorization` header (so it gets the dev user), or with a real key minted against the dev DB.
 
 2. **Backwards compatibility for `X-Auth-Type: key` callers outside this repo.** As long as Phase 4 lands last, the server happily ignores the header through Phases 1–3 (since `case AuthTypeKey:` still routes them to `validateKey`). Phase 4 silently drops the switch; an external caller that sets the header but uses a valid key still works because the dispatch is by token shape now, and `xat_…` is the shape for keys. The only breakage would be a caller sending `X-Auth-Type: bearer` with a zitadel access token *after* Phase 3, which goes to `validateAppToken`, fails, and gets a `401`. We don't believe any such caller exists outside the repo, but the changelog for the release containing Phase 3 should call this out.
 

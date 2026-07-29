@@ -6,7 +6,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/icholy/xagent/internal/version"
+	"github.com/icholy/gritz/internal/version"
 )
 
 var VersionCommand = &cli.Command{

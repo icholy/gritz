@@ -23,9 +23,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/x/mcpchannel"
-	"github.com/icholy/xagent/internal/x/mcpx"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/x/mcpchannel"
+	"github.com/icholy/gritz/internal/x/mcpx"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -37,7 +37,7 @@ type ChannelSender interface {
 }
 
 // Channel owns the mute-aware forwarding gate. The mute state itself lives
-// in filter. One Channel is created per `xagent mcp --channel` process.
+// in filter. One Channel is created per `gritz mcp --channel` process.
 type Channel struct {
 	sender ChannelSender
 	filter *TaskFilter
@@ -61,7 +61,7 @@ func primaryTaskID(n model.Notification) (int64, bool) {
 }
 
 // Forward applies the summary gate and the mute set, then pushes the
-// channel notification. It is suitable as the xagentclient
+// channel notification. It is suitable as the gritzclient
 // NotificationClient handler.
 //
 // With an empty mute set this is identical to the bridge's original inline
@@ -76,7 +76,7 @@ func (c *Channel) Forward(ctx context.Context, n model.Notification) {
 		return // this task has been muted by the agent
 	}
 	if err := c.sender.SendChannel(ctx, mcpchannel.Params{Content: n.ChannelMessage}); err != nil {
-		slog.Warn("xagent channel: failed to send", "err", err)
+		slog.Warn("gritz channel: failed to send", "err", err)
 	}
 }
 
@@ -86,7 +86,7 @@ func (c *Channel) Forward(ctx context.Context, n model.Notification) {
 func (c *Channel) AddTools(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "channel_mute",
-		Description: "Stop receiving xagent channel notifications (queued, woken, " +
+		Description: "Stop receiving gritz channel notifications (queued, woken, " +
 			"completed, failed, cancelled, archived) for the given tasks. You are " +
 			"subscribed to every task by default; pass task_ids to mute tasks you no " +
 			"longer care about, or all=true to mute every task at once. After " +
@@ -99,7 +99,7 @@ func (c *Channel) AddTools(server *mcp.Server) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "channel_unmute",
-		Description: "Resume receiving xagent channel notifications for tasks " +
+		Description: "Resume receiving gritz channel notifications for tasks " +
 			"previously muted with channel_mute. Pass task_ids to unmute specific " +
 			"tasks, or all=true to clear the whole mute set and go back to the " +
 			"subscribe-all default. After channel_mute(all=true), unmuting specific " +

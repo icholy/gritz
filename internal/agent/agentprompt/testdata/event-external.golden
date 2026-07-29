@@ -2,7 +2,7 @@
 
 Type: github - pull_request_review_comment
 Description: icholy commented on driver.go
-URL: https://github.com/icholy/xagent/pull/1394#discussion_r512
+URL: https://github.com/icholy/gritz/pull/1394#discussion_r512
 
 This nil check needs a test before we merge — can you add one that covers the wake path?
 

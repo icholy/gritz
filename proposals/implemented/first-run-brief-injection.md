@@ -1,6 +1,6 @@
 # Inject the Full Task Brief Into the First-Run Prompt
 
-Issue: https://github.com/icholy/xagent/issues/1398
+Issue: https://github.com/icholy/gritz/issues/1398
 
 ## Problem
 
@@ -11,7 +11,7 @@ instruction + external **events** and injects them straight into the wake prompt
 instruction that tells the agent to go fetch its own context:
 
 ```
-Use xagent:get_my_task to fetch your task instructions and execute them.
+Use gritz:get_my_task to fetch your task instructions and execute them.
 ...
 ```
 
@@ -86,7 +86,7 @@ than shared with `agentmcp`. `agentprompt` gains a self-contained brief renderer
 // to avoid an import cycle (see the package doc), and the two renderings are
 // meant to diverge — this one is free to grow a more readable form for a model
 // reading it cold, while get_my_task is free to be reshaped for its own callers.
-func RenderBrief(resp *xagentv1.GetTaskDetailsResponse) (string, error)
+func RenderBrief(resp *gritzv1.GetTaskDetailsResponse) (string, error)
 ```
 
 The initial implementation builds the same `map[string]any` and marshals it the
@@ -151,9 +151,9 @@ already calls this shape of RPC. `runAgent` (`internal/agent/driver.go:147`)
 gains a first-run-only fetch:
 
 ```go
-var details *xagentv1.GetTaskDetailsResponse
+var details *gritzv1.GetTaskDetailsResponse
 if !cfg.Started {
-    details, err = d.Client.GetTaskDetails(ctx, &xagentv1.GetTaskDetailsRequest{Id: d.TaskID})
+    details, err = d.Client.GetTaskDetails(ctx, &gritzv1.GetTaskDetailsRequest{Id: d.TaskID})
     if err != nil {
         return fmt.Errorf("failed to fetch task brief: %w", err)
     }
@@ -182,12 +182,12 @@ field carrying the brief input:
 type Options struct {
     Started bool
     Prompt  string
-    Events  []*xagentv1.Event
+    Events  []*gritzv1.Event
 
     // TaskDetails is the full task brief rendered into the first-run prompt in
     // place of the get_my_task bootstrap instruction. It is nil on wake runs
     // (Started == true), where the wake branch renders Events instead.
-    TaskDetails *xagentv1.GetTaskDetailsResponse
+    TaskDetails *gritzv1.GetTaskDetailsResponse
 }
 ```
 
@@ -219,17 +219,17 @@ Here is your task brief:
 
 {{ RenderBrief .TaskDetails }}
 
-If the task does not have a name, use xagent:update_my_task to set one.
+If the task does not have a name, use gritz:update_my_task to set one.
 
 Each instruction has a 'text' field with the task and an optional 'url' field with the source URL.
 If you have questions, problems, or take no action, respond on the platform from the most recent instruction or event url.
 When responding on external platforms, always suffix your message with (task {id}) with your task id.
 
-When creating links with xagent:create_link, ALWAYS set subscribe=true for resources you create ...
-When done, use xagent:create_link for any URLs you created (PRs, issues, etc).
+When creating links with gritz:create_link, ALWAYS set subscribe=true for resources you create ...
+When done, use gritz:create_link for any URLs you created (PRs, issues, etc).
 Always use web URLs that users can visit, not API URLs.
-Use xagent:report to log important observations.
-If you need to re-check for updates mid-run, call xagent:get_my_task.
+Use gritz:report to log important observations.
+If you need to re-check for updates mid-run, call gritz:get_my_task.
 
 Your text responses are NOT visible to users - only tool calls matter.
 ```
@@ -246,7 +246,7 @@ Dropping the *instruction to call it on the first run* is not the same as
 removing the tool. It remains the mid-run refresh: a long-running agent asking
 "did anything change while I was working?" pulls the current brief on demand. The
 first-run prompt even points at it for exactly that (the trailing "If you need to
-re-check for updates mid-run, call xagent:get_my_task" line). What goes away is
+re-check for updates mid-run, call gritz:get_my_task" line). What goes away is
 the *dependency* on that call for the agent to learn its task at all — the same
 reliability win #946 delivered for the wake path, now on the first run.
 
@@ -280,7 +280,7 @@ tool's current shape.
    `Options.TaskDetails`; wake runs pass nil and are unchanged. Depends on: (1),
    (2). Verifiable by: a driver test asserting the first-run prompt contains the
    fetched brief's fields (name, url, instruction text) and no longer contains
-   "Use xagent:get_my_task to fetch your task instructions", while the wake prompt
+   "Use gritz:get_my_task to fetch your task instructions", while the wake prompt
    is byte-for-byte what it was before.
 
 Layer 1 is the self-contained foundation (dead code plus its own unit test, safe

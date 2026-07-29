@@ -3,7 +3,7 @@ package eventrouter
 import (
 	"strings"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 )
 
 // Match reports whether the rule matches the event. The matcher is generic: it

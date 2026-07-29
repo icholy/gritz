@@ -3,8 +3,8 @@ package apiserver
 import (
 	"testing"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 
@@ -15,7 +15,7 @@ func TestSubmitRunnerEvents(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Create a task (starts as pending with start command)
-	createResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	createResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Test Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -24,15 +24,15 @@ func TestSubmitRunnerEvents(t *testing.T) {
 	taskID := createResp.Task.Id
 
 	// Verify initial state
-	getResp, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: taskID})
+	getResp, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: taskID})
 	assert.NilError(t, err)
-	assert.Equal(t, getResp.Task.Status, xagentv1.TaskStatus_PENDING)
-	assert.Equal(t, getResp.Task.Command, xagentv1.TaskCommand_START)
+	assert.Equal(t, getResp.Task.Status, gritzv1.TaskStatus_PENDING)
+	assert.Equal(t, getResp.Task.Command, gritzv1.TaskCommand_START)
 	assert.Equal(t, getResp.Task.Version, int64(1))
 
 	// Send started event (simulating container start)
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{
 				TaskId:  taskID,
 				Event:   "started",
@@ -43,15 +43,15 @@ func TestSubmitRunnerEvents(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Verify task is running and command is cleared
-	getResp, err = srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: taskID})
+	getResp, err = srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: taskID})
 	assert.NilError(t, err)
-	assert.Equal(t, getResp.Task.Status, xagentv1.TaskStatus_RUNNING)
-	assert.Equal(t, getResp.Task.Command, xagentv1.TaskCommand_NONE)
+	assert.Equal(t, getResp.Task.Status, gritzv1.TaskStatus_RUNNING)
+	assert.Equal(t, getResp.Task.Command, gritzv1.TaskCommand_NONE)
 
 	// Send stopped event (simulating container exit with code 0)
 	// Use version 0 to bypass version check (spontaneous event)
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{
 				TaskId:  taskID,
 				Event:   "stopped",
@@ -62,9 +62,9 @@ func TestSubmitRunnerEvents(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Verify task status was updated to completed
-	getResp, err = srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: taskID})
+	getResp, err = srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: taskID})
 	assert.NilError(t, err)
-	assert.Equal(t, getResp.Task.Status, xagentv1.TaskStatus_COMPLETED)
+	assert.Equal(t, getResp.Task.Status, gritzv1.TaskStatus_COMPLETED)
 }
 
 func TestSubmitRunnerEvents_Permissions(t *testing.T) {
@@ -75,7 +75,7 @@ func TestSubmitRunnerEvents_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}}})
 	ctxB := createCtx(t, orgB)
-	taskResp, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
@@ -83,8 +83,8 @@ func TestSubmitRunnerEvents_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.SubmitRunnerEvents(ctxB, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctxB, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{TaskId: taskResp.Task.Id, Event: "started", Version: 1},
 		},
 	})
@@ -104,13 +104,13 @@ func TestListRunnerTasks(t *testing.T) {
 		},
 	})
 	ctx := createCtx(t, org)
-	_, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task for runner-1",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	_, err = srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task for runner-2",
 		Workspace: "test-workspace",
 		Runner:    "runner-2",
@@ -118,7 +118,7 @@ func TestListRunnerTasks(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListRunnerTasks(ctx, &xagentv1.ListRunnerTasksRequest{
+	resp, err := srv.ListRunnerTasks(ctx, &gritzv1.ListRunnerTasksRequest{
 		Runner: "runner-1",
 	})
 
@@ -138,21 +138,21 @@ func TestListRunnerTasks_OnlyWithCommand(t *testing.T) {
 		},
 	})
 	ctx := createCtx(t, org)
-	taskResp, err := srv.CreateTask(ctx, &xagentv1.CreateTaskRequest{
+	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name:      "Task with command",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
 	})
 	assert.NilError(t, err)
-	_, err = srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{TaskId: taskResp.Task.Id, Event: "started", Version: 1},
 		},
 	})
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListRunnerTasks(ctx, &xagentv1.ListRunnerTasksRequest{
+	resp, err := srv.ListRunnerTasks(ctx, &gritzv1.ListRunnerTasksRequest{
 		Runner: "runner-1",
 	})
 
@@ -174,13 +174,13 @@ func TestListRunnerTasks_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, runnerWorkspaces)
 	ctxB := createCtx(t, orgB)
-	_, err := srv.CreateTask(ctxA, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(ctxA, &gritzv1.CreateTaskRequest{
 		Name:      "User A's Task",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(ctxB, &xagentv1.CreateTaskRequest{
+	_, err = srv.CreateTask(ctxB, &gritzv1.CreateTaskRequest{
 		Name:      "User B's Task",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
@@ -188,11 +188,11 @@ func TestListRunnerTasks_Permissions(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	respA, err := srv.ListRunnerTasks(ctxA, &xagentv1.ListRunnerTasksRequest{
+	respA, err := srv.ListRunnerTasks(ctxA, &gritzv1.ListRunnerTasksRequest{
 		Runner: "runner-1",
 	})
 	assert.NilError(t, err)
-	respB, err := srv.ListRunnerTasks(ctxB, &xagentv1.ListRunnerTasksRequest{
+	respB, err := srv.ListRunnerTasks(ctxB, &gritzv1.ListRunnerTasksRequest{
 		Runner: "runner-1",
 	})
 	assert.NilError(t, err)

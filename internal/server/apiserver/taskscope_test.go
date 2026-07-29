@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 
@@ -53,23 +53,23 @@ func makeArchived(t *testing.T, srv *Server, adminCtx context.Context, org *test
 	task.Status = model.TaskStatusCompleted
 	task.Command = model.TaskCommandNone
 	assert.NilError(t, srv.store.UpdateTask(adminCtx, nil, task))
-	_, err = srv.ArchiveTask(adminCtx, &xagentv1.ArchiveTaskRequest{Id: id})
+	_, err = srv.ArchiveTask(adminCtx, &gritzv1.ArchiveTaskRequest{Id: id})
 	assert.NilError(t, err)
 }
 
 // newOrgWithTasks builds an org with the standard workspace and returns the
 // admin context plus two unrelated tasks in that org.
-func newOrgWithTasks(t *testing.T, srv *Server) (context.Context, *teststore.Org, *xagentv1.Task, *xagentv1.Task) {
+func newOrgWithTasks(t *testing.T, srv *Server) (context.Context, *teststore.Org, *gritzv1.Task, *gritzv1.Task) {
 	t.Helper()
 	org := teststore.CreateOrg(t, srv.store, &teststore.OrgOptions{
 		Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}},
 	})
 	adminCtx := createCtx(t, org)
-	taskA, err := srv.CreateTask(adminCtx, &xagentv1.CreateTaskRequest{
+	taskA, err := srv.CreateTask(adminCtx, &gritzv1.CreateTaskRequest{
 		Name: "A", Runner: "test-runner", Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
-	taskB, err := srv.CreateTask(adminCtx, &xagentv1.CreateTaskRequest{
+	taskB, err := srv.CreateTask(adminCtx, &gritzv1.CreateTaskRequest{
 		Name: "B", Runner: "test-runner", Workspace: "test-workspace",
 	})
 	assert.NilError(t, err)
@@ -86,11 +86,11 @@ func TestTaskScope_GetTask_OwnAllowed_OtherDenied(t *testing.T) {
 	own := scopedCtx(t, org, taskScopes(taskA.Id))
 
 	// Own task is always readable.
-	_, err := srv.GetTask(own, &xagentv1.GetTaskRequest{Id: taskA.Id})
+	_, err := srv.GetTask(own, &gritzv1.GetTaskRequest{Id: taskA.Id})
 	assert.NilError(t, err)
 
 	// Any other task is denied.
-	_, err = srv.GetTask(own, &xagentv1.GetTaskRequest{Id: taskB.Id})
+	_, err = srv.GetTask(own, &gritzv1.GetTaskRequest{Id: taskB.Id})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 }
 
@@ -101,9 +101,9 @@ func TestTaskScope_UpdateTask_OwnAllowed_OtherDenied(t *testing.T) {
 
 	own := scopedCtx(t, org, taskScopes(taskA.Id))
 
-	_, err := srv.UpdateTask(own, &xagentv1.UpdateTaskRequest{Id: taskA.Id, Name: "renamed"})
+	_, err := srv.UpdateTask(own, &gritzv1.UpdateTaskRequest{Id: taskA.Id, Name: "renamed"})
 	assert.NilError(t, err)
-	_, err = srv.UpdateTask(own, &xagentv1.UpdateTaskRequest{Id: taskB.Id, Name: "hijack"})
+	_, err = srv.UpdateTask(own, &gritzv1.UpdateTaskRequest{Id: taskB.Id, Name: "hijack"})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 }
 
@@ -114,7 +114,7 @@ func TestTaskScope_CreateTask_Denied(t *testing.T) {
 	_, org, taskA, _ := newOrgWithTasks(t, srv)
 
 	own := scopedCtx(t, org, taskScopes(taskA.Id))
-	_, err := srv.CreateTask(own, &xagentv1.CreateTaskRequest{
+	_, err := srv.CreateTask(own, &gritzv1.CreateTaskRequest{
 		Runner: "test-runner", Workspace: "test-workspace",
 	})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
@@ -142,16 +142,16 @@ func TestTaskScope_ArchivedGating(t *testing.T) {
 	}
 
 	// An active task carries task.archived:"false" → matches → allowed.
-	_, err := srv.GetTask(scopedCtx(t, org, readScope(active.Id)), &xagentv1.GetTaskRequest{Id: active.Id})
+	_, err := srv.GetTask(scopedCtx(t, org, readScope(active.Id)), &gritzv1.GetTaskRequest{Id: active.Id})
 	assert.NilError(t, err)
 
 	// An archived task carries task.archived:"true" → fails the "false"
 	// predicate → denied, for reads...
-	_, err = srv.GetTask(scopedCtx(t, org, readScope(archived.Id)), &xagentv1.GetTaskRequest{Id: archived.Id})
+	_, err = srv.GetTask(scopedCtx(t, org, readScope(archived.Id)), &gritzv1.GetTaskRequest{Id: archived.Id})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 
 	// ...and writes (this is the unarchive-resurrect hole, closed for free).
-	_, err = srv.UnarchiveTask(scopedCtx(t, org, writeScope(archived.Id)), &xagentv1.UnarchiveTaskRequest{Id: archived.Id})
+	_, err = srv.UnarchiveTask(scopedCtx(t, org, writeScope(archived.Id)), &gritzv1.UnarchiveTaskRequest{Id: archived.Id})
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 }
 
@@ -169,50 +169,50 @@ func taskInstanceHandlers() []struct {
 		call func(ctx context.Context, srv *Server, id int64) error
 	}{
 		{"GetTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.GetTask(ctx, &xagentv1.GetTaskRequest{Id: id})
+			_, err := srv.GetTask(ctx, &gritzv1.GetTaskRequest{Id: id})
 			return err
 		}},
 		{"UpdateTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.UpdateTask(ctx, &xagentv1.UpdateTaskRequest{Id: id, Name: "x"})
+			_, err := srv.UpdateTask(ctx, &gritzv1.UpdateTaskRequest{Id: id, Name: "x"})
 			return err
 		}},
 		{"ArchiveTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.ArchiveTask(ctx, &xagentv1.ArchiveTaskRequest{Id: id})
+			_, err := srv.ArchiveTask(ctx, &gritzv1.ArchiveTaskRequest{Id: id})
 			return err
 		}},
 		{"UnarchiveTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.UnarchiveTask(ctx, &xagentv1.UnarchiveTaskRequest{Id: id})
+			_, err := srv.UnarchiveTask(ctx, &gritzv1.UnarchiveTaskRequest{Id: id})
 			return err
 		}},
 		{"CancelTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.CancelTask(ctx, &xagentv1.CancelTaskRequest{Id: id})
+			_, err := srv.CancelTask(ctx, &gritzv1.CancelTaskRequest{Id: id})
 			return err
 		}},
 		{"RestartTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.RestartTask(ctx, &xagentv1.RestartTaskRequest{Id: id})
+			_, err := srv.RestartTask(ctx, &gritzv1.RestartTaskRequest{Id: id})
 			return err
 		}},
 		{"CreateLink", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.CreateLink(ctx, &xagentv1.CreateLinkRequest{TaskId: id, Url: "https://example.com/x"})
+			_, err := srv.CreateLink(ctx, &gritzv1.CreateLinkRequest{TaskId: id, Url: "https://example.com/x"})
 			return err
 		}},
 		{"ListLinks", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: id})
+			_, err := srv.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: id})
 			return err
 		}},
 		{"UploadLogs", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.UploadLogs(ctx, &xagentv1.UploadLogsRequest{
-				TaskId: id, Entries: []*xagentv1.LogEntry{{Type: "llm", Content: "x"}},
+			_, err := srv.UploadLogs(ctx, &gritzv1.UploadLogsRequest{
+				TaskId: id, Entries: []*gritzv1.LogEntry{{Type: "llm", Content: "x"}},
 			})
 			return err
 		}},
 		{"ListEventsByTask", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.ListEventsByTask(ctx, &xagentv1.ListEventsByTaskRequest{TaskId: id})
+			_, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: id})
 			return err
 		}},
 		{"SubmitRunnerEvents", func(ctx context.Context, srv *Server, id int64) error {
-			_, err := srv.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-				Events: []*xagentv1.RunnerEvent{{TaskId: id, Event: "started", Version: 1}},
+			_, err := srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+				Events: []*gritzv1.RunnerEvent{{TaskId: id, Event: "started", Version: 1}},
 			})
 			return err
 		}},
@@ -244,8 +244,8 @@ func TestTaskScope_SubmitRunnerEvents_PartialBatch(t *testing.T) {
 	adminCtx, org, taskA, taskB := newOrgWithTasks(t, srv)
 
 	ctxA := scopedCtx(t, org, taskScopes(taskA.Id))
-	_, err := srv.SubmitRunnerEvents(ctxA, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{
+	_, err := srv.SubmitRunnerEvents(ctxA, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{
 			{TaskId: taskA.Id, Event: "started", Version: 1},
 			{TaskId: taskB.Id, Event: "started", Version: 1},
 		},
@@ -253,7 +253,7 @@ func TestTaskScope_SubmitRunnerEvents_PartialBatch(t *testing.T) {
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 
 	// The own-task event was applied before the foreign one was rejected.
-	got, err := srv.GetTask(adminCtx, &xagentv1.GetTaskRequest{Id: taskA.Id})
+	got, err := srv.GetTask(adminCtx, &gritzv1.GetTaskRequest{Id: taskA.Id})
 	assert.NilError(t, err)
-	assert.Equal(t, got.Task.Status, xagentv1.TaskStatus_RUNNING)
+	assert.Equal(t, got.Task.Status, gritzv1.TaskStatus_RUNNING)
 }

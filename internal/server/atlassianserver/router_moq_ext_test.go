@@ -1,7 +1,7 @@
 package atlassianserver
 
 import (
-	"github.com/icholy/xagent/internal/eventrouter"
+	"github.com/icholy/gritz/internal/eventrouter"
 )
 
 // RoutedInputs returns the input event of every Route call, in call order.

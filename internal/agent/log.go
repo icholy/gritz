@@ -12,10 +12,10 @@ import (
 // file. Like DefaultConfigStore, it is a fixed convention shared across the
 // runner/driver boundary: the runner pre-creates its parent directory (0777)
 // and the driver tees all of its output into it so a completed run can be
-// inspected post-mortem via the reverse-shell. It lives under /xagent (the
+// inspected post-mortem via the reverse-shell. It lives under /gritz (the
 // container's writable layer, preserved across adopted runs) rather than
 // /tmp, which may be a tmpfs or cleared by a setup step.
-const DefaultLogPath = "/xagent/log"
+const DefaultLogPath = "/gritz/log"
 
 // nopWriteCloser adds a no-op Close to an io.Writer so the caller can always
 // defer Close regardless of whether the real file opened.
@@ -49,7 +49,7 @@ func OpenLogSink(logPath string) (io.WriteCloser, error) {
 // DriverLog bundles the driver's structured logger with the raw byte sink they
 // both feed, so the two travel together as a single value instead of as loose
 // fields. The embedded slog.Logger writes to os.Stderr and the sink; Sink is
-// the append-only /xagent/log file the driver tees setup command and Claude CLI
+// the append-only /gritz/log file the driver tees setup command and Claude CLI
 // stdio into. Close releases the underlying log file.
 //
 // os.Stderr stays in the tee, so docker logs output is unchanged.

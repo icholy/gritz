@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/agentauth"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/agentauth"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 
@@ -25,7 +25,7 @@ func TestCreateTaskToken(t *testing.T) {
 	})
 	ctx := createCtx(t, org)
 
-	resp, err := srv.CreateTaskToken(ctx, &xagentv1.CreateTaskTokenRequest{
+	resp, err := srv.CreateTaskToken(ctx, &gritzv1.CreateTaskTokenRequest{
 		TaskId:       task.ID,
 		Capabilities: []string{agentauth.CapabilityGitHubToken},
 	})
@@ -58,7 +58,7 @@ func TestCreateTaskToken_InvalidCapability(t *testing.T) {
 		Workspace: "test-workspace",
 	})
 
-	_, err = srv.CreateTaskToken(createCtx(t, org), &xagentv1.CreateTaskTokenRequest{
+	_, err = srv.CreateTaskToken(createCtx(t, org), &gritzv1.CreateTaskTokenRequest{
 		TaskId:       task.ID,
 		Capabilities: []string{"bogus"},
 	})
@@ -81,7 +81,7 @@ func TestCreateTaskToken_Denied(t *testing.T) {
 	// A present-but-scopeless caller lacks the task_token.create capability.
 	ctx := apiauth.WithUser(t.Context(), &apiauth.UserInfo{ID: org.UserID, OrgID: org.OrgID})
 
-	_, err = srv.CreateTaskToken(ctx, &xagentv1.CreateTaskTokenRequest{TaskId: task.ID})
+	_, err = srv.CreateTaskToken(ctx, &gritzv1.CreateTaskTokenRequest{TaskId: task.ID})
 
 	assert.Equal(t, connect.CodeOf(err), connect.CodePermissionDenied)
 }
@@ -102,7 +102,7 @@ func TestCreateTaskToken_CrossOrg(t *testing.T) {
 	})
 
 	// orgB's caller cannot mint a token for orgA's task; the org-scoped read hides it.
-	_, err = srv.CreateTaskToken(createCtx(t, orgB), &xagentv1.CreateTaskTokenRequest{TaskId: task.ID})
+	_, err = srv.CreateTaskToken(createCtx(t, orgB), &gritzv1.CreateTaskTokenRequest{TaskId: task.ID})
 
 	assert.Equal(t, connect.CodeOf(err), connect.CodeNotFound)
 }

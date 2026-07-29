@@ -11,8 +11,8 @@ import {
   getOrgSettings,
   generateAtlassianWebhookSecret,
   linkGitHubInstallation,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { Org } from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { Org } from '@/gen/gritz/v1/gritz_pb'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -186,7 +186,7 @@ function OrgSettings() {
         <CardHeader>
           <CardTitle>MCP Server</CardTitle>
           <CardDescription>
-            xagent provides an MCP server that you can connect to from any MCP-compatible client.
+            gritz provides an MCP server that you can connect to from any MCP-compatible client.
           </CardDescription>
         </CardHeader>
         <CardContent>

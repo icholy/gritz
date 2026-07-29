@@ -13,13 +13,13 @@ dbmate = "2.33.0"
 "aqua:golangci/golangci-lint" = "2.12.2"
 
 [tasks.build]
-description = "Build xagent binaries for all architectures"
+description = "Build gritz binaries for all architectures"
 depends = ["build:webui"]
 run = [
-	"CGO_ENABLED=0 go build -o xagent ./cmd/xagent",
+	"CGO_ENABLED=0 go build -o gritz ./cmd/gritz",
 	"mkdir -p prebuilt",
-	"CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o prebuilt/xagent-linux-amd64 ./cmd/xagent",
-	"CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o prebuilt/xagent-linux-arm64 ./cmd/xagent",
+	"CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o prebuilt/gritz-linux-amd64 ./cmd/gritz",
+	"CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o prebuilt/gritz-linux-arm64 ./cmd/gritz",
 ]
 
 [tasks."build:webui"]
@@ -41,7 +41,7 @@ run = "cd webui && pnpm install --frozen-lockfile && pnpm exec vite build"
 description = "Start a local server + runner in Docker"
 depends = ["build:webui"]
 run = [
-	"CGO_ENABLED=0 GOOS=linux go build -o xagent ./cmd/xagent",
+	"CGO_ENABLED=0 GOOS=linux go build -o gritz ./cmd/gritz",
 	"docker compose -f docker-compose.dev.yml up --build",
 ]
 
@@ -51,10 +51,10 @@ depends = ["build:webui"]
 run = "cd webui && pnpm install --frozen-lockfile && pnpm dev"
 
 [tasks.install]
-description = "Build and install xagent bin"
+description = "Build and install gritz bin"
 run = [
 	"cd webui && pnpm install --frozen-lockfile && pnpm exec vite build",
-	"CGO_ENABLED=0 go build -o $(go env GOPATH)/bin/xagent ./cmd/xagent",
+	"CGO_ENABLED=0 go build -o $(go env GOPATH)/bin/gritz ./cmd/gritz",
 ]
 
 [tasks.generate]
@@ -70,18 +70,18 @@ run = "docker compose -f docker-compose.test.yml up -d --wait postgres"
 
 [tasks.migrate]
 description = "Run database migrations"
-env = { DATABASE_URL = "postgres://xagent:xagent@localhost:5433/xagent?sslmode=disable" }
+env = { DATABASE_URL = "postgres://gritz:gritz@localhost:5433/gritz?sslmode=disable" }
 run = "go run ./cmd/migrate"
 
 [tasks.dbmate]
 description = "Run dbmate CLI against the local database (for experiments)"
-env = { DATABASE_URL = "postgres://xagent:xagent@localhost:5433/xagent?sslmode=disable", DBMATE_MIGRATIONS_DIR = "internal/store/sql/migrations", DBMATE_SCHEMA_FILE = "internal/store/sql/schema.sql" }
+env = { DATABASE_URL = "postgres://gritz:gritz@localhost:5433/gritz?sslmode=disable", DBMATE_MIGRATIONS_DIR = "internal/store/sql/migrations", DBMATE_SCHEMA_FILE = "internal/store/sql/schema.sql" }
 run = "dbmate"
 
 [tasks.test]
 description = "Run tests"
 depends = ["migrate"]
-env = { TEST_DATABASE_URL = "postgres://xagent:xagent@localhost:5433/xagent?sslmode=disable" }
+env = { TEST_DATABASE_URL = "postgres://gritz:gritz@localhost:5433/gritz?sslmode=disable" }
 run = "go test ./..."
 
 [tasks.lint]
@@ -105,11 +105,11 @@ run = "cat .env | fly secrets import"
 
 [tasks.psql]
 description = "Connect to the local database"
-run = "psql postgres://xagent:xagent@localhost:5433/xagent?sslmode=disable"
+run = "psql postgres://gritz:gritz@localhost:5433/gritz?sslmode=disable"
 
 [tasks.logs]
 description = "View production logs"
-run = "flyctl logs -a xagent"
+run = "flyctl logs -a gritz"
 
 [tasks.diagrams]
 description = "Render d2 diagrams to images/"

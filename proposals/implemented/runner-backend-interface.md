@@ -25,7 +25,7 @@ What the runner does today splits cleanly into two layers:
 - Concurrency control (`safesem.Semaphore`) and wake-up signalling
 - Event buffering and retry (`EventQueue`)
 - Task token minting (`CreateTaskToken` RPC, `runner.go:386`)
-- Agent config construction, including the injected `xagent` MCP server (`runner.go:416-436`)
+- Agent config construction, including the injected `gritz` MCP server (`runner.go:416-436`)
 - Reconcile policy (an exited sandbox whose task is still `running` → `failed`)
 - Prune policy (remove sandboxes whose tasks are archived or deleted)
 - Workspace registration
@@ -62,7 +62,7 @@ type Spec struct {
 	TaskID    int64
 	Workspace *workspace.Workspace
 	Cmd       []string // driver invocation
-	Env       []string // XAGENT_TASK_ID / XAGENT_TOKEN / XAGENT_SERVER
+	Env       []string // GRITZ_TASK_ID / GRITZ_TOKEN / GRITZ_SERVER
 	Files     []File   // agent config; the driver binary is the backend's job
 }
 
@@ -149,11 +149,11 @@ Building the spec replaces the first half of today's `create`:
 func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, error) {
 	ws, err := r.workspaces.Get(task.Workspace)
 	// ... CreateTaskToken RPC (unchanged, runner.go:386-393)
-	// ... ws.AgentConfig() + xagent MCP server injection (unchanged, runner.go:416-432)
+	// ... ws.AgentConfig() + gritz MCP server injection (unchanged, runner.go:416-432)
 	return &backend.Spec{
 		TaskID:    task.ID,
 		Workspace: ws,
-		Cmd:       []string{"/usr/local/bin/xagent", "driver", "--server", r.serverURL, ...},
+		Cmd:       []string{"/usr/local/bin/gritz", "driver", "--server", r.serverURL, ...},
 		Env:       []string{...},
 		Files: []backend.File{
 			{Path: path.Dir(agent.ConfigPath(task.ID)), Mode: 0777, Dir: true},
@@ -167,7 +167,7 @@ One behavioral nit: today the token is only minted when a container is created; 
 
 ### Driver binary provisioning is the backend's job
 
-`spec.Cmd` references `/usr/local/bin/xagent`; making that binary present and executable is part of the backend's `Start` contract, not a `File` in the spec. Two reasons:
+`spec.Cmd` references `/usr/local/bin/gritz`; making that binary present and executable is part of the backend's `Start` contract, not a `File` in the spec. Two reasons:
 
 1. **Architecture selection is runtime-specific.** The Docker backend learns the arch from `ImageEnsure`'s inspect result and reads the matching prebuilt binary. A Kubernetes backend can't know node architecture when building a pod spec.
 2. **Injection mechanics are runtime-specific.** Docker copies a tar into the created container. Kubernetes/ECS sandboxes will need a different strategy — the binary baked into the workspace image, or a bootstrap/init step that downloads it (plausibly from the server; see Open Questions).
@@ -189,10 +189,10 @@ No schema changes. The `container:` section of `workspaces.yaml` is reinterprete
 ### CLI
 
 ```
-xagent runner --backend docker
+gritz runner --backend docker
 ```
 
-A new `--backend` flag (env `XAGENT_BACKEND`, default `docker`) selects the implementation. `internal/command/runner.go` constructs the backend and passes it in:
+A new `--backend` flag (env `GRITZ_BACKEND`, default `docker`) selects the implementation. `internal/command/runner.go` constructs the backend and passes it in:
 
 ```go
 be, err := dockerbackend.New(dockerbackend.Options{RunnerID: runnerID, Log: log})
@@ -226,9 +226,9 @@ internal/runner/
 
 ### Testing
 
-`runner_test.go` currently mocks the server (`xagentclient.ClientMock`) but requires a real Docker daemon and the prebuilt binaries. With the seam in place:
+`runner_test.go` currently mocks the server (`gritzclient.ClientMock`) but requires a real Docker daemon and the prebuilt binaries. With the seam in place:
 
-- The orchestrator (`Poll` dispatch, reconcile/prune policy, monitor handling, semaphore accounting) gets unit tests against a moq-generated `BackendMock` — same pattern as `xagentclient.ClientMock` and the existing `dockerx` moq interfaces — with no Docker dependency.
+- The orchestrator (`Poll` dispatch, reconcile/prune policy, monitor handling, semaphore accounting) gets unit tests against a moq-generated `BackendMock` — same pattern as `gritzclient.ClientMock` and the existing `dockerx` moq interfaces — with no Docker dependency.
 - The existing end-to-end tests move to `backend/docker` (and stay as the integration tests for `runner` wired to the real Docker backend).
 
 ### No proto, schema, or driver changes

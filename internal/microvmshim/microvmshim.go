@@ -1,5 +1,5 @@
 // Package microvmshim implements the in-MicroVM application that runs as the
-// Lambda MicroVMs image entrypoint (`xagent tool microvm-shim`). It exposes two
+// Lambda MicroVMs image entrypoint (`gritz tool microvm-shim`). It exposes two
 // surfaces on two separate HTTP servers/ports:
 //
 //   - The AWS lifecycle hooks under /aws/lambda-microvms/runtime/v1/ (Lambda →
@@ -7,12 +7,12 @@
 //     control-plane-internal: Lambda cannot reach the hooks on the ingress port,
 //     so they get their own port, which must match the create-microvm-image
 //     `--hooks port=...` declaration.
-//   - The xagent control surface under /xagent/ (runner → shim over the managed
+//   - The gritz control surface under /gritz/ (runner → shim over the managed
 //     proxy) on the ingress port (awsmicrovm.DefaultPort, 8080).
 //
 // The shim decouples provisioning (the task's files, once) from spawning the
 // driver (every run — the first /run and every /resume). It supervises the
-// driver and notifies the runner of its exit over the /xagent/lifecycle SSE
+// driver and notifies the runner of its exit over the /gritz/lifecycle SSE
 // stream. It holds NO AWS credentials and makes NO control-plane calls: all
 // suspend/resume/terminate authority lives with the runner. See
 // proposals/draft/lambda-microvm-backend.md.
@@ -33,16 +33,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/icholy/xagent/internal/runner/backend/lambdamicrovm"
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/runner/backend/lambdamicrovm"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/x/sse"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	// provisionedMarker gates one-time file provisioning so a resumed VM does
 	// not clobber the driver's setup markers.
-	provisionedMarker = "/xagent/.provisioned"
+	provisionedMarker = "/gritz/.provisioned"
 
 	defaultGrace    = 30 * time.Second
 	keepAlivePeriod = 15 * time.Second
@@ -61,7 +61,7 @@ type Process interface {
 	Kill() error
 }
 
-// Server implements the MicroVM lifecycle hooks and the xagent control surface.
+// Server implements the MicroVM lifecycle hooks and the gritz control surface.
 // The zero value (with optional fields set) is usable.
 type Server struct {
 	// Fetch downloads the staged bundle from the /run payload URL. Defaults to
@@ -106,8 +106,8 @@ func (s *Server) HooksHandler() http.Handler {
 	}
 }
 
-// ControlHandler returns the HTTP handler for the xagent control surface
-// (/xagent/lifecycle + /xagent/stop). It is served on the ingress port, reached
+// ControlHandler returns the HTTP handler for the gritz control surface
+// (/gritz/lifecycle + /gritz/stop). It is served on the ingress port, reached
 // by the runner over the managed proxy.
 func (s *Server) ControlHandler() http.Handler {
 	mux := http.NewServeMux()
@@ -116,15 +116,15 @@ func (s *Server) ControlHandler() http.Handler {
 	return mux
 }
 
-// Paths of the xagent control surface, kept in sync with the backend.
+// Paths of the gritz control surface, kept in sync with the backend.
 const (
-	lambdamicrovmLifecyclePath = "/xagent/lifecycle"
-	lambdamicrovmStopPath      = "/xagent/stop"
+	lambdamicrovmLifecyclePath = "/gritz/lifecycle"
+	lambdamicrovmStopPath      = "/gritz/stop"
 )
 
 // ListenAndServe serves the two surfaces on two separate ports until ctx is
 // cancelled: the AWS lifecycle hooks on hookAddr (control-plane-internal) and
-// the xagent control surface on ctrlAddr (the ingress port the runner reaches
+// the gritz control surface on ctrlAddr (the ingress port the runner reaches
 // over the proxy). It returns if either server fails.
 func (s *Server) ListenAndServe(ctx context.Context, ctrlAddr, hookAddr string) error {
 	g, ctx := errgroup.WithContext(ctx)
@@ -216,7 +216,7 @@ func (s *Server) suspendHook(_ context.Context, _ awsmicrovm.SuspendHookRequest)
 // terminateHook handles the AWS /terminate hook (AWS-only), called by Lambda
 // before releasing resources on a real terminate-microvm. It is a last-chance
 // SIGTERM of the driver if it is somehow still running. The runner never POSTs
-// it; graceful stop is /xagent/stop.
+// it; graceful stop is /gritz/stop.
 func (s *Server) terminateHook(_ context.Context, _ awsmicrovm.TerminateHookRequest) error {
 	s.stopDriver()
 	return nil
@@ -236,7 +236,7 @@ func (s *Server) validateHook(context.Context, awsmicrovm.ValidateHookRequest) e
 	return nil
 }
 
-// stopHandler handles POST /xagent/stop — the runner's graceful stop over the
+// stopHandler handles POST /gritz/stop — the runner's graceful stop over the
 // proxy: SIGTERM → grace → SIGKILL the driver. Its exit then drives the suspend
 // like any other completion.
 func (s *Server) stopHandler(w http.ResponseWriter, _ *http.Request) {
@@ -244,7 +244,7 @@ func (s *Server) stopHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// lifecycleHandler handles GET /xagent/lifecycle — the SSE stream. It replays
+// lifecycleHandler handles GET /gritz/lifecycle — the SSE stream. It replays
 // the sticky driver-exited immediately (so an exit during a runner disconnect is
 // delivered on reconnect) and then streams live events plus keep-alives.
 func (s *Server) lifecycleHandler(w http.ResponseWriter, r *http.Request) {

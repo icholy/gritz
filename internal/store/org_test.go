@@ -4,10 +4,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store"
-	"github.com/icholy/xagent/internal/store/teststore"
-	"github.com/icholy/xagent/internal/x/testx"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store"
+	"github.com/icholy/gritz/internal/store/teststore"
+	"github.com/icholy/gritz/internal/x/testx"
 	"gotest.tools/v3/assert"
 )
 

@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store"
 )
 
 // StoreKeyValidator implements apiauth.KeyValidator using the store.

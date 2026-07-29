@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/shell"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/shell"
 )
 
 // OpenShell opens an interactive debug shell into a finished task's sandbox. It
@@ -24,7 +24,7 @@ import (
 //
 // Authorization mirrors RestartTask: opening a root shell into a sandbox is at
 // least as powerful as restarting it, so it is gated on task-write.
-func (s *Server) OpenShell(ctx context.Context, req *xagentv1.OpenShellRequest) (*xagentv1.OpenShellResponse, error) {
+func (s *Server) OpenShell(ctx context.Context, req *gritzv1.OpenShellRequest) (*gritzv1.OpenShellResponse, error) {
 	caller := apiauth.MustCaller(ctx)
 	// Coarse, fail-fast capability gate before entering the transaction (AllowOp
 	// ignores predicates); the per-instance check runs inside the tx against the
@@ -118,5 +118,5 @@ func (s *Server) OpenShell(ctx context.Context, req *xagentv1.OpenShellRequest) 
 	}
 	s.log.InfoContext(ctx, "shell session opened", "session", sessionID)
 	s.publish(notification)
-	return &xagentv1.OpenShellResponse{SessionId: sessionID}, nil
+	return &gritzv1.OpenShellResponse{SessionId: sessionID}, nil
 }

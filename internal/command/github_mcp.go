@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/icholy/xagent/internal/githubmcp"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/githubmcp"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -17,13 +17,13 @@ var GitHubMCPCommand = &cli.Command{
 		&cli.StringFlag{
 			Name:    "server",
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
-			Sources: cli.EnvVars("XAGENT_SERVER"),
+			Value:   gritzclient.DefaultURL,
+			Sources: cli.EnvVars("GRITZ_SERVER"),
 		},
 		&cli.StringFlag{
 			Name:    "token",
 			Usage:   "Authentication token",
-			Sources: cli.EnvVars("XAGENT_TOKEN"),
+			Sources: cli.EnvVars("GRITZ_TOKEN"),
 		},
 		&cli.StringFlag{
 			Name:  "url",
@@ -38,7 +38,7 @@ var GitHubMCPCommand = &cli.Command{
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		return githubmcp.New(githubmcp.Config{
-			Client: xagentclient.New(xagentclient.Options{
+			Client: gritzclient.New(gritzclient.Options{
 				BaseURL: cmd.String("server"),
 				Token:   cmd.String("token"),
 			}),

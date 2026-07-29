@@ -6,8 +6,8 @@ import {
   listTasks,
   archiveTask,
   unarchiveTask,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { Task } from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { Task } from '@/gen/gritz/v1/gritz_pb'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import { canArchiveTask, canUnarchiveTask } from '@/lib/task'
 import {

@@ -1,5 +1,5 @@
 // Package docker implements the runner backend on the local Docker daemon.
-// Containers are named xagent-{task-id} and labelled with the owning runner
+// Containers are named gritz-{task-id} and labelled with the owning runner
 // so multiple runners can share a daemon.
 package docker
 
@@ -18,10 +18,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-	"github.com/icholy/xagent/internal/runner/backend"
-	"github.com/icholy/xagent/internal/runner/prebuilt"
-	"github.com/icholy/xagent/internal/runner/workspace"
-	"github.com/icholy/xagent/internal/x/dockerx"
+	"github.com/icholy/gritz/internal/runner/backend"
+	"github.com/icholy/gritz/internal/runner/prebuilt"
+	"github.com/icholy/gritz/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/x/dockerx"
 )
 
 // HandleType is the backend.Handle.Type the Docker backend stamps on the
@@ -79,7 +79,7 @@ func (b *Backend) inspectID(ctx context.Context, ref string) (string, bool, erro
 // handle the runner persists (the container id). With a reuse handle the exact
 // recorded container is adopted in place so its filesystem persists across
 // restarts; if that container is gone Launch returns backend.ErrGone rather than
-// creating a fresh one. Without a reuse handle a fresh xagent-{taskID} container
+// creating a fresh one. Without a reuse handle a fresh gritz-{taskID} container
 // is created (a task's first start).
 func (b *Backend) Launch(ctx context.Context, spec *backend.Spec, reuse *backend.Handle) (backend.Handle, error) {
 	containerID, err := b.ensure(ctx, spec, reuse)
@@ -160,9 +160,9 @@ func (b *Backend) create(ctx context.Context, spec *backend.Spec) (string, error
 			Image: wc.Image,
 			User:  wc.User,
 			Labels: map[string]string{
-				"xagent":        "true",
-				"xagent.task":   fmt.Sprint(spec.TaskID),
-				"xagent.runner": b.runnerID,
+				"gritz":        "true",
+				"gritz.task":   fmt.Sprint(spec.TaskID),
+				"gritz.runner": b.runnerID,
 			},
 			Cmd:        spec.Cmd,
 			Env:        append(wc.Environ(), spec.Env...),
@@ -177,7 +177,7 @@ func (b *Backend) create(ctx context.Context, spec *backend.Spec) (string, error
 		},
 		wc.NetworkingConfig(),
 		nil,
-		fmt.Sprintf("xagent-%d", spec.TaskID),
+		fmt.Sprintf("gritz-%d", spec.TaskID),
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)

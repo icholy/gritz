@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@connectrpc/connect-query'
-import { getRoutingRules, setRoutingRules } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { getRoutingRules, setRoutingRules } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { Card, CardContent } from '@/components/ui/card'
 import { useOrgId } from '@/hooks/use-org-id'
 import { RoutingRuleForm } from '@/components/routing-rule-form'

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@connectrpc/connect-query'
-import { createTask, listWorkspaces } from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
+import { createTask, listWorkspaces } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useOrgId } from '@/hooks/use-org-id'
 import { useOrgLocalStorage } from '@/hooks/use-org-local-storage'
 import { Button } from '@/components/ui/button'
@@ -27,8 +27,8 @@ function NewTaskPage() {
   const orgId = useOrgId()
 
   const [name, setName] = useState('')
-  const [runner, setRunner] = useOrgLocalStorage('xagent-last-runner', '')
-  const [workspace, setWorkspace] = useOrgLocalStorage('xagent-last-workspace', '')
+  const [runner, setRunner] = useOrgLocalStorage('gritz-last-runner', '')
+  const [workspace, setWorkspace] = useOrgLocalStorage('gritz-last-workspace', '')
   const [instruction, setInstruction] = useState('')
   const [namespace, setNamespace] = useState('')
   const [autoArchive, setAutoArchive] = useState<string>('') // empty = never

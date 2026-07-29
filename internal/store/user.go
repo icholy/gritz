@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store/sqlc"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store/sqlc"
 )
 
 func (s *Store) UpsertUser(ctx context.Context, tx *sql.Tx, user *model.User) error {

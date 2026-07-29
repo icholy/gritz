@@ -1,6 +1,6 @@
-# n8n-nodes-xagent
+# n8n-nodes-gritz
 
-n8n community node for [xagent](https://github.com/icholy/xagent) task orchestration.
+n8n community node for [gritz](https://github.com/icholy/gritz) task orchestration.
 
 ## Operations
 
@@ -16,11 +16,11 @@ Create, Update, and Archive support an optional **Wait for Completion** toggle t
 
 ## Credentials
 
-The node authenticates using an xagent API key. You can create one from the xagent web UI or via the `xagent` CLI.
+The node authenticates using an gritz API key. You can create one from the gritz web UI or via the `gritz` CLI.
 
 Configure the credential with:
-- **Server URL**: Your xagent server URL (e.g. `https://xagent.example.com`)
-- **API Key**: An API key generated from xagent
+- **Server URL**: Your gritz server URL (e.g. `https://gritz.example.com`)
+- **API Key**: An API key generated from gritz
 
 ## Development
 
@@ -34,5 +34,5 @@ To test locally, link the package into your n8n installation:
 ```bash
 pnpm link --global
 cd /path/to/n8n
-pnpm link --global n8n-nodes-xagent
+pnpm link --global n8n-nodes-gritz
 ```

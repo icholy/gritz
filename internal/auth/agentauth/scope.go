@@ -3,7 +3,7 @@ package agentauth
 import (
 	"slices"
 
-	"github.com/icholy/xagent/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/auth/authscope"
 )
 
 // ScopeOptions describes the task identity and workspace capabilities a token's

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/pubsub"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/pubsub"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )
@@ -33,14 +33,14 @@ func TestPlanMatchesRulePerOrgWithoutSideEffects(t *testing.T) {
 	}{
 		{
 			name:      "configured rule matches",
-			rules:     []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}}},
-			data:      "xagent: do it",
+			rules:     []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}}},
+			data:      "gritz: do it",
 			wantMatch: true,
 		},
 		{
 			name:      "configured rule does not match",
 			rules:     []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "bot:"}}}},
-			data:      "xagent: do it",
+			data:      "gritz: do it",
 			wantMatch: false,
 		},
 	}
@@ -95,7 +95,7 @@ func TestPlanReturnsMatchPerMemberOrg(t *testing.T) {
 	assert.NilError(t, s.AddOrgMember(t.Context(), nil, &model.OrgMember{
 		OrgID: orgB.OrgID, UserID: orgA.UserID, Role: "member",
 	}))
-	rule := []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}}}
+	rule := []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}}}
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, orgA.OrgID, rule))
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, orgB.OrgID, rule))
 	r := &eventrouter.Router{Log: slog.Default(), Store: s}
@@ -103,7 +103,7 @@ func TestPlanReturnsMatchPerMemberOrg(t *testing.T) {
 	matches, err := r.Plan(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do it",
+		Data:   "gritz: do it",
 		URL:    "https://github.com/owner/repo/issues/1",
 		UserID: orgA.UserID,
 	})
@@ -128,9 +128,9 @@ func TestRouteCreatesEventAndStartsTask(t *testing.T) {
 		Status: model.TaskStatusCompleted,
 		Links:  []teststore.LinkOptions{{URL: url, Subscribe: true}},
 	})
-	// A wake rule reproducing the former shipped default (xagent: body-prefix).
+	// A wake rule reproducing the former shipped default (gritz: body-prefix).
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, org.OrgID, []model.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	}))
 	r := &eventrouter.Router{
 		Log:   slog.Default(),
@@ -142,7 +142,7 @@ func TestRouteCreatesEventAndStartsTask(t *testing.T) {
 		Source:      "github",
 		Type:        "issue_comment",
 		Description: "testuser commented on PR #1",
-		Data:        "xagent: fix tests",
+		Data:        "gritz: fix tests",
 		URL:         url,
 		UserID:      org.UserID,
 	})
@@ -168,9 +168,9 @@ func TestRouteNonCanonicalURLMatchesByRoutingKey(t *testing.T) {
 		Status: model.TaskStatusCompleted,
 		Links:  []teststore.LinkOptions{{URL: canonical, Subscribe: true}},
 	})
-	// A wake rule reproducing the former shipped default (xagent: body-prefix).
+	// A wake rule reproducing the former shipped default (gritz: body-prefix).
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, org.OrgID, []model.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	}))
 	r := &eventrouter.Router{
 		Log:   slog.Default(),
@@ -181,7 +181,7 @@ func TestRouteNonCanonicalURLMatchesByRoutingKey(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: fix tests",
+		Data:   "gritz: fix tests",
 		URL:    "https://github.com/o/r/issues/5#issuecomment-9",
 		UserID: org.UserID,
 	})
@@ -208,9 +208,9 @@ func TestRouteDeduplicatesTasksWithMultipleLinks(t *testing.T) {
 			{URL: url, Subscribe: true},
 		},
 	})
-	// A wake rule reproducing the former shipped default (xagent: body-prefix).
+	// A wake rule reproducing the former shipped default (gritz: body-prefix).
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, org.OrgID, []model.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	}))
 	r := &eventrouter.Router{
 		Log:   slog.Default(),
@@ -221,7 +221,7 @@ func TestRouteDeduplicatesTasksWithMultipleLinks(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do something",
+		Data:   "gritz: do something",
 		URL:    url,
 		UserID: org.UserID,
 	})
@@ -236,7 +236,7 @@ func TestRouteNoOp(t *testing.T) {
 
 	// Each case exercises the full Route path but ends in a no-op (n == 0) for a
 	// different reason: no subscribed link at the URL, an empty URL that can never
-	// match a link, and a body that the default rule's "xagent:" prefix rejects.
+	// match a link, and a body that the default rule's "gritz:" prefix rejects.
 	// (Attribute-level matching semantics themselves are covered by TestMatchRule.)
 	const url = "https://github.com/owner/repo/pull/1"
 	tests := []struct {
@@ -245,9 +245,9 @@ func TestRouteNoOp(t *testing.T) {
 		data string
 		url  string
 	}{
-		{name: "no subscribed link at url", data: "xagent: do something", url: url},
-		{name: "empty url never matches a link", data: "xagent: do something", url: ""},
-		{name: "body without xagent: prefix is not matched", link: true, data: "just a regular comment", url: url},
+		{name: "no subscribed link at url", data: "gritz: do something", url: url},
+		{name: "empty url never matches a link", data: "gritz: do something", url: ""},
+		{name: "body without gritz: prefix is not matched", link: true, data: "just a regular comment", url: url},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -306,11 +306,11 @@ func TestRouteOrgRulesOverrideDefaults(t *testing.T) {
 		Store: s,
 	}
 
-	// Act - "xagent:" prefix should NOT match because the org overrode the defaults
+	// Act - "gritz:" prefix should NOT match because the org overrode the defaults
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do something",
+		Data:   "gritz: do something",
 		URL:    url,
 		UserID: org.UserID,
 	})
@@ -335,9 +335,9 @@ func TestRouter_AttachSetsWakeMessage(t *testing.T) {
 		Status:    model.TaskStatusCompleted,
 		Links:     []teststore.LinkOptions{{URL: url, Subscribe: true}},
 	})
-	// A wake rule reproducing the former shipped default (xagent: body-prefix).
+	// A wake rule reproducing the former shipped default (gritz: body-prefix).
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, org.OrgID, []model.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	}))
 	pub := &pubsub.PublisherMock{
 		PublishFunc: func(_ context.Context, _ model.Notification) error { return nil },
@@ -352,7 +352,7 @@ func TestRouter_AttachSetsWakeMessage(t *testing.T) {
 		Source:      "github",
 		Type:        "issue_comment",
 		Description: "PR comment from alice",
-		Data:        "xagent: fix tests",
+		Data:        "gritz: fix tests",
 		URL:         url,
 		UserID:      org.UserID,
 	})
@@ -381,9 +381,9 @@ func TestRouter_AttachToRunningTaskStaysSilent(t *testing.T) {
 		Status:    model.TaskStatusRunning,
 		Links:     []teststore.LinkOptions{{URL: url, Subscribe: true}},
 	})
-	// A wake rule reproducing the former shipped default (xagent: body-prefix).
+	// A wake rule reproducing the former shipped default (gritz: body-prefix).
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, org.OrgID, []model.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	}))
 	pub := &pubsub.PublisherMock{
 		PublishFunc: func(_ context.Context, _ model.Notification) error { return nil },
@@ -398,7 +398,7 @@ func TestRouter_AttachToRunningTaskStaysSilent(t *testing.T) {
 		Source:      "github",
 		Type:        "issue_comment",
 		Description: "PR comment from alice",
-		Data:        "xagent: fix tests",
+		Data:        "gritz: fix tests",
 		URL:         url,
 		UserID:      org.UserID,
 	})
@@ -864,9 +864,9 @@ func TestRoutePerOrgIsolation(t *testing.T) {
 		Status: model.TaskStatusCompleted,
 		Links:  []teststore.LinkOptions{{URL: url, Subscribe: true}},
 	})
-	// Org A has a wake rule reproducing the former shipped default (xagent: body-prefix).
+	// Org A has a wake rule reproducing the former shipped default (gritz: body-prefix).
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, orgA.OrgID, []model.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	}))
 	err := s.SetOrgRoutingRules(t.Context(), nil, orgB.OrgID, []model.RoutingRule{{
 		Source: "github",
@@ -879,7 +879,7 @@ func TestRoutePerOrgIsolation(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do it", // matches org A's wake rule; matches org B's source-only rule
+		Data:   "gritz: do it", // matches org A's wake rule; matches org B's source-only rule
 		URL:    url,
 		UserID: orgA.UserID,
 	})
@@ -933,7 +933,7 @@ func TestRouteLinkQueryScopedToMatchedOrgs(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "no mention, no xagent prefix",
+		Data:   "no mention, no gritz prefix",
 		URL:    url,
 		UserID: orgA.UserID,
 	})
@@ -960,7 +960,7 @@ func TestRouteRuleLessOrgRoutesNothing(t *testing.T) {
 	t.Parallel()
 
 	// Arrange: a member org with no routing rules. The producers no longer ship
-	// default rules, so even a body carrying the former default's "xagent:" prefix
+	// default rules, so even a body carrying the former default's "gritz:" prefix
 	// routes nothing and the subscribed task stays put.
 	s := teststore.New(t)
 	org := teststore.CreateOrg(t, s, nil)
@@ -975,7 +975,7 @@ func TestRouteRuleLessOrgRoutesNothing(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do it",
+		Data:   "gritz: do it",
 		URL:    url,
 		UserID: org.UserID,
 	})
@@ -1051,7 +1051,7 @@ func TestRouteAssignmentCreateThenCommentWakes(t *testing.T) {
 			Conditions: []model.Condition{{Attr: "assignee", Op: "equals", Value: "icholy-bot"}},
 			Create:     &model.CreateTaskAction{Workspace: "default", Runner: "r"},
 		},
-		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true},
+		{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true},
 	})
 	assert.NilError(t, err)
 	r := &eventrouter.Router{Log: slog.Default(), Store: s}
@@ -1082,7 +1082,7 @@ func TestRouteAssignmentCreateThenCommentWakes(t *testing.T) {
 	n, err = r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: please look",
+		Data:   "gritz: please look",
 		URL:    url,
 		UserID: org.UserID,
 	})
@@ -1158,7 +1158,7 @@ func TestRouteNonMemberOrgWithoutPublicRuleIsNoOp(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do it",
+		Data:   "gritz: do it",
 		URL:    url,
 		UserID: actorOrg.UserID,
 		Orgs:   []int64{nonMemberOrg.OrgID},
@@ -1177,7 +1177,7 @@ func TestRouteRuleLessNonMemberOrgRoutesNothing(t *testing.T) {
 
 	// Arrange: a non-member org with no routing rules at all. A ruleless org
 	// matches nothing, so nothing routes even though the body carries the
-	// "xagent:" prefix a rule could otherwise match.
+	// "gritz:" prefix a rule could otherwise match.
 	s := teststore.New(t)
 	actorOrg := teststore.CreateOrg(t, s, nil)
 	nonMemberOrg := teststore.CreateOrg(t, s, nil)
@@ -1192,7 +1192,7 @@ func TestRouteRuleLessNonMemberOrgRoutesNothing(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do it",
+		Data:   "gritz: do it",
 		URL:    url,
 		UserID: actorOrg.UserID,
 		Orgs:   []int64{nonMemberOrg.OrgID},
@@ -1367,9 +1367,9 @@ func TestRouteOnRouteOutcome(t *testing.T) {
 		},
 		{
 			name:        "fires on wake",
-			rules:       []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true}},
+			rules:       []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true}},
 			link:        true,
-			data:        "xagent: fix tests",
+			data:        "gritz: fix tests",
 			wantN:       1,
 			wantFire:    true,
 			wantCreated: false,
@@ -1468,7 +1468,7 @@ func TestRouteOnRouteOutcomeFiresOncePerMatchedOrg(t *testing.T) {
 		Role:   "member",
 	}))
 	// Both orgs carry a wake rule reproducing the former shipped default.
-	wakeRule := []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "xagent:"}}, Wakeup: true}}
+	wakeRule := []model.RoutingRule{{Source: "github", Type: "issue_comment", Conditions: []model.Condition{{Attr: "body", Op: "prefix", Value: "gritz:"}}, Wakeup: true}}
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, orgA.OrgID, wakeRule))
 	assert.NilError(t, s.SetOrgRoutingRules(t.Context(), nil, orgB.OrgID, wakeRule))
 
@@ -1485,7 +1485,7 @@ func TestRouteOnRouteOutcomeFiresOncePerMatchedOrg(t *testing.T) {
 	n, err := r.Route(t.Context(), eventrouter.InputEvent{
 		Source: "github",
 		Type:   "issue_comment",
-		Data:   "xagent: do something",
+		Data:   "gritz: do something",
 		URL:    url,
 		UserID: orgA.UserID,
 	})

@@ -9,18 +9,18 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/icholy/xagent/internal/agent/agentprompt"
-	"github.com/icholy/xagent/internal/model"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/shell"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/agent/agentprompt"
+	"github.com/icholy/gritz/internal/model"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/shell"
+	"github.com/icholy/gritz/internal/gritzclient"
 )
 
 type Driver struct {
 	TaskID int64
-	Client xagentclient.Client
+	Client gritzclient.Client
 	// Log bundles the driver's structured logger with the append-only
-	// /xagent/log sink it tees setup command and Claude CLI output into (see
+	// /gritz/log sink it tees setup command and Claude CLI output into (see
 	// proposals/implemented/driver-logs-to-sandbox.md). It is required: the
 	// command builds it via agent.OpenDriverLog, and tests use
 	// agent.DiscardDriverLog. os.Stdout/os.Stderr stay in every tee, so docker
@@ -30,7 +30,7 @@ type Driver struct {
 
 	// ServerURL and Token are the driver's own server credentials, reused to dial
 	// the shell relay WebSocket when the task is a debug-shell run. They mirror
-	// the values passed to xagentclient.New for Client above.
+	// the values passed to gritzclient.New for Client above.
 	ServerURL string
 	Token     string
 }
@@ -67,7 +67,7 @@ func (d *Driver) Run(ctx context.Context) error {
 	// non-zero and the runner's supervise backstop reports the lost run. A failed
 	// GetTask means the driver has no working server connection to report through
 	// anyway (see the proposal's resolved open question).
-	resp, err := d.Client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: d.TaskID})
+	resp, err := d.Client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: d.TaskID})
 	if err != nil {
 		return fmt.Errorf("failed to get task: %w", err)
 	}
@@ -76,7 +76,7 @@ func (d *Driver) Run(ctx context.Context) error {
 
 	// Write a run delimiter before the first event so an operator can find run
 	// boundaries in the single append-only log (runs are not split per file).
-	// It goes to os.Stderr (docker logs) and the sink (the /xagent/log file)
+	// It goes to os.Stderr (docker logs) and the sink (the /gritz/log file)
 	// alike; with DiscardDriverLog it writes only to stderr.
 	d.Log.StartRun(version)
 
@@ -114,8 +114,8 @@ func (d *Driver) Run(ctx context.Context) error {
 // so a nil error means the state transition is durable.
 func (d *Driver) submit(ctx context.Context, event model.RunnerEvent) error {
 	// Version 0 bypasses the version check (spontaneous events).
-	_, err := d.Client.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-		Events: []*xagentv1.RunnerEvent{event.Proto()},
+	_, err := d.Client.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+		Events: []*gritzv1.RunnerEvent{event.Proto()},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to submit %s event: %w", event.Event, err)
@@ -130,7 +130,7 @@ func (d *Driver) submit(ctx context.Context, event model.RunnerEvent) error {
 // shell run emits the same started/stopped/failed lifecycle events as an agent
 // run. The task is fetched once by Run and passed in, so this reuses that
 // single read rather than fetching again.
-func (d *Driver) run(ctx context.Context, task *xagentv1.Task) error {
+func (d *Driver) run(ctx context.Context, task *gritzv1.Task) error {
 	if session := task.GetShellSession(); session != "" {
 		return shell.Serve(ctx, shell.ServeOptions{
 			ServerURL: d.ServerURL,
@@ -145,7 +145,7 @@ func (d *Driver) run(ctx context.Context, task *xagentv1.Task) error {
 // runAgent executes the setup commands and the agent prompt. This is the normal
 // (non-shell) sandbox run. task is the one Run fetched at the top of the run; it
 // carries the id/name rendered into the wake header line.
-func (d *Driver) runAgent(ctx context.Context, task *xagentv1.Task) error {
+func (d *Driver) runAgent(ctx context.Context, task *gritzv1.Task) error {
 	// Load config
 	cfg, err := d.Config.Load(d.TaskID)
 	if err != nil {
@@ -189,9 +189,9 @@ func (d *Driver) runAgent(ctx context.Context, task *xagentv1.Task) error {
 	// and returns exactly that slice); only the links need a fresh read. A wake
 	// run leaves promptLinks nil and is completely unchanged (the wake branch
 	// renders Events instead). See proposals/draft/first-run-brief-injection.md.
-	var promptLinks []*xagentv1.TaskLink
+	var promptLinks []*gritzv1.TaskLink
 	if !cfg.Started {
-		resp, err := d.Client.ListLinks(ctx, &xagentv1.ListLinksRequest{TaskId: d.TaskID})
+		resp, err := d.Client.ListLinks(ctx, &gritzv1.ListLinksRequest{TaskId: d.TaskID})
 		if err != nil {
 			return fmt.Errorf("failed to fetch task links: %w", err)
 		}
@@ -266,7 +266,7 @@ func (d *Driver) setup(ctx context.Context, cfg *Config) error {
 		c := exec.CommandContext(ctx, "sh", "-c", command)
 		// Tee the command's output into the log sink so an opaque setup failure
 		// ("setup command N failed") has the command's actual stdout/stderr
-		// sitting next to it in /xagent/log. os.Stdout/os.Stderr stay wired so
+		// sitting next to it in /gritz/log. os.Stdout/os.Stderr stay wired so
 		// docker logs is unchanged.
 		c.Stdout = d.Log.Stdout()
 		c.Stderr = d.Log.Stderr()
@@ -287,7 +287,7 @@ func (d *Driver) setup(ctx context.Context, cfg *Config) error {
 const eventPageSize = 50
 
 // drainEvents walks the task's event stream forward from cfg.NextEventToken to
-// the tail via xagentclient.ListEventsByTask, filtered server-side (via the types
+// the tail via gritzclient.ListEventsByTask, filtered server-side (via the types
 // filter) to the injectable arms — to-agent instructions and self-contained
 // external triggers. It returns the events accumulated across the walk along with
 // the final next_page_token — the cursor position after the current filtered tail.
@@ -295,16 +295,16 @@ const eventPageSize = 50
 // The cursor tracks the filtered stream: because event ids are monotonic, every
 // future injectable event has a higher id than the saved token and is delivered
 // on a later wake, so pushing the filter server-side never drops one.
-func (d *Driver) drainEvents(ctx context.Context, cfg *Config) ([]*xagentv1.Event, string, error) {
+func (d *Driver) drainEvents(ctx context.Context, cfg *Config) ([]*gritzv1.Event, string, error) {
 	token := cfg.NextEventToken
-	var events []*xagentv1.Event
-	req := &xagentv1.ListEventsByTaskRequest{
+	var events []*gritzv1.Event
+	req := &gritzv1.ListEventsByTaskRequest{
 		TaskId:    d.TaskID,
 		PageSize:  eventPageSize,
 		PageToken: cfg.NextEventToken,
 		Types:     []string{model.EventTypeInstruction, model.EventTypeExternal},
 	}
-	for resp, err := range xagentclient.ListEventsByTask(ctx, d.Client, req) {
+	for resp, err := range gritzclient.ListEventsByTask(ctx, d.Client, req) {
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to fetch events: %w", err)
 		}

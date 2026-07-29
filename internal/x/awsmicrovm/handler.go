@@ -26,7 +26,7 @@ const (
 	HookValidate = HookBase + "/validate"
 
 	// DefaultPort is the port Lambda routes MicroVM ingress to by default. The
-	// xagent control surface (/xagent/lifecycle + /xagent/stop) is served here so
+	// gritz control surface (/gritz/lifecycle + /gritz/stop) is served here so
 	// the runner can reach it over the managed proxy.
 	DefaultPort = 8080
 

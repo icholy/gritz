@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icholy/xagent/internal/runner/backend/lambdamicrovm"
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
-	"github.com/icholy/xagent/internal/x/sse"
+	"github.com/icholy/gritz/internal/runner/backend/lambdamicrovm"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/x/sse"
 	"gotest.tools/v3/assert"
 )
 
@@ -239,7 +239,7 @@ func TestNoControlPlaneCredentials(t *testing.T) {
 	defer control.Close()
 
 	// run → exit → suspend hook → resume → stop. No creds, no panics. The AWS
-	// hooks and the xagent control surface are served on separate ports.
+	// hooks and the gritz control surface are served on separate ports.
 	postHook(t, hooks.URL, awsmicrovm.HookRun, "vm1", "http://staged")
 	(<-procs).exit()
 	postHook(t, hooks.URL, awsmicrovm.HookSuspend, "vm1", "")
@@ -265,7 +265,7 @@ func TestBuildHooksReturn200(t *testing.T) {
 		assert.Equal(t, resp.StatusCode, http.StatusOK, "path %s", path)
 	}
 
-	// The build hooks are NOT on the xagent control (ingress) surface.
+	// The build hooks are NOT on the gritz control (ingress) surface.
 	control := httptest.NewServer(srv.ControlHandler())
 	defer control.Close()
 	resp, err := http.Post(control.URL+awsmicrovm.HookReady, "application/json", bytes.NewReader(nil))
@@ -275,7 +275,7 @@ func TestBuildHooksReturn200(t *testing.T) {
 }
 
 // TestSurfacesAreSeparate confirms the two handlers are disjoint: the AWS hooks
-// are not reachable on the control handler (the ingress port) and the xagent
+// are not reachable on the control handler (the ingress port) and the gritz
 // control routes are not reachable on the hooks handler (the hook port).
 func TestSurfacesAreSeparate(t *testing.T) {
 	srv := &Server{}
@@ -290,7 +290,7 @@ func TestSurfacesAreSeparate(t *testing.T) {
 	resp.Body.Close()
 	assert.Equal(t, resp.StatusCode, http.StatusNotFound)
 
-	// The xagent control surface is NOT on the hooks handler.
+	// The gritz control surface is NOT on the hooks handler.
 	resp, err = http.Post(hooks.URL+lambdamicrovmStopPath, "", nil)
 	assert.NilError(t, err)
 	resp.Body.Close()

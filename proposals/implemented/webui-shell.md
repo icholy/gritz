@@ -1,6 +1,6 @@
 # Web UI task shell
 
-Issue: https://github.com/icholy/xagent/issues/1145
+Issue: https://github.com/icholy/gritz/issues/1145
 
 ## Problem
 
@@ -8,9 +8,9 @@ The driver reverse shell (`proposals/draft/driver-reverse-shell.md`, issue #1110
 gives us a backend-agnostic interactive shell into a task's sandbox: `OpenShell`
 seeds a rendezvous session, the driver dials the `/shell/driver` leg, an operator
 dials `/shell/attach`, and the server bridges the two byte streams using the
-`xagent-shell.v1` framing (`internal/shell/shellwire`).
+`gritz-shell.v1` framing (`internal/shell/shellwire`).
 
-Today the only operator client is the CLI: `xagent shell <task-id>`
+Today the only operator client is the CLI: `gritz shell <task-id>`
 (`internal/command/shell.go`) drives `shell.Attach` (`internal/shell/attach.go`),
 which puts the local terminal into raw mode and pipes stdin/stdout over the
 WebSocket. Most users live in the web UI (`webui/`), not a terminal. When a task
@@ -36,7 +36,7 @@ The browser is just another operator leg. The flow mirrors the CLI:
 
 1. User clicks **Open shell** on the task detail page (`webui/src/routes/tasks.$id.tsx`).
 2. The UI calls the existing `openShell` RPC (already generated at
-   `webui/src/gen/xagent/v1/xagent-XAgentService_connectquery.ts:68`) with the
+   `webui/src/gen/gritz/v1/gritz-GritzService_connectquery.ts:68`) with the
    task id and gets back a `session_id`.
 3. The UI opens a `WebSocket` to `/shell/attach?session=<id>&org_id=<n>`,
    authenticating via the browser's cookie session (see **Authenticating the
@@ -115,7 +115,7 @@ token at all; it dials `/shell/attach?session=<id>&org_id=<n>` and relies on the
 cookie.
 
 The subprotocol handling in `AttachHandler` (shellserver.go:220-232) is unchanged:
-the browser offers only `['xagent-shell.v1']` and the server negotiates it exactly
+the browser offers only `['gritz-shell.v1']` and the server negotiates it exactly
 as the CLI does.
 
 ### Frame codec in TypeScript
@@ -126,7 +126,7 @@ followed by a payload, over **binary** WebSocket messages.
 
 ```ts
 // webui/src/lib/shellwire.ts
-export const SUBPROTOCOL = 'xagent-shell.v1'
+export const SUBPROTOCOL = 'gritz-shell.v1'
 export const READ_LIMIT = 1 << 20 // 1 MiB, matches shellwire.ReadLimit
 
 export const FrameType = { Data: 0x00, Resize: 0x01, Exit: 0x02, Ping: 0x03 } as const
@@ -185,7 +185,7 @@ Gating and constraints, surfaced in the UI rather than discovered on failure:
 - Proto: `OpenShell` / `OpenShellRequest` / `OpenShellResponse` and
   `Task.shell_session` are already defined and already generated for the webui.
 - Relay, registry, driver, `shellwire` wire format, DB schema.
-- The `xagent shell` CLI.
+- The `gritz shell` CLI.
 
 ## Trade-offs
 

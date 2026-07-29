@@ -1,6 +1,6 @@
 # A Reusable GitHub App Token Cache (`githubx.AppTokenCache`)
 
-Issue: https://github.com/icholy/xagent/issues/781
+Issue: https://github.com/icholy/gritz/issues/781
 
 ## Problem
 

@@ -5,8 +5,8 @@ import {
   addOrgMember,
   removeOrgMember,
   getProfile,
-} from '@/gen/xagent/v1/xagent-XAgentService_connectquery'
-import type { OrgMember } from '@/gen/xagent/v1/xagent_pb'
+} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import type { OrgMember } from '@/gen/gritz/v1/gritz_pb'
 import { useOrgId } from '@/hooks/use-org-id'
 import { timestampDate } from '@bufbuild/protobuf/wkt'
 import {

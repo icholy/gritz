@@ -1,6 +1,6 @@
 # Version-Stamped Runner and Driver Events
 
-Issue: https://github.com/icholy/xagent/issues/1052
+Issue: https://github.com/icholy/gritz/issues/1052
 
 ## Problem
 
@@ -82,7 +82,7 @@ top of the run, remember `task.Version` as this run's version, and stamp it on
 `started`, `stopped`, and `failed`:
 
 ```go
-resp, err := d.Client.GetTask(ctx, &xagentv1.GetTaskRequest{Id: d.TaskID})
+resp, err := d.Client.GetTask(ctx, &gritzv1.GetTaskRequest{Id: d.TaskID})
 if err != nil {
     return err // no version, no run — the runner reads the non-zero exit
 }

@@ -3,7 +3,7 @@ package apiauth
 import (
 	"testing"
 
-	"github.com/icholy/xagent/internal/auth/authscope"
+	"github.com/icholy/gritz/internal/auth/authscope"
 	"gotest.tools/v3/assert"
 )
 

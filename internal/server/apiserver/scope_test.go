@@ -5,15 +5,15 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/proto/xagent/v1/xagentv1connect"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/proto/gritz/v1/gritzv1connect"
 	"gotest.tools/v3/assert"
 )
 
 // TestAllMethodsScopeChecked is the completeness safety net for the explicit
 // per-handler enforcement model (proposal §8). There is no central default-deny
 // interceptor, so a newly added RPC that forgets its top-of-handler Allow would
-// ship fail-open. This test enumerates every method of XAgentServiceHandler by
+// ship fail-open. This test enumerates every method of GritzServiceHandler by
 // reflection (so the list can't drift from the proto) and asserts that a caller
 // with empty scopes is denied with PermissionDenied — except the small, audited
 // exempt set, which is skipped. Every non-exempt handler denies at its scope
@@ -39,7 +39,7 @@ func TestAllMethodsScopeChecked(t *testing.T) {
 	// every handler reaches its scope gate, which must deny.
 	ctx := apiauth.WithUser(t.Context(), &apiauth.UserInfo{})
 
-	handlerType := reflect.TypeOf((*xagentv1connect.XAgentServiceHandler)(nil)).Elem()
+	handlerType := reflect.TypeOf((*gritzv1connect.GritzServiceHandler)(nil)).Elem()
 	srvVal := reflect.ValueOf(srv)
 	for i := 0; i < handlerType.NumMethod(); i++ {
 		name := handlerType.Method(i).Name

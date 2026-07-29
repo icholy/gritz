@@ -6,7 +6,7 @@
 
 1. **Runners.** They watch `Notification.Runner` (`for_runner`) to learn which runner has pending work to claim. They don't care about the resources at all.
 2. **Web UI** (TanStack Query, `webui/src/lib/notification-sse.ts`). It inspects `Resources: [{action, type, id}]` to know which queries to invalidate and refetch. The thin envelope is exactly what it wants — the FE re-fetches the canonical resource from the API, it doesn't try to render the notification itself.
-3. **Agent channel events.** The local `xagent mcp` bridge (`internal/command/mcp.go:86`) subscribes to the SSE stream and pushes task changes into the host Claude Code session as `notifications/claude/channel` events via `mcpserver.ForwardNotification` (`internal/server/mcpserver/channel.go:21`).
+3. **Agent channel events.** The local `gritz mcp` bridge (`internal/command/mcp.go:86`) subscribes to the SSE stream and pushes task changes into the host Claude Code session as `notifications/claude/channel` events via `mcpserver.ForwardNotification` (`internal/server/mcpserver/channel.go:21`).
 
 Consumer (3) is the broken one. `ForwardNotification` today:
 
@@ -203,8 +203,8 @@ notification.ChannelMessage = task.ChannelMessage(cause)
 Rendered example (PR comment routed to a task):
 
 ```
-<channel source="xagent" resource="task" id="42">
-Task 42 woken by event 17: PR comment from alice on icholy/xagent#481: please rebase (https://github.com/icholy/xagent/pull/481#issuecomment-...)
+<channel source="gritz" resource="task" id="42">
+Task 42 woken by event 17: PR comment from alice on icholy/gritz#481: please rebase (https://github.com/icholy/gritz/pull/481#issuecomment-...)
 </channel>
 ```
 

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )

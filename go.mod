@@ -1,4 +1,4 @@
-module github.com/icholy/xagent
+module github.com/icholy/gritz
 
 go 1.26.0
 

@@ -1,4 +1,4 @@
-app = "xagent"
+app = "gritz"
 primary_region = "yyz"
 
 [build]
@@ -7,13 +7,13 @@ primary_region = "yyz"
 
 [env]
   # Set these secrets via `fly secrets set`:
-  # XAGENT_BASE_URL
-  # XAGENT_DATABASE_URL
-  # XAGENT_AUTH_DOMAIN
-  # XAGENT_AUTH_CLIENT_ID
-  # XAGENT_AUTH_CLIENT_SECRET
-  # XAGENT_AUTH_DEVICE_CLIENT_ID
-  # XAGENT_AUTH_ENCRYPTION_KEY
+  # GRITZ_BASE_URL
+  # GRITZ_DATABASE_URL
+  # GRITZ_AUTH_DOMAIN
+  # GRITZ_AUTH_CLIENT_ID
+  # GRITZ_AUTH_CLIENT_SECRET
+  # GRITZ_AUTH_DEVICE_CLIENT_ID
+  # GRITZ_AUTH_ENCRYPTION_KEY
 
 [http_service]
   internal_port = 6464

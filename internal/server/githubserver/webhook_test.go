@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v88/github"
-	"github.com/icholy/xagent/internal/eventrouter"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/x/testx"
+	"github.com/icholy/gritz/internal/eventrouter"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/x/testx"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
 )
@@ -31,7 +31,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Comment: &github.IssueComment{
 					ID:      github.Ptr[int64](555),
 					NodeID:  github.Ptr("IC_node555"),
-					Body:    github.Ptr("xagent: do something"),
+					Body:    github.Ptr("gritz: do something"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1#issuecomment-555"),
 					User: &github.User{
 						ID:    github.Ptr[int64](123),
@@ -51,7 +51,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "issue_comment",
 				Description: "testuser commented on issue #1",
-				Data:        "xagent: do something",
+				Data:        "gritz: do something",
 				URL:         "https://github.com/owner/repo/issues/1#issuecomment-555",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"testuser"}},
 				Meta: GitHubMeta{
@@ -69,7 +69,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Comment: &github.IssueComment{
 					ID:      github.Ptr[int64](556),
 					NodeID:  github.Ptr("IC_node556"),
-					Body:    github.Ptr("xagent: review this"),
+					Body:    github.Ptr("gritz: review this"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/pull/2#issuecomment-556"),
 					User: &github.User{
 						ID:    github.Ptr[int64](456),
@@ -90,7 +90,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "issue_comment",
 				Description: "pruser commented on PR #2",
-				Data:        "xagent: review this",
+				Data:        "gritz: review this",
 				URL:         "https://github.com/owner/repo/pull/2#issuecomment-556",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"pruser"}},
 				Meta: GitHubMeta{
@@ -101,7 +101,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "IssueComment_NoXAgentPrefix",
+			name: "IssueComment_NoGritzPrefix",
 			event: &github.IssueCommentEvent{
 				Action: github.Ptr("created"),
 				Comment: &github.IssueComment{
@@ -194,7 +194,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			event: &github.IssueCommentEvent{
 				Action: github.Ptr("edited"),
 				Comment: &github.IssueComment{
-					Body:    github.Ptr("xagent: do something"),
+					Body:    github.Ptr("gritz: do something"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1#issuecomment-601"),
 					User: &github.User{
 						ID:    github.Ptr[int64](123),
@@ -210,7 +210,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "issue_comment",
 				Description: "testuser commented on issue #1",
-				Data:        "xagent: do something",
+				Data:        "gritz: do something",
 				URL:         "https://github.com/owner/repo/issues/1#issuecomment-601",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"testuser"}},
 				Meta:        GitHubMeta{AuthorID: 123, AuthorLogin: "testuser"},
@@ -221,7 +221,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			event: &github.IssueCommentEvent{
 				Action: github.Ptr("deleted"),
 				Comment: &github.IssueComment{
-					Body: github.Ptr("xagent: do something"),
+					Body: github.Ptr("gritz: do something"),
 					User: &github.User{
 						ID:    github.Ptr[int64](123),
 						Login: github.Ptr("testuser"),
@@ -244,7 +244,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Comment: &github.PullRequestComment{
 					ID:        github.Ptr[int64](777),
 					NodeID:    github.Ptr("PRRC_node777"),
-					Body:      github.Ptr("xagent: fix this"),
+					Body:      github.Ptr("gritz: fix this"),
 					HTMLURL:   github.Ptr("https://github.com/owner/repo/pull/3#discussion_r777"),
 					Path:      github.Ptr("internal/server/githubserver/webhook.go"),
 					Line:      github.Ptr(202),
@@ -269,7 +269,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "pull_request_review_comment",
 				Description: "reviewer reviewed PR #3 (internal/server/githubserver/webhook.go:202)",
-				Data:        "xagent: fix this",
+				Data:        "gritz: fix this",
 				URL:         "https://github.com/owner/repo/pull/3#discussion_r777",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"reviewer"}},
 				Details: map[string]string{
@@ -295,7 +295,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Comment: &github.PullRequestComment{
 					ID:           github.Ptr[int64](778),
 					NodeID:       github.Ptr("PRRC_node778"),
-					Body:         github.Ptr("xagent: outdated"),
+					Body:         github.Ptr("gritz: outdated"),
 					HTMLURL:      github.Ptr("https://github.com/owner/repo/pull/3#discussion_r778"),
 					Path:         github.Ptr("main.go"),
 					Line:         nil,
@@ -314,7 +314,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "pull_request_review_comment",
 				Description: "reviewer reviewed PR #3 (main.go:42)",
-				Data:        "xagent: outdated",
+				Data:        "gritz: outdated",
 				URL:         "https://github.com/owner/repo/pull/3#discussion_r778",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"reviewer"}},
 				Details: map[string]string{
@@ -329,7 +329,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "PullRequestReviewComment_NoXAgentPrefix",
+			name: "PullRequestReviewComment_NoGritzPrefix",
 			event: &github.PullRequestReviewCommentEvent{
 				Action: github.Ptr("created"),
 				Comment: &github.PullRequestComment{
@@ -371,7 +371,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			event: &github.PullRequestReviewCommentEvent{
 				Action: github.Ptr("edited"),
 				Comment: &github.PullRequestComment{
-					Body:    github.Ptr("xagent: fix this"),
+					Body:    github.Ptr("gritz: fix this"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/pull/3#discussion_r801"),
 					Path:    github.Ptr("main.go"),
 					Line:    github.Ptr(10),
@@ -389,7 +389,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "pull_request_review_comment",
 				Description: "reviewer reviewed PR #3 (main.go:10)",
-				Data:        "xagent: fix this",
+				Data:        "gritz: fix this",
 				URL:         "https://github.com/owner/repo/pull/3#discussion_r801",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"reviewer"}},
 				Details: map[string]string{
@@ -404,7 +404,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			event: &github.PullRequestReviewCommentEvent{
 				Action: github.Ptr("deleted"),
 				Comment: &github.PullRequestComment{
-					Body: github.Ptr("xagent: fix this"),
+					Body: github.Ptr("gritz: fix this"),
 					User: &github.User{
 						ID:    github.Ptr[int64](789),
 						Login: github.Ptr("reviewer"),
@@ -423,7 +423,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Action: github.Ptr("submitted"),
 				Review: &github.PullRequestReview{
 					NodeID:  github.Ptr("PRR_node123"),
-					Body:    github.Ptr("xagent: please address comments"),
+					Body:    github.Ptr("gritz: please address comments"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/pull/4#pullrequestreview-123"),
 					User: &github.User{
 						ID:    github.Ptr[int64](101),
@@ -445,7 +445,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "pull_request_review",
 				Description: "lead reviewed PR #4",
-				Data:        "xagent: please address comments",
+				Data:        "gritz: please address comments",
 				URL:         "https://github.com/owner/repo/pull/4#pullrequestreview-123",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"lead"}},
 				Meta:        GitHubMeta{AuthorID: 101, AuthorLogin: "lead", NodeID: "PRR_node123"},
@@ -456,7 +456,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			event: &github.PullRequestReviewEvent{
 				Action: github.Ptr("edited"),
 				Review: &github.PullRequestReview{
-					Body: github.Ptr("xagent: something"),
+					Body: github.Ptr("gritz: something"),
 					User: &github.User{
 						ID:    github.Ptr[int64](101),
 						Login: github.Ptr("lead"),
@@ -469,7 +469,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "PullRequestReview_NoXAgentPrefix",
+			name: "PullRequestReview_NoGritzPrefix",
 			event: &github.PullRequestReviewEvent{
 				Action: github.Ptr("submitted"),
 				Review: &github.PullRequestReview{
@@ -510,7 +510,7 @@ func TestToGithubInputEvent(t *testing.T) {
 			event: &github.IssueCommentEvent{
 				Action: github.Ptr("created"),
 				Comment: &github.IssueComment{
-					Body:    github.Ptr("  xagent: trimmed"),
+					Body:    github.Ptr("  gritz: trimmed"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1#issuecomment-602"),
 					User: &github.User{
 						ID:    github.Ptr[int64](123),
@@ -526,7 +526,7 @@ func TestToGithubInputEvent(t *testing.T) {
 				Source:      "github",
 				Type:        "issue_comment",
 				Description: "testuser commented on issue #1",
-				Data:        "xagent: trimmed",
+				Data:        "gritz: trimmed",
 				URL:         "https://github.com/owner/repo/issues/1#issuecomment-602",
 				Attrs:       eventrouter.Attrs{"mention": nil, "user": {"testuser"}},
 				Meta:        GitHubMeta{AuthorID: 123, AuthorLogin: "testuser"},
@@ -669,7 +669,7 @@ func TestToGithubInputEvent(t *testing.T) {
 					NodeID:  github.Ptr("I_node7"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/7"),
 				},
-				Label: &github.Label{Name: github.Ptr("xagent")},
+				Label: &github.Label{Name: github.Ptr("gritz")},
 				Sender: &github.User{
 					ID:    github.Ptr[int64](999),
 					Login: github.Ptr("octocat"),
@@ -682,8 +682,8 @@ func TestToGithubInputEvent(t *testing.T) {
 			expected: &eventrouter.InputEvent{
 				Source:      "github",
 				Type:        "label_added",
-				Description: `octocat labeled issue #7 "xagent"`,
-				Attrs:       eventrouter.Attrs{"label": {"xagent"}, "user": {"octocat"}},
+				Description: `octocat labeled issue #7 "gritz"`,
+				Attrs:       eventrouter.Attrs{"label": {"gritz"}, "user": {"octocat"}},
 				URL:         "https://github.com/owner/repo/issues/7",
 				Meta: GitHubMeta{
 					AuthorID:    999,
@@ -921,7 +921,7 @@ func TestHandleGitHubWebhookRoutesToTask(t *testing.T) {
 		Action:       github.Ptr("created"),
 		Installation: &github.Installation{ID: github.Ptr(installationID)},
 		Comment: &github.IssueComment{
-			Body:    github.Ptr("xagent: please fix the tests"),
+			Body:    github.Ptr("gritz: please fix the tests"),
 			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/10#issuecomment-1000"),
 			User: &github.User{
 				ID:    github.Ptr(ghUserID),
@@ -945,7 +945,7 @@ func TestHandleGitHubWebhookRoutesToTask(t *testing.T) {
 		Source:      "github",
 		Type:        "issue_comment",
 		Description: "testuser commented on PR #10",
-		Data:        "xagent: please fix the tests",
+		Data:        "gritz: please fix the tests",
 		URL:         "https://github.com/owner/repo/pull/10#issuecomment-1000",
 		Attrs:       eventrouter.Attrs{"mention": nil, "user": {"testuser"}},
 		UserID:      "user-1",
@@ -1064,7 +1064,7 @@ func TestHandleGitHubWebhookUnlinkedActorRoutesViaInstallationOrgs(t *testing.T)
 		Action:       github.Ptr("created"),
 		Installation: &github.Installation{ID: github.Ptr(installationID)},
 		Comment: &github.IssueComment{
-			Body:    github.Ptr("xagent: test"),
+			Body:    github.Ptr("gritz: test"),
 			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1#issuecomment-2000"),
 			User: &github.User{
 				ID:    github.Ptr[int64](999999),

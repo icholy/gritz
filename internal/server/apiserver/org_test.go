@@ -3,10 +3,10 @@ package apiserver
 import (
 	"testing"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 
@@ -18,7 +18,7 @@ func TestCreateOrg(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.CreateOrg(ctx, &xagentv1.CreateOrgRequest{
+	resp, err := srv.CreateOrg(ctx, &gritzv1.CreateOrgRequest{
 		Name: "my-org",
 	})
 
@@ -34,13 +34,13 @@ func TestListOrgs(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	_, err := srv.CreateOrg(ctx, &xagentv1.CreateOrgRequest{Name: "org-1"})
+	_, err := srv.CreateOrg(ctx, &gritzv1.CreateOrgRequest{Name: "org-1"})
 	assert.NilError(t, err)
-	_, err = srv.CreateOrg(ctx, &xagentv1.CreateOrgRequest{Name: "org-2"})
+	_, err = srv.CreateOrg(ctx, &gritzv1.CreateOrgRequest{Name: "org-2"})
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListOrgs(ctx, &xagentv1.ListOrgsRequest{})
+	resp, err := srv.ListOrgs(ctx, &gritzv1.ListOrgsRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -54,15 +54,15 @@ func TestDeleteOrg(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	createResp, err := srv.CreateOrg(ctx, &xagentv1.CreateOrgRequest{Name: "to-delete"})
+	createResp, err := srv.CreateOrg(ctx, &gritzv1.CreateOrgRequest{Name: "to-delete"})
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.DeleteOrg(ctx, &xagentv1.DeleteOrgRequest{Id: createResp.Org.Id})
+	_, err = srv.DeleteOrg(ctx, &gritzv1.DeleteOrgRequest{Id: createResp.Org.Id})
 
 	// Assert
 	assert.NilError(t, err)
-	resp, err := srv.ListOrgs(ctx, &xagentv1.ListOrgsRequest{})
+	resp, err := srv.ListOrgs(ctx, &gritzv1.ListOrgsRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(resp.Orgs), 1)
 }
@@ -75,11 +75,11 @@ func TestDeleteOrg_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, nil)
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateOrg(ctxA, &xagentv1.CreateOrgRequest{Name: "user-a-org"})
+	createResp, err := srv.CreateOrg(ctxA, &gritzv1.CreateOrgRequest{Name: "user-a-org"})
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.DeleteOrg(ctxB, &xagentv1.DeleteOrgRequest{Id: createResp.Org.Id})
+	_, err = srv.DeleteOrg(ctxB, &gritzv1.DeleteOrgRequest{Id: createResp.Org.Id})
 
 	// Assert
 	assert.ErrorContains(t, err, "only the org owner can delete it")
@@ -93,7 +93,7 @@ func TestDeleteOrg_DefaultOrg(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	_, err := srv.DeleteOrg(ctx, &xagentv1.DeleteOrgRequest{Id: org.OrgID})
+	_, err := srv.DeleteOrg(ctx, &gritzv1.DeleteOrgRequest{Id: org.OrgID})
 
 	// Assert
 	assert.ErrorContains(t, err, "cannot delete your default org")
@@ -110,14 +110,14 @@ func TestAddAndListOrgMembers(t *testing.T) {
 	memberEmail := apiauth.Caller(member).ID + "@test.com"
 
 	// Act
-	resp, err := srv.AddOrgMember(owner, &xagentv1.AddOrgMemberRequest{
+	resp, err := srv.AddOrgMember(owner, &gritzv1.AddOrgMemberRequest{
 		Email: memberEmail,
 	})
 
 	// Assert
 	assert.NilError(t, err)
 	assert.Equal(t, resp.Member.Role, "member")
-	listResp, err := srv.ListOrgMembers(owner, &xagentv1.ListOrgMembersRequest{})
+	listResp, err := srv.ListOrgMembers(owner, &gritzv1.ListOrgMembersRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(listResp.Members), 2)
 }
@@ -128,32 +128,32 @@ func TestDeleteOrg_WithTasks(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	createResp, err := srv.CreateOrg(ctx, &xagentv1.CreateOrgRequest{Name: "has-tasks"})
+	createResp, err := srv.CreateOrg(ctx, &gritzv1.CreateOrgRequest{Name: "has-tasks"})
 	assert.NilError(t, err)
 	orgCtx := apiauth.WithUser(ctx, &apiauth.UserInfo{
 		ID:     apiauth.Caller(ctx).ID,
 		OrgID:  createResp.Org.Id,
 		Scopes: authscope.Admin(),
 	})
-	_, err = srv.RegisterWorkspaces(orgCtx, &xagentv1.RegisterWorkspacesRequest{
+	_, err = srv.RegisterWorkspaces(orgCtx, &gritzv1.RegisterWorkspacesRequest{
 		RunnerId: "test-runner",
-		Workspaces: []*xagentv1.RegisteredWorkspace{
+		Workspaces: []*gritzv1.RegisteredWorkspace{
 			{Name: "default"},
 		},
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateTask(orgCtx, &xagentv1.CreateTaskRequest{
+	_, err = srv.CreateTask(orgCtx, &gritzv1.CreateTaskRequest{
 		Runner:    "test-runner",
 		Workspace: "default",
 	})
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.DeleteOrg(ctx, &xagentv1.DeleteOrgRequest{Id: createResp.Org.Id})
+	_, err = srv.DeleteOrg(ctx, &gritzv1.DeleteOrgRequest{Id: createResp.Org.Id})
 
 	// Assert
 	assert.NilError(t, err)
-	listResp, err := srv.ListOrgs(ctx, &xagentv1.ListOrgsRequest{})
+	listResp, err := srv.ListOrgs(ctx, &gritzv1.ListOrgsRequest{})
 	assert.NilError(t, err)
 	for _, o := range listResp.Orgs {
 		assert.Assert(t, o.Id != createResp.Org.Id)
@@ -170,7 +170,7 @@ func TestGetOrgSettings_GitHubInstallationID(t *testing.T) {
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.GetOrgSettings(ctx, &xagentv1.GetOrgSettingsRequest{})
+	resp, err := srv.GetOrgSettings(ctx, &gritzv1.GetOrgSettingsRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -185,7 +185,7 @@ func TestGetOrgSettings_NoGitHubInstallation(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.GetOrgSettings(ctx, &xagentv1.GetOrgSettingsRequest{})
+	resp, err := srv.GetOrgSettings(ctx, &gritzv1.GetOrgSettingsRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -201,19 +201,19 @@ func TestRemoveOrgMember(t *testing.T) {
 	memberOrg := teststore.CreateOrg(t, srv.store, nil)
 	memberUser := apiauth.Caller(createCtx(t, memberOrg))
 	memberEmail := memberUser.ID + "@test.com"
-	_, err := srv.AddOrgMember(owner, &xagentv1.AddOrgMemberRequest{
+	_, err := srv.AddOrgMember(owner, &gritzv1.AddOrgMemberRequest{
 		Email: memberEmail,
 	})
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.RemoveOrgMember(owner, &xagentv1.RemoveOrgMemberRequest{
+	_, err = srv.RemoveOrgMember(owner, &gritzv1.RemoveOrgMemberRequest{
 		UserId: memberUser.ID,
 	})
 
 	// Assert
 	assert.NilError(t, err)
-	listResp, err := srv.ListOrgMembers(owner, &xagentv1.ListOrgMembersRequest{})
+	listResp, err := srv.ListOrgMembers(owner, &gritzv1.ListOrgMembersRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(listResp.Members), 1)
 }

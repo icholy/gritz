@@ -1,6 +1,6 @@
 # Generic Durable Outbox
 
-Issue: https://github.com/icholy/xagent/issues/1179
+Issue: https://github.com/icholy/gritz/issues/1179
 
 ## Problem
 
@@ -201,8 +201,8 @@ drop-in match.
 ob := outbox.New[model.RunnerEvent](outbox.Options[model.RunnerEvent]{
 	Store: outboxStore, // outbox.FileStore under the runner state dir, next to taskstate
 	Deliver: func(ctx context.Context, ev model.RunnerEvent) (permanent bool, err error) {
-		_, err = client.SubmitRunnerEvents(ctx, &xagentv1.SubmitRunnerEventsRequest{
-			Events: []*xagentv1.RunnerEvent{ev.Proto()},
+		_, err = client.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
+			Events: []*gritzv1.RunnerEvent{ev.Proto()},
 		})
 		return isPermanentError(err), err
 	},

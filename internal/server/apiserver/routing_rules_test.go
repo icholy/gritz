@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 
 	// Blank-imported so their init registers the eventrouter schemas that
 	// SetRoutingRules validates against (see event_types_test.go).
-	_ "github.com/icholy/xagent/internal/server/githubserver"
+	_ "github.com/icholy/gritz/internal/server/githubserver"
 )
 
 func TestGetRoutingRules_Default(t *testing.T) {
@@ -22,7 +22,7 @@ func TestGetRoutingRules_Default(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.GetRoutingRules(ctx, &xagentv1.GetRoutingRulesRequest{})
+	resp, err := srv.GetRoutingRules(ctx, &gritzv1.GetRoutingRulesRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -35,13 +35,13 @@ func TestSetAndGetRoutingRules(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	rules := []*xagentv1.RoutingRule{
-		{Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "body", Op: "prefix", Value: "bot:"}}},
-		{Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "mention", Op: "equals", Value: "mybot"}}},
+	rules := []*gritzv1.RoutingRule{
+		{Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "body", Op: "prefix", Value: "bot:"}}},
+		{Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "mention", Op: "equals", Value: "mybot"}}},
 	}
 
 	// Act
-	setResp, err := srv.SetRoutingRules(ctx, &xagentv1.SetRoutingRulesRequest{
+	setResp, err := srv.SetRoutingRules(ctx, &gritzv1.SetRoutingRulesRequest{
 		Rules: rules,
 	})
 
@@ -50,7 +50,7 @@ func TestSetAndGetRoutingRules(t *testing.T) {
 	assert.DeepEqual(t, setResp.Rules, rules, protocmp.Transform())
 
 	// Act
-	getResp, err := srv.GetRoutingRules(ctx, &xagentv1.GetRoutingRulesRequest{})
+	getResp, err := srv.GetRoutingRules(ctx, &gritzv1.GetRoutingRulesRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -63,13 +63,13 @@ func TestSetAndGetRoutingRules_Namespace(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	rules := []*xagentv1.RoutingRule{
-		{Source: "github", Type: "label_added", Conditions: []*xagentv1.RuleCondition{{Attr: "label", Op: "equals", Value: "reviewbot"}}, Namespace: "reviewbot"},
-		{Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "body", Op: "prefix", Value: "bot:"}}},
+	rules := []*gritzv1.RoutingRule{
+		{Source: "github", Type: "label_added", Conditions: []*gritzv1.RuleCondition{{Attr: "label", Op: "equals", Value: "reviewbot"}}, Namespace: "reviewbot"},
+		{Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "body", Op: "prefix", Value: "bot:"}}},
 	}
 
 	// Act
-	setResp, err := srv.SetRoutingRules(ctx, &xagentv1.SetRoutingRulesRequest{Rules: rules})
+	setResp, err := srv.SetRoutingRules(ctx, &gritzv1.SetRoutingRulesRequest{Rules: rules})
 
 	// Assert: the namespace round-trips through set, and the default (empty)
 	// namespace is preserved untouched.
@@ -77,7 +77,7 @@ func TestSetAndGetRoutingRules_Namespace(t *testing.T) {
 	assert.DeepEqual(t, setResp.Rules, rules, protocmp.Transform())
 
 	// Act
-	getResp, err := srv.GetRoutingRules(ctx, &xagentv1.GetRoutingRulesRequest{})
+	getResp, err := srv.GetRoutingRules(ctx, &gritzv1.GetRoutingRulesRequest{})
 
 	// Assert: set -> get preserves each rule's namespace.
 	assert.NilError(t, err)
@@ -94,15 +94,15 @@ func TestSetRoutingRules_OrgIsolation(t *testing.T) {
 	orgB := teststore.CreateOrg(t, srv.store, nil)
 	ctxA := createCtx(t, orgA)
 	ctxB := createCtx(t, orgB)
-	_, err := srv.SetRoutingRules(ctxA, &xagentv1.SetRoutingRulesRequest{
-		Rules: []*xagentv1.RoutingRule{
-			{Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "body", Op: "prefix", Value: "a:"}}},
+	_, err := srv.SetRoutingRules(ctxA, &gritzv1.SetRoutingRulesRequest{
+		Rules: []*gritzv1.RoutingRule{
+			{Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "body", Op: "prefix", Value: "a:"}}},
 		},
 	})
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.GetRoutingRules(ctxB, &xagentv1.GetRoutingRulesRequest{})
+	resp, err := srv.GetRoutingRules(ctxB, &gritzv1.GetRoutingRulesRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -116,24 +116,24 @@ func TestSetRoutingRules_RejectsInvalid(t *testing.T) {
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
 
-	cases := map[string]*xagentv1.RoutingRule{
+	cases := map[string]*gritzv1.RoutingRule{
 		"empty type":      {Source: "github"},
 		"unknown type":    {Source: "github", Type: "not_a_type"},
-		"unknown attr":    {Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "nope", Op: "equals", Value: "x"}}},
-		"unknown op":      {Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "body", Op: "regex", Value: "x"}}},
-		"attr wrong type": {Source: "github", Type: "issue_comment", Conditions: []*xagentv1.RuleCondition{{Attr: "assignee", Op: "equals", Value: "x"}}},
+		"unknown attr":    {Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "nope", Op: "equals", Value: "x"}}},
+		"unknown op":      {Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "body", Op: "regex", Value: "x"}}},
+		"attr wrong type": {Source: "github", Type: "issue_comment", Conditions: []*gritzv1.RuleCondition{{Attr: "assignee", Op: "equals", Value: "x"}}},
 	}
 	for name, rule := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := srv.SetRoutingRules(ctx, &xagentv1.SetRoutingRulesRequest{
-				Rules: []*xagentv1.RoutingRule{rule},
+			_, err := srv.SetRoutingRules(ctx, &gritzv1.SetRoutingRulesRequest{
+				Rules: []*gritzv1.RoutingRule{rule},
 			})
 			assert.Equal(t, connect.CodeOf(err), connect.CodeInvalidArgument)
 		})
 	}
 
 	// The rejected writes never persisted anything.
-	resp, err := srv.GetRoutingRules(ctx, &xagentv1.GetRoutingRulesRequest{})
+	resp, err := srv.GetRoutingRules(ctx, &gritzv1.GetRoutingRulesRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(resp.Rules), 0)
 }

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/store"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/store"
 )
 
 // New creates a *store.Store connected to the test database.

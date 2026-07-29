@@ -6,17 +6,17 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/icholy/xagent/internal/mcpbridge"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/server/mcpserver"
-	"github.com/icholy/xagent/internal/x/mcpchannel"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/mcpbridge"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/server/mcpserver"
+	"github.com/icholy/gritz/internal/x/mcpchannel"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/urfave/cli/v3"
 )
 
 // McpCommand runs a local stdio MCP bridge that re-exposes the
-// user-facing xagent tools by proxying calls to the server's
+// user-facing gritz tools by proxying calls to the server's
 // Connect RPC API, and pushes task change notifications to the host
 // Claude Code session as `notifications/claude/channel` events.
 //
@@ -33,12 +33,12 @@ var McpCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
+			Value:   gritzclient.DefaultURL,
 		},
 		&cli.StringFlag{
 			Name:     "token",
 			Usage:    "Authentication token",
-			Sources:  cli.EnvVars("XAGENT_TOKEN"),
+			Sources:  cli.EnvVars("GRITZ_TOKEN"),
 			Required: true,
 		},
 		&cli.BoolFlag{
@@ -58,7 +58,7 @@ var McpCommand = &cli.Command{
 		// would echo its own create_task/update_task changes back to the
 		// host Claude Code session as channel events (#718).
 		clientID := uuid.NewString()
-		client := xagentclient.New(xagentclient.Options{
+		client := gritzclient.New(gritzclient.Options{
 			BaseURL:  cmd.String("server"),
 			Token:    cmd.String("token"),
 			ClientID: clientID,
@@ -68,7 +68,7 @@ var McpCommand = &cli.Command{
 			capabilities.Experimental = mcpchannel.Experimental()
 		}
 		server := mcp.NewServer(&mcp.Implementation{
-			Name:    "xagent",
+			Name:    "gritz",
 			Version: "1.0.0",
 		}, &mcp.ServerOptions{
 			Instructions: mcpserver.Instructions,
@@ -97,14 +97,14 @@ var McpCommand = &cli.Command{
 		}
 		if ch != nil {
 			go func() {
-				nc := xagentclient.NewNotificationClient(xagentclient.NotificationClientOptions{
+				nc := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
 					BaseURL:  cmd.String("server"),
 					Token:    cmd.String("token"),
 					ClientID: clientID,
 					Handler:  func(n model.Notification) { ch.Forward(ctx, n) },
 				})
 				if err := nc.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-					slog.Warn("xagent channel: stream ended", "err", err)
+					slog.Warn("gritz channel: stream ended", "err", err)
 				}
 			}()
 		}

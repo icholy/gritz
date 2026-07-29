@@ -122,7 +122,7 @@ func NewAgent(opts Options) (Agent, error) {
 			options:    opts.Claude,
 		}, nil
 	case TypeCodex:
-		return &CodexAgent{
+		return &Codegritz{
 			log:        log,
 			cwd:        cmp.Or(opts.Cwd, "."),
 			verbose:    opts.Verbose,

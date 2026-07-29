@@ -196,7 +196,7 @@ Today's matchers map to:
 | `Value` | `{label, equals, v}` |
 
 The default rule becomes
-`{Conditions: [{body, prefix, "xagent:"}], Wakeup: true}`.
+`{Conditions: [{body, prefix, "gritz:"}], Wakeup: true}`.
 
 `MatchRule` shrinks to ~15 generic lines; `matchMention`/`matchAssignee` are
 deleted (their syntax knowledge moves to the extractors, per §1).
@@ -286,8 +286,8 @@ fields would silently *drop* matchers, leaving rules broader than the user
 wrote them (a `prefix` rule would start matching every comment). A one-time
 SQL migration in `internal/store/sql/migrations/` rewrites each stored rule
 into canonical form using the mapping table in §2 — e.g.
-`{"prefix": "xagent:"}` becomes
-`{"conditions": [{"attr": "body", "op": "prefix", "value": "xagent:"}]}` —
+`{"prefix": "gritz:"}` becomes
+`{"conditions": [{"attr": "body", "op": "prefix", "value": "gritz:"}]}` —
 and deletes the legacy keys. After the migration exactly one rule shape
 exists in the system.
 
@@ -345,7 +345,7 @@ matching; actions (`Wakeup`, `Create`) stay top-level rule fields.
       constants to the registry.
 - [ ] `internal/store/sql/migrations/`: one-time JSONB rewrite of
       `orgs.routing_rules` to canonical condition form (§5).
-- [ ] `proto/xagent/v1/xagent.proto`: `RuleCondition`, `conditions` field,
+- [ ] `proto/gritz/v1/gritz.proto`: `RuleCondition`, `conditions` field,
       reserve the removed matcher fields, `GetEventTypes`;
       `mise run generate`; regen `webui` and `n8n-node` protos.
 - [ ] `internal/server/apiserver`: validate on `SetRoutingRules`; implement

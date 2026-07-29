@@ -5,7 +5,7 @@ package apiserver
 
 import (
 	"context"
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 	"sync"
 )
 

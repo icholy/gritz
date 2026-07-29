@@ -11,18 +11,18 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/cenkalti/backoff/v5"
-	"github.com/icholy/xagent/internal/configfile"
-	"github.com/icholy/xagent/internal/model"
-	"github.com/icholy/xagent/internal/runner"
-	"github.com/icholy/xagent/internal/runner/backend"
-	dockerbackend "github.com/icholy/xagent/internal/runner/backend/docker"
-	"github.com/icholy/xagent/internal/runner/backend/lambdamicrovm"
-	"github.com/icholy/xagent/internal/runner/backend/lambdamicrovm/awsmvm"
-	"github.com/icholy/xagent/internal/runner/taskstate"
-	"github.com/icholy/xagent/internal/runner/workspace"
-	"github.com/icholy/xagent/internal/x/awsmicrovm"
-	"github.com/icholy/xagent/internal/x/common"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/configfile"
+	"github.com/icholy/gritz/internal/model"
+	"github.com/icholy/gritz/internal/runner"
+	"github.com/icholy/gritz/internal/runner/backend"
+	dockerbackend "github.com/icholy/gritz/internal/runner/backend/docker"
+	"github.com/icholy/gritz/internal/runner/backend/lambdamicrovm"
+	"github.com/icholy/gritz/internal/runner/backend/lambdamicrovm/awsmvm"
+	"github.com/icholy/gritz/internal/runner/taskstate"
+	"github.com/icholy/gritz/internal/runner/workspace"
+	"github.com/icholy/gritz/internal/x/awsmicrovm"
+	"github.com/icholy/gritz/internal/x/common"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -50,8 +50,8 @@ var RunnerCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
-			Sources: cli.EnvVars("XAGENT_SERVER"),
+			Value:   gritzclient.DefaultURL,
+			Sources: cli.EnvVars("GRITZ_SERVER"),
 		},
 		&cli.StringFlag{
 			Name:    "workspaces",
@@ -73,24 +73,24 @@ var RunnerCommand = &cli.Command{
 			Name:    "id",
 			Usage:   "Unique identifier for this runner (no spaces or special characters)",
 			Value:   defaultRunnerID(),
-			Sources: cli.EnvVars("XAGENT_RUNNER_ID"),
+			Sources: cli.EnvVars("GRITZ_RUNNER_ID"),
 		},
 		&cli.StringFlag{
 			Name:    "backend",
 			Usage:   "Sandbox backend (docker, lambda-microvm)",
 			Value:   "docker",
-			Sources: cli.EnvVars("XAGENT_BACKEND"),
+			Sources: cli.EnvVars("GRITZ_BACKEND"),
 		},
 		&cli.StringFlag{
 			Name:    "state-dir",
 			Usage:   "Directory for the runner-local task→sandbox-handle store",
-			Value:   "/var/lib/xagent/tasks",
-			Sources: cli.EnvVars("XAGENT_STATE_DIR"),
+			Value:   "/var/lib/gritz/tasks",
+			Sources: cli.EnvVars("GRITZ_STATE_DIR"),
 		},
 		&cli.StringFlag{
 			Name:    "lambda-microvm-region",
 			Usage:   "AWS region for the lambda-microvm backend (defaults to the SDK-resolved region)",
-			Sources: cli.EnvVars("XAGENT_LAMBDA_MICROVM_REGION"),
+			Sources: cli.EnvVars("GRITZ_LAMBDA_MICROVM_REGION"),
 		},
 		&cli.BoolFlag{
 			Name:  "debug",
@@ -101,7 +101,7 @@ var RunnerCommand = &cli.Command{
 			Name:    "key",
 			Aliases: []string{"k"},
 			Usage:   "API key (takes priority over config file)",
-			Sources: cli.EnvVars("XAGENT_API_KEY"),
+			Sources: cli.EnvVars("GRITZ_API_KEY"),
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -145,7 +145,7 @@ var RunnerCommand = &cli.Command{
 			return fmt.Errorf("failed to load workspace config: %w", err)
 		}
 
-		client := xagentclient.New(xagentclient.Options{
+		client := gritzclient.New(gritzclient.Options{
 			BaseURL: serverAddr,
 			Token:   cfg.Token,
 		})
@@ -255,7 +255,7 @@ var RunnerCommand = &cli.Command{
 		// reacts to new commands immediately instead of waiting for the
 		// fallback poll.
 		go func() {
-			nc := xagentclient.NewNotificationClient(xagentclient.NotificationClientOptions{
+			nc := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
 				BaseURL: serverAddr,
 				Runner:  runnerID,
 				Token:   cfg.Token,

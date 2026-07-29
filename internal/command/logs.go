@@ -25,7 +25,7 @@ var LogsCommand = &cli.Command{
 			return fmt.Errorf("task ID is required")
 		}
 		taskID := cmd.Args().First()
-		containerName := "xagent-" + taskID
+		containerName := "gritz-" + taskID
 
 		args := []string{"logs"}
 		if cmd.Bool("follow") {

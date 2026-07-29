@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 
-	"github.com/icholy/xagent/internal/agent"
-	"github.com/icholy/xagent/internal/xagentclient"
+	"github.com/icholy/gritz/internal/agent"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/urfave/cli/v3"
 )
 
@@ -16,7 +16,7 @@ var DriverCommand = &cli.Command{
 			Name:    "server",
 			Aliases: []string{"s"},
 			Usage:   "server URL",
-			Value:   xagentclient.DefaultURL,
+			Value:   gritzclient.DefaultURL,
 		},
 		&cli.Int64Flag{
 			Name:     "task",
@@ -31,7 +31,7 @@ var DriverCommand = &cli.Command{
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		// Open the append-only in-sandbox log: its logger tees the driver's slog
-		// output to os.Stderr and /xagent/log, and its sink is teed into setup
+		// output to os.Stderr and /gritz/log, and its sink is teed into setup
 		// command and Claude CLI stdio, so a completed run can be inspected
 		// post-mortem via the reverse-shell. Opening is best-effort and never
 		// fails the run (see agent.OpenDriverLog).
@@ -40,7 +40,7 @@ var DriverCommand = &cli.Command{
 
 		driver := &agent.Driver{
 			TaskID: cmd.Int64("task"),
-			Client: xagentclient.New(xagentclient.Options{
+			Client: gritzclient.New(gritzclient.Options{
 				BaseURL: cmd.String("server"),
 				Token:   cmd.String("token"),
 			}),

@@ -1,4 +1,4 @@
-# XAGENT
+# GRITZ
 
 Runs coding agents (Claude Code, Codex, Cursor, GitHub Copilot) inside remote sandboxes.
 
@@ -14,7 +14,7 @@ Runs coding agents (Claude Code, Codex, Cursor, GitHub Copilot) inside remote sa
 
 ## Quick Start
 
-Install `xagent` cli:
+Install `gritz` cli:
 
 ```bash
 mise run install
@@ -23,10 +23,10 @@ mise run install
 Download the pre-built binaries (if needed):
 
 ```bash
-xagent download
+gritz download
 ```
 
-Create an API key in the Web UI (https://xagent.choly.ca/ui/keys/new) and copy the returned `xat_…` value into `~/.config/xagent/config.yaml`:
+Create an API key in the Web UI (https://gritz.dev/ui/keys/new) and copy the returned `xat_…` value into `~/.config/gritz/config.yaml`:
 
 ```yaml
 token: xat_...
@@ -35,18 +35,18 @@ token: xat_...
 Create a `workspaces.yaml` file (see examples below):
 
 ```bash
-vim ~/.config/xagent/workspaces.yaml
+vim ~/.config/gritz/workspaces.yaml
 ```
 
 Start the local runner:
 
 ```bash
-xagent runner
+gritz runner
 ```
 
 Create and monitor tasks via the Web UI.
 
-Open: https://xagent.choly.ca/
+Open: https://gritz.dev/
 
 ## Workspace Examples
 
@@ -69,12 +69,12 @@ See [examples/runner/](examples/runner/) for running the runner as a Docker Comp
 View container logs:
 
 ```bash
-xagent logs -f <taskid>
+gritz logs -f <taskid>
 ```
 
 Set `verbose: true` on a workspace's agent to bypass the CLI output parser and
 log every raw line. Useful when the parser is hiding details (errors,
-intermediate output, tool-use payloads) you want to inspect via `xagent logs`.
+intermediate output, tool-use payloads) you want to inspect via `gritz logs`.
 
 ```yaml
 agent:
@@ -85,13 +85,13 @@ agent:
 Get a shell to a task container:
 
 ```bash
-xagent shell <taskid>
+gritz shell <taskid>
 ```
 
 List task containers:
 
 ```bash
-xagent containers
+gritz containers
 ```
 
 ## Local Development
@@ -110,7 +110,7 @@ The local server runs with `--no-auth`, but the runner still requires an API key
 Create one in the local Web UI at http://localhost:5173/ui/keys/new, then start the runner:
 
 ```bash
-xagent runner --server http://localhost:6464 -key <api-key>
+gritz runner --server http://localhost:6464 -key <api-key>
 ```
 
 

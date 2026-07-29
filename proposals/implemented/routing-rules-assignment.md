@@ -1,6 +1,6 @@
 # Assignment-Triggered Routing Rules
 
-Issue: https://github.com/icholy/xagent/issues/741
+Issue: https://github.com/icholy/gritz/issues/741
 
 ## Problem
 
@@ -89,7 +89,7 @@ Two structural changes to `internal/server/webhookserver/github.go` follow from 
 
 The header is still read once at the top of `ServeHTTP` for the existing log line (`:46`), but it stops being authoritative for `Type`.
 
-**Security boundary unchanged.** The actor is `Sender`, not `Assignee`. The existing `GetUserByGitHubUserID(extracted.githubUserID)` lookup (`:52`) keeps gating the event: only a sender who is a linked xagent user can produce an `InputEvent`. The assignee is just a match key — they need not be linked.
+**Security boundary unchanged.** The actor is `Sender`, not `Assignee`. The existing `GetUserByGitHubUserID(extracted.githubUserID)` lookup (`:52`) keeps gating the event: only a sender who is a linked gritz user can produce an `InputEvent`. The assignee is just a match key — they need not be linked.
 
 #### Atlassian extraction
 
@@ -206,7 +206,7 @@ type RoutingRule struct {
 
 `RoutingRule.Proto()` and `RoutingRuleFromProto()` (`:17-34`) gain the field, plumbing it both directions.
 
-`proto/xagent/v1/xagent.proto:532-537`:
+`proto/gritz/v1/gritz.proto:532-537`:
 
 ```protobuf
 message RoutingRule {
@@ -266,10 +266,10 @@ GitHub logins are case-insensitive; Jira account ids are opaque strings, exact-m
 
 The full chain:
 
-- **Assigner** = event actor = `Sender` (GitHub) / `payload.User` (Atlassian). Resolved to an xagent user at the handler level (`github.go:52`, `atlassian.go:77`). Same lookup, same `sql.ErrNoRows` drop, same audit posture.
+- **Assigner** = event actor = `Sender` (GitHub) / `payload.User` (Atlassian). Resolved to an gritz user at the handler level (`github.go:52`, `atlassian.go:77`). Same lookup, same `sql.ErrNoRows` drop, same audit posture.
 - **Assignee** = match target. Just an identifier string. Not resolved, not validated against the user table.
 
-Assignment introduces no new bypass. An unlinked user assigning issues cannot route events — they fail the `GetUserByGitHubUserID` / `GetUserByAtlassianAccountID` lookup exactly like an unlinked commenter does today. The "linked xagent user required" invariant from `proposals/draft/routing-rules-create-tasks.md` §1 carries over verbatim.
+Assignment introduces no new bypass. An unlinked user assigning issues cannot route events — they fail the `GetUserByGitHubUserID` / `GetUserByAtlassianAccountID` lookup exactly like an unlinked commenter does today. The "linked gritz user required" invariant from `proposals/draft/routing-rules-create-tasks.md` §1 carries over verbatim.
 
 A subtle consequence worth naming: an assignment create-rule (§5) means **a linked user can assign-create a task targeting a different account** (the rule's `assignee` value). That's intentional and useful — "assign to the bot account" is the canonical use case — but it means the assignee value in the rule is a trust statement by whoever configured the rule. This is no different from a `mention` rule trusting that the configured username is the bot's.
 
@@ -285,17 +285,17 @@ Assignment rules plug in unmodified. A rule like:
   "type": "pull_request_assigned",
   "assignee": "icholy-bot",
   "create": {
-    "workspace": "xagent",
+    "workspace": "gritz",
     "runner": "default",
     "prompt": "Review this PR and leave inline comments."
   }
 }
 ```
 
-means: when an assignment event for this org's user assigns icholy-bot to a PR, create a task in workspace `xagent` and subscribe its created `Link` to the PR's HTML URL. The lifecycle continues via the existing wake path:
+means: when an assignment event for this org's user assigns icholy-bot to a PR, create a task in workspace `gritz` and subscribe its created `Link` to the PR's HTML URL. The lifecycle continues via the existing wake path:
 
-1. First event for `https://github.com/icholy/xagent/pull/N` is `pull_request_assigned`. The wake-path link lookup (`FindSubscribedLinksForOrgs`) returns no links. The matched rule has `Create` set → `r.create` opens a tx, re-checks (dedup), creates `Task`, creates `Link{URL: PR, Subscribe: true, Relevance: "trigger"}`, commits. (§5 of the create-tasks proposal.)
-2. Subsequent comment on the PR is delivered as `issue_comment`. The same `Route` call finds the subscribed link from step 1, matches a wake-shaped rule (`source: github`, `type: issue_comment`, or `defaultRules`' `xagent:` prefix), goes through `attach` (`internal/eventrouter/eventrouter.go:117-156`), wakes the task. No second task is created.
+1. First event for `https://github.com/icholy/gritz/pull/N` is `pull_request_assigned`. The wake-path link lookup (`FindSubscribedLinksForOrgs`) returns no links. The matched rule has `Create` set → `r.create` opens a tx, re-checks (dedup), creates `Task`, creates `Link{URL: PR, Subscribe: true, Relevance: "trigger"}`, commits. (§5 of the create-tasks proposal.)
+2. Subsequent comment on the PR is delivered as `issue_comment`. The same `Route` call finds the subscribed link from step 1, matches a wake-shaped rule (`source: github`, `type: issue_comment`, or `defaultRules`' `gritz:` prefix), goes through `attach` (`internal/eventrouter/eventrouter.go:117-156`), wakes the task. No second task is created.
 
 The two pieces interlock cleanly because the dedup key is the URL of the resource, and assignment and comment events for the same PR share that URL.
 
@@ -305,8 +305,8 @@ The two pieces interlock cleanly because the dedup key is the URL of the resourc
 [
   { "source": "github", "type": "pull_request_assigned",
     "assignee": "icholy-bot",
-    "create": { "workspace": "xagent", "runner": "default", "prompt": "Review." } },
-  { "source": "github", "type": "issue_comment", "prefix": "xagent:" }
+    "create": { "workspace": "gritz", "runner": "default", "prompt": "Review." } },
+  { "source": "github", "type": "issue_comment", "prefix": "gritz:" }
 ]
 ```
 
@@ -351,7 +351,7 @@ Tests live next to existing ones:
   - Combined-gate: rule `source: github, type: pull_request_assigned, assignee: icholy-bot` matches only when all three are set on the event.
 - **Composition with create-rules** — extends `internal/eventrouter/eventrouter_test.go` (the create-tasks proposal adds suites here). Cases:
   - **Assign → create.** Org has a create-rule for `pull_request_assigned` with `assignee: icholy-bot`. Fire a `pull_request_assigned` event with matching assignee. Assert one task + one subscribed link were created (single transaction).
-  - **Assign-create → comment-wake.** Same setup. Fire the assignment first (task created). Then fire an `issue_comment` event on the same URL whose body starts with `xagent:`. Assert no second task is created and the existing task transitions through `attach`.
+  - **Assign-create → comment-wake.** Same setup. Fire the assignment first (task created). Then fire an `issue_comment` event on the same URL whose body starts with `gritz:`. Assert no second task is created and the existing task transitions through `attach`.
   - **Wrong assignee no-ops.** Same rule. Fire `pull_request_assigned` with `assignee: someone-else`. Assert no task created, no error.
   - **Unlinked assigner drops.** Fire a `pull_request_assigned` whose sender is not in `users.github_user_id`. Assert handler returns `"no linked account"`, `Route` is never called. (Belongs in `webhookserver` tests, not router.)
 
@@ -387,6 +387,6 @@ Option 2 is more general but multiplies the UI surface (event-type dropdown plus
 ## Open Questions
 
 1. **Atlassian `Comment.Author` shape vs new `payload.User`.** The Atlassian extractor currently reads the actor from `Comment.Author` (`webhook.go:22`, `atlassian.go:130`). The new `jira:issue_updated` branch reads it from a top-level `payload.User`. Jira's webhook contract does put the actor at the top level for non-comment events, but worth confirming against a real `jira:issue_updated` payload during implementation (the existing `webhook_test.go` doesn't cover this case yet).
-2. **Should `defaultRules` recognize assignment?** Current default is a single `Prefix: "xagent:"` wake rule (`internal/eventrouter/eventrouter.go:35-37`). Adding a default assignment rule would mean "every org gets assign-to-anyone wake behaviour out of the box", which is probably the wrong default — assignees vary per org. Leave `defaultRules` alone; assignment is opt-in via configured rules.
+2. **Should `defaultRules` recognize assignment?** Current default is a single `Prefix: "gritz:"` wake rule (`internal/eventrouter/eventrouter.go:35-37`). Adding a default assignment rule would mean "every org gets assign-to-anyone wake behaviour out of the box", which is probably the wrong default — assignees vary per org. Leave `defaultRules` alone; assignment is opt-in via configured rules.
 3. **`Data` on assignment events: empty vs issue title.** The proposal leaves `Data` empty (no comment body). Putting the issue title there would make a body-`prefix` filter ("only assignments on issues whose title starts with [bug]") possible, but feels like overloading the field. Leave empty for v1; revisit if a real use case appears.
 4. **Wording of the auto-generated preamble for assign-created tasks.** The create-tasks proposal §6 sketches a preamble; for assignment it should probably name both the assigner and the assignee, e.g. *"You were created by a routing rule because @octocat assigned this PR to @icholy-bot."* Exact wording belongs in implementation review.

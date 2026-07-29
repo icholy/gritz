@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 mise run build          # Build main binary + prebuilt binaries for linux amd64/arm64
 mise run generate       # Generate protobuf code (go tool buf generate)
-go build -o xagent ./cmd/xagent  # Build main binary only
+go build -o gritz ./cmd/gritz  # Build main binary only
 ```
 
 ## Running Tests
@@ -24,7 +24,7 @@ Pass extra flags to `go test` with `--`: `mise run test -- -run=TestFoo -v`
 
 ## Architecture
 
-XAGENT is an async agent orchestrator using a central control plane architecture to run multiple Claude Code instances in parallel inside Docker containers.
+GRITZ is an async agent orchestrator using a central control plane architecture to run multiple Claude Code instances in parallel inside Docker containers.
 
 ### Core Components
 
@@ -36,14 +36,14 @@ XAGENT is an async agent orchestrator using a central control plane architecture
 ### Key Concepts
 
 - **Tasks** are the unit of work - contain workspace reference and prompts to execute
-- **Agents** run one-to-one with tasks inside containers named `xagent-{task-id}`
+- **Agents** run one-to-one with tasks inside containers named `gritz-{task-id}`
 - **Workspaces** define container config (image, volumes, env vars) and MCP servers in `workspaces.yaml`
-- Communication happens via Unix socket proxy at `/xagent/socket` inside containers
-- Runner auto-injects an `xagent` MCP server (see below)
+- Communication happens via Unix socket proxy at `/gritz/socket` inside containers
+- Runner auto-injects an `gritz` MCP server (see below)
 
 ### MCP Server Tools
 
-The runner injects an `xagent` MCP server into each agent, providing these tools:
+The runner injects an `gritz` MCP server into each agent, providing these tools:
 
 - `get_my_task` - Get current task instructions, links, and events
 - `update_my_task` - Update the current task's name
@@ -65,21 +65,21 @@ Use `create_link` with `subscribe=true` for resources that may need follow-up (P
 ### CLI Subcommands
 
 ```
-xagent server     # Start server
-xagent runner     # Start container orchestrator
-xagent driver     # Run agent (inside container, started by runner)
-xagent mcp        # Local user-facing stdio MCP server that proxies to the server
-xagent notify     # Subscribe to server notifications and emit system notifications
-xagent tool agent-mcp # In-container MCP server providing xagent tools to the agent
-xagent task       # Task CRUD (list, create, update, delete)
-xagent containers # List xagent containers
-xagent jira       # Poll Jira for issue comments
-xagent github     # GitHub integration
+gritz server     # Start server
+gritz runner     # Start container orchestrator
+gritz driver     # Run agent (inside container, started by runner)
+gritz mcp        # Local user-facing stdio MCP server that proxies to the server
+gritz notify     # Subscribe to server notifications and emit system notifications
+gritz tool agent-mcp # In-container MCP server providing gritz tools to the agent
+gritz task       # Task CRUD (list, create, update, delete)
+gritz containers # List gritz containers
+gritz jira       # Poll Jira for issue comments
+gritz github     # GitHub integration
 ```
 
 ### Protobuf
 
-Service definitions in `proto/xagent/v1/xagent.proto`; generated code is written to `internal/proto/` (checked in) by `mise run generate`.
+Service definitions in `proto/gritz/v1/gritz.proto`; generated code is written to `internal/proto/` (checked in) by `mise run generate`.
 
 ## Conventional Commits & Releases
 

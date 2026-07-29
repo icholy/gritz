@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
 // cronParser is the fixed 5-field parser (minute hour day-of-month month
@@ -143,14 +143,14 @@ func (s *Schedule) Validate() error {
 // Proto converts a Schedule to its protobuf representation. A nil next/last-run
 // timestamp (disabled or never fired) maps to an unset proto field; a nil
 // LastTaskID maps to 0 ("never run").
-func (s *Schedule) Proto() *xagentv1.Schedule {
-	pb := &xagentv1.Schedule{
+func (s *Schedule) Proto() *gritzv1.Schedule {
+	pb := &gritzv1.Schedule{
 		Id:           s.ID,
 		Name:         s.Name,
 		Workspace:    s.Workspace,
 		Runner:       s.Runner,
 		Namespace:    s.Namespace,
-		Instructions: make([]*xagentv1.Instruction, len(s.Instructions)),
+		Instructions: make([]*gritzv1.Instruction, len(s.Instructions)),
 		CronExpr:     s.CronExpr,
 		Timezone:     s.Timezone,
 		Enabled:      s.Enabled,
@@ -160,7 +160,7 @@ func (s *Schedule) Proto() *xagentv1.Schedule {
 		UpdatedAt:    timestamppb.New(s.UpdatedAt),
 	}
 	for i, inst := range s.Instructions {
-		pb.Instructions[i] = &xagentv1.Instruction{Text: inst.Text, Url: inst.URL}
+		pb.Instructions[i] = &gritzv1.Instruction{Text: inst.Text, Url: inst.URL}
 	}
 	if s.NextRunAt != nil {
 		pb.NextRunAt = timestamppb.New(*s.NextRunAt)
@@ -176,7 +176,7 @@ func (s *Schedule) Proto() *xagentv1.Schedule {
 
 // ScheduleInstructionsFromProto converts proto Instruction messages to the
 // schedule's template DTOs (the [{text, url}] JSONB shape).
-func ScheduleInstructionsFromProto(instructions []*xagentv1.Instruction) []ScheduleInstruction {
+func ScheduleInstructionsFromProto(instructions []*gritzv1.Instruction) []ScheduleInstruction {
 	out := make([]ScheduleInstruction, len(instructions))
 	for i, inst := range instructions {
 		out[i] = ScheduleInstruction{Text: inst.Text, URL: inst.Url}

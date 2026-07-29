@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icholy/xagent/internal/model"
+	"github.com/icholy/gritz/internal/model"
 	"gotest.tools/v3/assert"
 )
 

@@ -3,10 +3,10 @@ package apiserver
 import (
 	"testing"
 
-	"github.com/icholy/xagent/internal/auth/apiauth"
-	"github.com/icholy/xagent/internal/auth/authscope"
-	xagentv1 "github.com/icholy/xagent/internal/proto/xagent/v1"
-	"github.com/icholy/xagent/internal/store/teststore"
+	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/auth/authscope"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/store/teststore"
 	"gotest.tools/v3/assert"
 )
 
@@ -18,7 +18,7 @@ func TestCreateKey(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.CreateKey(ctx, &xagentv1.CreateKeyRequest{
+	resp, err := srv.CreateKey(ctx, &gritzv1.CreateKeyRequest{
 		Name: "test-key",
 	})
 
@@ -38,7 +38,7 @@ func TestCreateKeyStoresAdminScopes(t *testing.T) {
 	ctx := createCtx(t, org)
 
 	// Act
-	resp, err := srv.CreateKey(ctx, &xagentv1.CreateKeyRequest{
+	resp, err := srv.CreateKey(ctx, &gritzv1.CreateKeyRequest{
 		Name: "admin-key",
 	})
 	assert.NilError(t, err)
@@ -56,17 +56,17 @@ func TestCreateAndListKeys(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	_, err := srv.CreateKey(ctx, &xagentv1.CreateKeyRequest{
+	_, err := srv.CreateKey(ctx, &gritzv1.CreateKeyRequest{
 		Name: "key-1",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateKey(ctx, &xagentv1.CreateKeyRequest{
+	_, err = srv.CreateKey(ctx, &gritzv1.CreateKeyRequest{
 		Name: "key-2",
 	})
 	assert.NilError(t, err)
 
 	// Act
-	resp, err := srv.ListKeys(ctx, &xagentv1.ListKeysRequest{})
+	resp, err := srv.ListKeys(ctx, &gritzv1.ListKeysRequest{})
 
 	// Assert
 	assert.NilError(t, err)
@@ -79,19 +79,19 @@ func TestDeleteKey(t *testing.T) {
 	srv := New(Options{Store: teststore.New(t)})
 	org := teststore.CreateOrg(t, srv.store, nil)
 	ctx := createCtx(t, org)
-	createResp, err := srv.CreateKey(ctx, &xagentv1.CreateKeyRequest{
+	createResp, err := srv.CreateKey(ctx, &gritzv1.CreateKeyRequest{
 		Name: "to-delete",
 	})
 	assert.NilError(t, err)
 
 	// Act
-	_, err = srv.DeleteKey(ctx, &xagentv1.DeleteKeyRequest{
+	_, err = srv.DeleteKey(ctx, &gritzv1.DeleteKeyRequest{
 		Id: createResp.Key.Id,
 	})
 	assert.NilError(t, err)
 
 	// Assert
-	listResp, err := srv.ListKeys(ctx, &xagentv1.ListKeysRequest{})
+	listResp, err := srv.ListKeys(ctx, &gritzv1.ListKeysRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(listResp.Keys), 0)
 }
@@ -104,19 +104,19 @@ func TestListKeys_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, nil)
 	ctxB := createCtx(t, orgB)
-	_, err := srv.CreateKey(ctxA, &xagentv1.CreateKeyRequest{
+	_, err := srv.CreateKey(ctxA, &gritzv1.CreateKeyRequest{
 		Name: "user-a-key",
 	})
 	assert.NilError(t, err)
-	_, err = srv.CreateKey(ctxB, &xagentv1.CreateKeyRequest{
+	_, err = srv.CreateKey(ctxB, &gritzv1.CreateKeyRequest{
 		Name: "user-b-key",
 	})
 	assert.NilError(t, err)
 
 	// Act
-	respA, err := srv.ListKeys(ctxA, &xagentv1.ListKeysRequest{})
+	respA, err := srv.ListKeys(ctxA, &gritzv1.ListKeysRequest{})
 	assert.NilError(t, err)
-	respB, err := srv.ListKeys(ctxB, &xagentv1.ListKeysRequest{})
+	respB, err := srv.ListKeys(ctxB, &gritzv1.ListKeysRequest{})
 	assert.NilError(t, err)
 
 	// Assert - each user only sees their own keys
@@ -134,20 +134,20 @@ func TestDeleteKey_Permissions(t *testing.T) {
 	ctxA := createCtx(t, orgA)
 	orgB := teststore.CreateOrg(t, srv.store, nil)
 	ctxB := createCtx(t, orgB)
-	createResp, err := srv.CreateKey(ctxA, &xagentv1.CreateKeyRequest{
+	createResp, err := srv.CreateKey(ctxA, &gritzv1.CreateKeyRequest{
 		Name: "user-a-key",
 	})
 	assert.NilError(t, err)
 
 	// Act - User B tries to delete User A's key
-	_, err = srv.DeleteKey(ctxB, &xagentv1.DeleteKeyRequest{
+	_, err = srv.DeleteKey(ctxB, &gritzv1.DeleteKeyRequest{
 		Id: createResp.Key.Id,
 	})
 
 	// Assert - delete doesn't error (SQL DELETE with no rows is not an error)
 	// but the key should still exist for User A
 	assert.NilError(t, err)
-	listResp, err := srv.ListKeys(ctxA, &xagentv1.ListKeysRequest{})
+	listResp, err := srv.ListKeys(ctxA, &gritzv1.ListKeysRequest{})
 	assert.NilError(t, err)
 	assert.Equal(t, len(listResp.Keys), 1)
 }

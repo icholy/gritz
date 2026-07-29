@@ -19,7 +19,7 @@ GitHub issues describe problems. Proposals describe solutions. This skill turns 
 ```markdown
 # Title
 
-Issue: https://github.com/icholy/xagent/issues/NNN
+Issue: https://github.com/icholy/gritz/issues/NNN
 
 ## Problem
 
@@ -59,7 +59,7 @@ For example:
    Verifiable by: migration runs cleanly up and down.
 2. **Backend store + RPC** — Delivers: store methods and the `CreateFoo` RPC. Depends on: (1).
    Verifiable by: unit tests against the store and handler.
-3. **CLI wire-up** — Delivers: `xagent foo` subcommand calling the RPC. Depends on: (2).
+3. **CLI wire-up** — Delivers: `gritz foo` subcommand calling the RPC. Depends on: (2).
    Verifiable by: running the command end to end.
 4. **Web UI** — Delivers: the Foo list view. Depends on: (2). Verifiable by: rendering the
    view against a task with foos.
