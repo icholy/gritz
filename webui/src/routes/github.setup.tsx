@@ -2,10 +2,7 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@connectrpc/connect-query'
 import { ConnectError, Code } from '@connectrpc/connect'
-import {
-  getProfile,
-  linkGitHubInstallation,
-} from '@/gen/gritz/v1/gritz-GritzService_connectquery'
+import { getProfile, linkGitHubInstallation } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useOrgId } from '@/hooks/use-org-id'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
