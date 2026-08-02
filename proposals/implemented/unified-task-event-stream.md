@@ -28,7 +28,7 @@ together:
   `Task.ApplyRunnerEvent` (`internal/model/task.go`), and *separately* written
   as `audit`/`info` log rows.
 
-The system is already half event-sourced. `proposals/accepted/driver-owned-events.md`
+The system is already half event-sourced. `proposals/implemented/driver-owned-events.md`
 made the driver the source of truth for lifecycle events submitted to an API,
 and `ApplyRunnerEvent` is literally a fold over those events into a status. Two
 draft proposals are circling the same center of gravity from different sides:

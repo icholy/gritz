@@ -5,7 +5,7 @@ Issue: https://github.com/icholy/gritz/issues/1146
 ## Problem
 
 The runner's sandbox runtime is abstracted behind `backend.Backend`
-(proposals/accepted/runner-backend-interface.md), but the only backend that runs
+(proposals/implemented/runner-backend-interface.md), but the only backend that runs
 work on infrastructure an operator already owns is Docker — and Docker runs every
 task on the **single host the runner is bound to**. That host caps concurrency
 (`--concurrency`), and scaling out means running more runners and manually
