@@ -30,7 +30,7 @@ Issue: https://github.com/icholy/gritz/issues/1048
 ## Problem
 
 The runner's sandbox runtime is abstracted behind `backend.Backend`
-(proposals/accepted/runner-backend-interface.md), but Docker is still the only
+(proposals/implemented/runner-backend-interface.md), but Docker is still the only
 implementation. Two isolated/managed alternatives are already proposed, and each
 pays a price:
 

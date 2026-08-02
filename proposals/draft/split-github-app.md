@@ -2,11 +2,11 @@
 
 Issue: https://github.com/icholy/gritz/issues/684
 
-Extends: [`proposals/accepted/github-app-installation-tokens.md`](../accepted/github-app-installation-tokens.md)
+Extends: [`proposals/implemented/github-app-installation-tokens.md`](../implemented/github-app-installation-tokens.md)
 
 ## Problem
 
-The accepted [GitHub App Installation Token API](../accepted/github-app-installation-tokens.md) proposal funnels both webhook delivery and agent write operations through a single central gritz GitHub App. To install that app, a user has to grant the central gritz deployment full read/write access (Contents, Pull requests, etc.) on whatever repos the agents will touch.
+The accepted [GitHub App Installation Token API](../implemented/github-app-installation-tokens.md) proposal funnels both webhook delivery and agent write operations through a single central gritz GitHub App. To install that app, a user has to grant the central gritz deployment full read/write access (Contents, Pull requests, etc.) on whatever repos the agents will touch.
 
 In practice this is the single biggest install-time objection: users want the event routing (PR comments, issue updates flowing back to tasks) but they don't want a shared multi-tenant app holding write keys to their repos.
 

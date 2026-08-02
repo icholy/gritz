@@ -5,7 +5,7 @@ Issue: https://github.com/icholy/gritz/issues/943
 ## Problem
 
 The runner's sandbox runtime is abstracted behind `backend.Backend`
-(proposals/accepted/runner-backend-interface.md), which names **Bedrock
+(proposals/implemented/runner-backend-interface.md), which names **Bedrock
 AgentCore** as a target runtime alongside Kubernetes, ECS, and Firecracker.
 Today Docker is the only implementation, and a Firecracker backend is proposed
 for single-host hardware isolation (proposals/draft/firecracker-backend.md).

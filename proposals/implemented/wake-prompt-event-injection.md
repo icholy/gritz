@@ -69,7 +69,7 @@ type Config struct {
 (`""`) is the natural first-run state: "no page consumed yet." The config file
 survives a restart because the driver-owned-events design restarts the **same**
 container (the filesystem persists — see
-`proposals/accepted/driver-owned-events.md`), so the token written by one run is
+`proposals/implemented/driver-owned-events.md`), so the token written by one run is
 read by the next. If the container is *recreated* rather than restarted, the
 config file is gone and the token resets to `""` — but so do `Started` and
 `SetupCommandsCompleted`, so a recreate is already a fresh first run and the

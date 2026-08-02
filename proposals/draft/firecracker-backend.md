@@ -6,7 +6,7 @@ Issue: https://github.com/icholy/gritz/issues/920
 
 Tasks run autonomous coding agents that execute arbitrary shell commands. Today the only sandbox is a Docker container: every task shares the runner host's kernel, and a container escape compromises the host, its credentials (the `xat_` runner key, registry auth, secrets expanded into `workspaces.yaml`), and every other task on the machine. Workspaces that set `privileged: true`, custom runtimes, or host volume mounts widen the blast radius further.
 
-The runner's sandbox runtime is abstracted behind `backend.Backend` (proposals/accepted/runner-backend-interface.md), which names Firecracker microVMs as a target runtime — but Docker remains the only implementation. This proposal adds a `firecracker` backend that runs each task in its own KVM microVM: hardware-virtualized isolation per task, on a single host, with no cluster or external scheduler.
+The runner's sandbox runtime is abstracted behind `backend.Backend` (proposals/implemented/runner-backend-interface.md), which names Firecracker microVMs as a target runtime — but Docker remains the only implementation. This proposal adds a `firecracker` backend that runs each task in its own KVM microVM: hardware-virtualized isolation per task, on a single host, with no cluster or external scheduler.
 
 ## Design
 

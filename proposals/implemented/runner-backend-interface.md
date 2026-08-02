@@ -11,7 +11,7 @@ We want to be able to run task sandboxes on other runtimes — Kubernetes, AWS E
 Two prior changes make this seam clean:
 
 - **Socket proxy elimination** (proposals/implemented/eliminate-runner-socket-proxy.md): the driver and the injected MCP server connect directly to the server with a server-minted task JWT. The runner no longer shares a Unix socket — or any filesystem — with the sandbox, so a sandbox no longer has to be co-located with the runner.
-- **Driver-owned events** (proposals/accepted/driver-owned-events.md): the driver reports `started`/`stopped`/`failed` itself. The only thing the runner needs from the runtime is "the sandbox for task X exited, zero or non-zero".
+- **Driver-owned events** (proposals/implemented/driver-owned-events.md): the driver reports `started`/`stopped`/`failed` itself. The only thing the runner needs from the runtime is "the sandbox for task X exited, zero or non-zero".
 
 ## Design
 

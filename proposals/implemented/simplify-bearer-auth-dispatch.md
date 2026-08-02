@@ -20,7 +20,7 @@ A minimal fix has already landed on `master`: in the `default:` branch, if the r
 
 ### `X-Auth-Type` is dead weight everywhere else
 
-After the OAuth 2.1 work (`proposals/accepted/mcp-oauth.md`), three distinct identities can already be told apart from the `Authorization` header alone:
+After the OAuth 2.1 work (`proposals/implemented/mcp-oauth.md`), three distinct identities can already be told apart from the `Authorization` header alone:
 
 - `Authorization: Bearer xat_…` — API key (the `xat_` prefix is the marker, see `IsKey` in `internal/auth/apiauth/token.go:29`)
 - `Authorization: Bearer <jwt>` — app JWT issued by gritz
@@ -92,7 +92,7 @@ What stays:
 - `/auth/token` and `HandleToken` — still used by the web UI to mint app JWTs from a cookie session
 - `authentication.Middleware` / `a.cookie` — still serves the web UI's cookie session, including the cookie path through `HandleToken`
 - `validateAppToken` and `validateKey` — both still needed for `Authorization: Bearer …` requests on non-`/auth/token` routes
-- The OAuth 2.1 flow in `internal/auth/oauthflow/` and its own `/oauth/token` endpoint (a separate endpoint used by Claude.ai-style external clients; see `proposals/accepted/mcp-oauth.md`)
+- The OAuth 2.1 flow in `internal/auth/oauthflow/` and its own `/oauth/token` endpoint (a separate endpoint used by Claude.ai-style external clients; see `proposals/implemented/mcp-oauth.md`)
 
 The web UI's existing flow is unchanged: cookie session → `GET /auth/token` → app JWT → API calls with `Authorization: Bearer <jwt>`. The dual-token system in `webui/src/lib/transport.ts` stays. The only thing the UI loses is the OIDC-bearer arrival path at `/auth/token`, which it never used.
 
