@@ -130,14 +130,14 @@ func (c *NotificationClient) connect(ctx context.Context) error {
 		if ev.Event == "" {
 			return nil
 		}
+		// Keep-alives exist only to put bytes on an idle stream. They carry
+		// no data, so drop them before decoding.
+		if ev.Event == "keep-alive" {
+			continue
+		}
 		var n model.Notification
 		if err := json.Unmarshal(ev.Data, &n); err != nil {
 			c.log.Warn("failed to decode notification", "err", err)
-			continue
-		}
-		// Keep-alives exist only to put bytes on an idle stream. Drop them
-		// before the handler so subscribers aren't woken by them.
-		if n.Type == "keep-alive" {
 			continue
 		}
 		// Drop notifications that originated from this client so callers
