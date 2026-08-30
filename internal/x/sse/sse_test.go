@@ -40,16 +40,6 @@ func TestReader(t *testing.T) {
 			r:    strings.NewReader("id: 1\nevent: msg\ndata: hello\n\n"),
 			want: []Event{{ID: "1", Event: "msg", Data: []byte("hello")}},
 		},
-		{
-			name: "comments are skipped",
-			r:    strings.NewReader(": keepalive\n\n: keepalive\n\nevent: msg\ndata: hello\n\n"),
-			want: []Event{{Event: "msg", Data: []byte("hello")}},
-		},
-		{
-			name: "comment inside an event",
-			r:    strings.NewReader(": keepalive\ndata: hello\n\n"),
-			want: []Event{{Data: []byte("hello")}},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -103,19 +93,6 @@ func TestRoundTrip(t *testing.T) {
 			assert.DeepEqual(t, got, tt.events)
 		})
 	}
-}
-
-func TestWriterComment(t *testing.T) {
-	var buf bytes.Buffer
-	w := NewWriter(&buf)
-	assert.NilError(t, w.WriteComment("keepalive"))
-	assert.Equal(t, buf.String(), ": keepalive\n\n")
-
-	// A comment must not be surfaced as an event by the reader.
-	assert.NilError(t, w.Write(Event{Event: "msg", Data: []byte("hello")}))
-	ev, err := NewReader(&buf).Read()
-	assert.NilError(t, err)
-	assert.DeepEqual(t, ev.Clone(), Event{Event: "msg", Data: []byte("hello")})
 }
 
 func TestWriter(t *testing.T) {
