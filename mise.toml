@@ -8,6 +8,7 @@ sops = "3.13.2"
 age = "1.3.1"
 "npm:pnpm" = "11.11.0"
 flyctl = "0.4.72"
+doctl = "1.167.0"
 dbmate = "2.33.0"
 "aqua:siderolabs/conform" = "0.1.0-alpha.31"
 "aqua:golangci/golangci-lint" = "2.12.2"
@@ -88,6 +89,21 @@ run = "go test ./..."
 description = "Run golangci-lint"
 depends = ["build:webui"]
 run = "golangci-lint run"
+
+[tasks."droplet:create"]
+description = "Create the DigitalOcean droplet running dokku (see deploy/README.md)"
+env = { DROPLET_NAME = "gritz", DROPLET_REGION = "tor1", DROPLET_SIZE = "s-2vcpu-4gb", DROPLET_IMAGE = "ubuntu-24-04-x64" }
+run = """
+: "${DROPLET_SSH_KEYS:?set to a comma-separated list of fingerprints from: doctl compute ssh-key list}"
+doctl compute droplet create "$DROPLET_NAME" \
+	--region "$DROPLET_REGION" \
+	--size "$DROPLET_SIZE" \
+	--image "$DROPLET_IMAGE" \
+	--ssh-keys "$DROPLET_SSH_KEYS" \
+	--user-data-file deploy/cloud-init.yaml \
+	--enable-monitoring \
+	--wait
+"""
 
 [tasks.deploy]
 description = "Build and deploy to Fly.io"
