@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.0.1](https://github.com/icholy/gritz/compare/v3.0.0...v3.0.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **otel:** drop peer attributes from otelconnect RPC metrics ([973906b](https://github.com/icholy/gritz/commit/973906b2e92c0b0c7c6d2145e08e23a05842a54a)), closes [#1530](https://github.com/icholy/gritz/issues/1530)
+* **server:** keep idle SSE streams alive behind proxies ([0c17b8f](https://github.com/icholy/gritz/commit/0c17b8f186b5290de7bda6c34377932887faa887))
+
+
+### Miscellaneous
+
+* correct the release description now that fly is gone ([3b71ac3](https://github.com/icholy/gritz/commit/3b71ac355c840cbc4eb85e285a15ba8c2b23a9b2))
+* **deps:** update dependency pnpm to v11.16.0 ([48acb6c](https://github.com/icholy/gritz/commit/48acb6c90a86f08a1236e0800907de7d8e34dba2))
+* **deps:** update radix-ui-primitives monorepo ([a6725ca](https://github.com/icholy/gritz/commit/a6725ca4feca6c7c8373810aaa02b3782b90d019))
+* **gritzclient:** capture the keep-alive log through io.Pipe ([011bc03](https://github.com/icholy/gritz/commit/011bc03223513a5852f308ba10dbd9e350080c0d))
+* **gritzclient:** drop the keep-alive test ([db4de97](https://github.com/icholy/gritz/commit/db4de97848c5273b444682e613acd680473379b5))
+* **otel:** inline the otelconnect metric view ([20ae356](https://github.com/icholy/gritz/commit/20ae3564ee6b57158b580d5211a21c3c54737be0))
+* remove fly.io and point the tooling at the dokku host ([da5340e](https://github.com/icholy/gritz/commit/da5340e8313070d2a8c89731d9666d91914d95c8))
+* restore the deploy workflow, targeting the dokku host ([b93fb57](https://github.com/icholy/gritz/commit/b93fb5798362f659e25cb2cb9b43940c3aecd035))
+* **server:** drop the keep-alive payload ([663793f](https://github.com/icholy/gritz/commit/663793ffad160fcc842ecea0c1f6f5508307b3b5))
+* **server:** hard-code the SSE keep-alive interval ([aec4ccb](https://github.com/icholy/gritz/commit/aec4ccbc2fee3b1261e5304f86374929921ff0f8))
+* **server:** rename the SSE keep-alive event to keepalive ([5d2b06c](https://github.com/icholy/gritz/commit/5d2b06c33c82890a057492cb24ab949533344728))
+* **server:** send the SSE keep-alive as a real event ([53be81f](https://github.com/icholy/gritz/commit/53be81f8199b5da0f0f9ae4283c8bd0ea30e8fb5))
+* **server:** use cmp.Or for the SSE keep-alive default ([4d7db27](https://github.com/icholy/gritz/commit/4d7db27e66326ce043d81c965a13c8863e0c8371))
+* **sse:** restore the reader to its original form ([55103e1](https://github.com/icholy/gritz/commit/55103e1c2ca48644d0a3f1581be23dedd66d64a5))
+
 ## [3.0.0](https://github.com/icholy/gritz/compare/v2.18.0...v3.0.0) (2026-08-30)
 
 
