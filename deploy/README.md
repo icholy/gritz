@@ -94,17 +94,21 @@ renaming that is a separate exercise with its own callback-URL churn.
 The server image is published to GHCR by the release workflow and is public, so
 the droplet needs no registry credentials.
 
-Note that **`ghcr.io/icholy/gritz-server` does not exist yet**. The rename landed
-after the last release, so the newest published server image is still
-`ghcr.io/icholy/xagent-server:2.18.0`. Either deploy that tag for the cutover, or
-cut a release first and deploy the `gritz-server` tag it produces.
+**The image must be a post-rename build.** Anything up to and including
+`xagent-server:2.18.0` predates the rename and reads `XAGENT_*` exclusively
+(`cli.EnvVars("XAGENT_DATABASE_URL")` at that tag), so against the `GRITZ_*`
+config from step 3 it starts with an empty DSN and crashloops on
+`failed to open database: invalid url`. Deploying an old tag means renaming all
+21 config vars, then renaming them back at the next release.
 
 ```bash
-ssh root@$IP 'dokku git:from-image gritz ghcr.io/icholy/xagent-server:2.18.0'
+ssh root@$IP 'dokku git:from-image gritz ghcr.io/icholy/gritz-server:3.0.0'
 ```
 
 The server runs its own migrations on startup (`store.Open(dsn, true)` in
-`internal/command/server.go`), so there is no separate migration step.
+`internal/command/server.go:174`), so there is no separate migration step. That
+is also why this step has to come *before* the data move, or be undone by it -
+see step 6.
 
 ## 5. Enable TLS
 
@@ -136,6 +140,15 @@ whatever the local distro ships.
 Run this from a machine authenticated to Fly - the database is only reachable
 over the Fly private network. Stop the app first so nothing writes mid-dump.
 
+First reset the target database. Step 4 already let the server create its
+schema in `gritz_db`, and `pg_restore` into a database that already holds those
+objects fails on every one of them:
+
+```bash
+ssh root@$IP 'dokku ps:stop gritz && dokku postgres:connect gritz-db -c \
+  "drop schema public cascade; create schema public"'
+```
+
 ```bash
 export PGPASSWORD=$(sops --output-type json -d sops.env.yml \
   | jq -r '.GRITZ_DATABASE_URL | capture("://[^:]+:(?<p>[^@]+)@").p')
@@ -149,6 +162,7 @@ docker run --rm --network host -e PGPASSWORD postgres:18-alpine \
 
 scp gritz.dump root@$IP:/tmp/
 ssh root@$IP 'dokku postgres:import gritz-db </tmp/gritz.dump && rm /tmp/gritz.dump'
+ssh root@$IP 'dokku ps:start gritz'
 ```
 
 `dokku postgres:import` restores into the service's own `gritz_db` database;
@@ -167,16 +181,19 @@ era) both come across; the server's startup migration reconciles from
 
 ## 7. Cut CI over
 
-`.github/workflows/deploy.yml` still runs `flyctl deploy`. Replacing that step
-with a Dokku deploy of the released tag is the last step, and is best done only
-once a manual deploy has been verified end to end:
+`.github/workflows/deploy.yml` has been deleted - it ran `flyctl deploy` against
+an app that no longer exists, and would have failed the first release after the
+rename. Releases currently build and publish images but deploy nothing, so this
+step is a manual `git:from-image` until the host is proven.
+
+Restoring automatic deploys means a workflow that runs:
 
 ```
 ssh dokku@<host> git:from-image gritz ghcr.io/icholy/gritz-server:${TAG#v}
 ```
 
-That needs a deploy key in Actions secrets, added with
-`ssh root@$IP 'dokku ssh-keys:add github-actions'`.
+with a deploy key in Actions secrets, added on the host with
+`dokku ssh-keys:add github-actions`.
 
 Keep the Fly app stopped rather than destroyed until the new host has run for a
 while - `fly scale count 1 -a xagent` is the rollback.
