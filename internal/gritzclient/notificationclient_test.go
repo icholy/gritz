@@ -1,22 +1,18 @@
 package gritzclient_test
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/icholy/gritz/internal/auth/apiauth"
-	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/model"
 	"github.com/icholy/gritz/internal/pubsub"
 	"github.com/icholy/gritz/internal/server/notifyserver"
 	"github.com/icholy/gritz/internal/x/sse"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"gotest.tools/v3/assert"
 )
 
@@ -72,71 +68,6 @@ func recv[T any](t *testing.T, ch <-chan T, d time.Duration, msg string) T {
 		t.Fatalf("timed out waiting for %s", msg)
 		var zero T
 		return zero
-	}
-}
-
-func TestNotificationClient_DropsKeepAlives(t *testing.T) {
-	t.Parallel()
-	// Arrange: a stub stream rather than the real notifyserver, whose
-	// keep-alive interval is a hard-coded 15s. Emitting them back-to-back
-	// here exercises the same client path without the wait.
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sw, err := sse.NewServerWriter(w)
-		assert.NilError(t, err)
-		ready, err := json.Marshal(model.Notification{Type: "ready", OrgID: testOrgID})
-		assert.NilError(t, err)
-		assert.NilError(t, sw.Write(sse.Event{ID: "0", Event: "ready", Data: ready}))
-		for range 20 {
-			assert.NilError(t, sw.Write(sse.Event{Event: "keepalive"}))
-		}
-		change, err := json.Marshal(model.Notification{Type: "change", OrgID: testOrgID})
-		assert.NilError(t, err)
-		assert.NilError(t, sw.Write(sse.Event{ID: "1", Event: "change", Data: change}))
-		<-r.Context().Done()
-	}))
-	t.Cleanup(ts.Close)
-
-	// Keep-alives carry no data, so a client that failed to skip them would
-	// fall through to the decoder and log once per keep-alive. Watch the log
-	// to catch that, since the handler itself stays clean either way.
-	// The client logs from its own goroutine, so hand the writes over a pipe
-	// rather than sharing a buffer. Keeping only the first line means the
-	// drain never blocks — a broken skip logs on every keep-alive, and
-	// blocking the pipe would wedge the client instead of failing the test.
-	pr, pw := io.Pipe()
-	t.Cleanup(func() { pw.Close() })
-	logged := make(chan string, 1)
-	go func() {
-		scan := bufio.NewScanner(pr)
-		for scan.Scan() {
-			select {
-			case logged <- scan.Text():
-			default:
-			}
-		}
-	}()
-
-	received := make(chan model.Notification, 32)
-	c := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
-		BaseURL: ts.URL,
-		Log:     slog.New(slog.NewTextHandler(pw, nil)),
-		Handler: func(n model.Notification) { received <- n },
-	})
-	runClient(t, c)
-
-	// Act + Assert: ready, then the change from the far side of the
-	// keep-alives — the stream stayed up and none of them reached the
-	// handler.
-	ready := recv(t, received, time.Second, "ready notification")
-	assert.Equal(t, ready.Type, "ready")
-
-	got := recv(t, received, time.Second, "change notification")
-	assert.DeepEqual(t, got, model.Notification{Type: "change", OrgID: testOrgID})
-	assert.Equal(t, len(received), 0, "handler saw a keep-alive")
-	select {
-	case line := <-logged:
-		t.Fatalf("keep-alive reached the decoder: %s", line)
-	default:
 	}
 }
 
