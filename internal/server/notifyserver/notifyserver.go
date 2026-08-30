@@ -5,6 +5,7 @@
 package notifyserver
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"net/http"
@@ -46,15 +47,11 @@ func New(opts Options) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	keepAlive := opts.KeepAlive
-	if keepAlive <= 0 {
-		keepAlive = DefaultKeepAlive
-	}
 	return &Server{
 		log:         log,
 		subscriber:  opts.Subscriber,
 		orgResolver: opts.OrgResolver,
-		keepAlive:   keepAlive,
+		keepAlive:   cmp.Or(opts.KeepAlive, DefaultKeepAlive),
 	}
 }
 
