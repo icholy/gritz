@@ -71,7 +71,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// (nginx defaults to 60s, Cloudflare 524s at 100s) don't tear it down.
 	// It carries no data and no id: subscribers skip it by event name and
 	// seq keeps counting only real notifications.
-	keepAlive := time.NewTicker(s.keepAlive)
+	keepAlive := time.NewTicker(15 * time.Second)
 	defer keepAlive.Stop()
 
 	ctx := r.Context()
