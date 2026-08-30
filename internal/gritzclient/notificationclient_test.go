@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/icholy/gritz/internal/auth/apiauth"
+	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/model"
 	"github.com/icholy/gritz/internal/pubsub"
 	"github.com/icholy/gritz/internal/server/notifyserver"
 	"github.com/icholy/gritz/internal/x/sse"
-	"github.com/icholy/gritz/internal/gritzclient"
 	"gotest.tools/v3/assert"
 )
 
@@ -69,6 +69,41 @@ func recv[T any](t *testing.T, ch <-chan T, d time.Duration, msg string) T {
 		var zero T
 		return zero
 	}
+}
+
+func TestNotificationClient_DropsKeepAlives(t *testing.T) {
+	t.Parallel()
+	// Arrange: a server whose idle keep-alive fires far faster than the
+	// production default so the test doesn't have to wait 15s.
+	ps := pubsub.NewLocalPubSub()
+	srv := notifyserver.New(notifyserver.Options{Subscriber: ps, KeepAlive: 10 * time.Millisecond})
+	ts := httptest.NewServer(apiauth.WithTestUser(srv.Handler(), &apiauth.UserInfo{
+		ID:    "test-user",
+		OrgID: testOrgID,
+		Type:  apiauth.AuthTypeApp,
+	}))
+	t.Cleanup(ts.Close)
+
+	received := make(chan model.Notification, 32)
+	c := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
+		BaseURL: ts.URL,
+		Handler: func(n model.Notification) { received <- n },
+	})
+	runClient(t, c)
+	ready := recv(t, received, time.Second, "ready notification")
+	assert.Equal(t, ready.Type, "ready")
+
+	// Act: sit idle across many keep-alives, then publish a real change.
+	// The stream must stay up (a keep-alive must not read as end-of-stream)
+	// and no keep-alive may reach the handler.
+	time.Sleep(200 * time.Millisecond)
+	want := model.Notification{Type: "change", OrgID: testOrgID}
+	assert.NilError(t, ps.Publish(t.Context(), want))
+
+	// Assert
+	got := recv(t, received, time.Second, "change notification")
+	assert.DeepEqual(t, got, want)
+	assert.Equal(t, len(received), 0, "handler saw a keep-alive")
 }
 
 func TestNotificationClient_DecodesEvents(t *testing.T) {

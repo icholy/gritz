@@ -135,6 +135,11 @@ func (c *NotificationClient) connect(ctx context.Context) error {
 			c.log.Warn("failed to decode notification", "err", err)
 			continue
 		}
+		// Keep-alives exist only to put bytes on an idle stream. Drop them
+		// before the handler so subscribers aren't woken by them.
+		if n.Type == "keep-alive" {
+			continue
+		}
 		// Drop notifications that originated from this client so callers
 		// that both mutate and subscribe don't echo their own events.
 		if c.clientID != "" && n.ClientID == c.clientID {

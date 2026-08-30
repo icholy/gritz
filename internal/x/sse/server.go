@@ -38,13 +38,3 @@ func (s *ServerWriter) Write(ev Event) error {
 	s.f.Flush()
 	return nil
 }
-
-// WriteComment writes an SSE comment and flushes. Use it to keep an idle
-// stream alive.
-func (s *ServerWriter) WriteComment(text string) error {
-	if err := s.w.WriteComment(text); err != nil {
-		return err
-	}
-	s.f.Flush()
-	return nil
-}
