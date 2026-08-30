@@ -47,13 +47,20 @@ write_files:
       exec > >(tee -a /var/log/gritz-bootstrap.log) 2>&1
       echo "=== gritz bootstrap starting $(date -Is) ==="
 
+      # cloud-init runs runcmd with a minimal environment that has no HOME, and
+      # git refuses to run without one ("fatal: $HOME not set"), which takes
+      # every `dokku plugin:install` down with it.
+      export HOME=/root
+      export DEBIAN_FRONTEND=noninteractive
+
       DOKKU_VERSION=v0.38.27
       POSTGRES_PLUGIN_VERSION=1.48.0
       LETSENCRYPT_PLUGIN_VERSION=0.25.2
       APP=gritz
       POSTGRES_SERVICE=gritz-db
 
-      export DEBIAN_FRONTEND=noninteractive
+      # Every step below is guarded so this script can be re-run to resume a
+      # partial bootstrap in place, rather than needing the droplet rebuilt.
 
       # 4G of RAM is comfortable for the server plus Postgres, but image pulls
       # and autovacuum spikes are cheaper to absorb in swap than to OOM.
@@ -77,9 +84,11 @@ write_files:
       ufw --force enable
 
       # Pinned, versioned installer URL. Also installs docker.
-      curl -fsSL "https://dokku.com/install/${DOKKU_VERSION}/bootstrap.sh" \
-        -o /tmp/dokku-bootstrap.sh
-      DOKKU_TAG="${DOKKU_VERSION}" bash /tmp/dokku-bootstrap.sh
+      if ! command -v dokku >/dev/null 2>&1; then
+        curl -fsSL "https://dokku.com/install/${DOKKU_VERSION}/bootstrap.sh" \
+          -o /tmp/dokku-bootstrap.sh
+        DOKKU_TAG="${DOKKU_VERSION}" bash /tmp/dokku-bootstrap.sh
+      fi
 
       # Authorize whichever keys DigitalOcean injected into root for `dokku`
       # over ssh. ssh-keys:add takes one key at a time, hence the loop.
@@ -88,31 +97,42 @@ write_files:
         [ -n "${key}" ] || continue
         case "${key}" in \#*) continue ;; esac
         n=$((n + 1))
-        printf '%s\n' "${key}" | dokku ssh-keys:add "admin-${n}"
+        if ! dokku ssh-keys:list 2>/dev/null | grep -q "NAME=\"admin-${n}\""; then
+          printf '%s\n' "${key}" | dokku ssh-keys:add "admin-${n}"
+        fi
       done </root/.ssh/authorized_keys
 
       # Pin the plugins: dokku-postgres takes its Postgres version from its own
       # checkout, so tracking master would silently move the database version
       # on any later rebuild of this host. 1.48.0 ships postgres 18.4, which
       # matches docker-compose.yml.
-      dokku plugin:install https://github.com/dokku/dokku-postgres.git \
-        --committish "${POSTGRES_PLUGIN_VERSION}" --name postgres
-      dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git \
-        --committish "${LETSENCRYPT_PLUGIN_VERSION}" --name letsencrypt
+      install_plugin() {
+        local name=$1 url=$2 version=$3
+        if ! dokku plugin:list | awk '{print $1}' | grep -qx "${name}"; then
+          dokku plugin:install "${url}" --committish "${version}" --name "${name}"
+        fi
+      }
+      install_plugin postgres \
+        https://github.com/dokku/dokku-postgres.git "${POSTGRES_PLUGIN_VERSION}"
+      install_plugin letsencrypt \
+        https://github.com/dokku/dokku-letsencrypt.git "${LETSENCRYPT_PLUGIN_VERSION}"
 
-      dokku apps:create "${APP}"
+      dokku apps:exists "${APP}" 2>/dev/null || dokku apps:create "${APP}"
 
       # Postgres is a container on this same droplet; its data lives on the
       # droplet disk under /var/lib/dokku/services/postgres/${POSTGRES_SERVICE}.
-      dokku postgres:create "${POSTGRES_SERVICE}"
+      dokku postgres:exists "${POSTGRES_SERVICE}" 2>/dev/null \
+        || dokku postgres:create "${POSTGRES_SERVICE}"
 
       # The server reads GRITZ_DATABASE_URL, not DATABASE_URL. sslmode=disable
       # because the plugin's Postgres speaks plaintext on the internal docker
       # network. --no-restart: there is no deploy to restart yet.
-      dokku postgres:link "${POSTGRES_SERVICE}" "${APP}" \
-        --alias GRITZ_DATABASE_URL \
-        --querystring "sslmode=disable" \
-        --no-restart
+      if ! dokku postgres:linked "${POSTGRES_SERVICE}" "${APP}" 2>/dev/null; then
+        dokku postgres:link "${POSTGRES_SERVICE}" "${APP}" \
+          --alias GRITZ_DATABASE_URL \
+          --querystring "sslmode=disable" \
+          --no-restart
+      fi
 
       # Matches EXPOSE 6464 in the server image.
       dokku ports:set "${APP}" http:80:6464
