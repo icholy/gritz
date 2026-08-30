@@ -6,13 +6,15 @@ import (
 	"os"
 
 	"github.com/icholy/gritz/internal/command"
+	"github.com/icholy/gritz/internal/version"
 	"github.com/urfave/cli/v3"
 )
 
 func main() {
 	cmd := &cli.Command{
-		Name:  "gritz",
-		Usage: "Async agent orchestrator for Claude Code",
+		Name:    "gritz",
+		Usage:   "Async agent orchestrator for Claude Code",
+		Version: version.String(),
 		Commands: []*cli.Command{
 			command.DriverCommand,
 			command.ServerCommand,
