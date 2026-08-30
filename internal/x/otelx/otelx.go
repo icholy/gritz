@@ -19,19 +19,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// otelconnectScope is the instrumentation scope used by connectrpc.com/otelconnect.
-const otelconnectScope = "connectrpc.com/otelconnect"
-
-// otelconnectPeerView drops the peer attributes from otelconnect's RPC metrics.
-// On the server, net.peer.port is the client's ephemeral port, so leaving it in
-// mints a new metric stream per connection. With cumulative temporality every
-// stream is re-exported forever, so export batches grow without bound. The
-// attributes are only filtered out of metrics; spans keep them.
-var otelconnectPeerView = sdkmetric.NewView(
-	sdkmetric.Instrument{Scope: instrumentation.Scope{Name: otelconnectScope}},
-	sdkmetric.Stream{AttributeFilter: attribute.NewDenyKeysFilter("net.peer.name", "net.peer.port")},
-)
-
 // Provider manages the OpenTelemetry trace and metric providers.
 type Provider struct {
 	tp *sdktrace.TracerProvider
@@ -83,7 +70,14 @@ func Setup(ctx context.Context) (*Provider, error) {
 	}
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
-		sdkmetric.WithView(otelconnectPeerView),
+		// Drop the peer attributes from otelconnect's RPC metrics. On the server,
+		// net.peer.port is the client's ephemeral port, so leaving it in mints a new
+		// metric stream per connection, and cumulative temporality re-exports every
+		// stream forever. Views only apply to metrics, so spans keep the attributes.
+		sdkmetric.WithView(sdkmetric.NewView(
+			sdkmetric.Instrument{Scope: instrumentation.Scope{Name: "connectrpc.com/otelconnect"}},
+			sdkmetric.Stream{AttributeFilter: attribute.NewDenyKeysFilter("net.peer.name", "net.peer.port")},
+		)),
 	)
 	otel.SetMeterProvider(mp)
 
