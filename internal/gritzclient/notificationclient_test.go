@@ -1,12 +1,12 @@
 package gritzclient_test
 
 import (
-	"bytes"
+	"bufio"
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -88,15 +88,29 @@ func TestNotificationClient_DropsKeepAlives(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	// Keep-alives carry no data, so a client that failed to skip them would
-	// fall through to the decoder and log once per interval. Capture the log
+	// fall through to the decoder and log once per interval. Watch the log
 	// to catch that, since the handler itself stays clean either way.
-	var logBuf lockedBuffer
-	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+	// The client logs from its own goroutine, so hand the writes over a pipe
+	// rather than sharing a buffer. Keeping only the first line means the
+	// drain never blocks — a broken skip logs on every tick, and blocking
+	// the pipe would wedge the client instead of failing the test.
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { pw.Close() })
+	logged := make(chan string, 1)
+	go func() {
+		scan := bufio.NewScanner(pr)
+		for scan.Scan() {
+			select {
+			case logged <- scan.Text():
+			default:
+			}
+		}
+	}()
 
 	received := make(chan model.Notification, 32)
 	c := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
 		BaseURL: ts.URL,
-		Log:     logger,
+		Log:     slog.New(slog.NewTextHandler(pw, nil)),
 		Handler: func(n model.Notification) { received <- n },
 	})
 	runClient(t, c)
@@ -113,26 +127,11 @@ func TestNotificationClient_DropsKeepAlives(t *testing.T) {
 	got := recv(t, received, time.Second, "change notification")
 	assert.DeepEqual(t, got, want)
 	assert.Equal(t, len(received), 0, "handler saw a keep-alive")
-	assert.Equal(t, logBuf.String(), "", "keep-alive reached the decoder")
-}
-
-// lockedBuffer is a bytes.Buffer safe for the client goroutine to write
-// while the test goroutine reads.
-type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
+	select {
+	case line := <-logged:
+		t.Fatalf("keep-alive reached the decoder: %s", line)
+	default:
+	}
 }
 
 func TestNotificationClient_DecodesEvents(t *testing.T) {
