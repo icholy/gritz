@@ -69,7 +69,12 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Keep the stream alive so reverse proxies with an idle read timeout
 	// (nginx defaults to 60s, Cloudflare 524s at 100s) don't tear it down.
-	// A comment is ignored by clients and doesn't advance seq.
+	// The keep-alive carries no resources and no id, so it doesn't advance
+	// seq; consumers ignore it by type.
+	keepAliveData, err := json.Marshal(model.Notification{Type: "keep-alive", OrgID: orgID})
+	if err != nil {
+		return
+	}
 	keepAlive := time.NewTicker(s.keepAlive)
 	defer keepAlive.Stop()
 
@@ -77,7 +82,10 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-keepAlive.C:
-			if err := sw.WriteComment("keepalive"); err != nil {
+			if err := sw.Write(sse.Event{
+				Event: "keep-alive",
+				Data:  keepAliveData,
+			}); err != nil {
 				return
 			}
 		case n := <-ch:

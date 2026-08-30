@@ -25,18 +25,3 @@ func TestServerWriter(t *testing.T) {
 	assert.Equal(t, resp.Header.Get("X-Accel-Buffering"), "no")
 	assert.Equal(t, rec.Body.String(), "event: ready\ndata: hi\n\n")
 }
-
-func TestServerWriterComment(t *testing.T) {
-	// Arrange
-	rec := httptest.NewRecorder()
-	sw, err := NewServerWriter(rec)
-	assert.NilError(t, err)
-
-	// Act
-	err = sw.WriteComment("keepalive")
-	assert.NilError(t, err)
-
-	// Assert
-	assert.Equal(t, rec.Body.String(), ": keepalive\n\n")
-	assert.Assert(t, rec.Flushed)
-}

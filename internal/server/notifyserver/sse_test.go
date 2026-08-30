@@ -380,11 +380,23 @@ func TestSSE_KeepAlive(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, ev.Event, "ready")
 
-	// Let a handful of keep-alives go out on the idle stream, then publish.
-	// The keep-alives are comments, so the reader skips them and the next
-	// event read is the notification with an unchanged seq.
-	time.Sleep(100 * time.Millisecond)
+	// The idle stream emits keep-alives: a well-formed event carrying a
+	// decodable notification, with no id so seq doesn't advance.
+	ev, err = r.Read()
+	assert.NilError(t, err)
+	assert.Equal(t, ev.Event, "keep-alive")
+	assert.Equal(t, ev.ID, "")
 
+	var ka model.Notification
+	err = json.Unmarshal(ev.Data, &ka)
+	assert.NilError(t, err)
+	assert.DeepEqual(t, ka, model.Notification{Type: "keep-alive", OrgID: orgID})
+
+	ev, err = r.Read()
+	assert.NilError(t, err)
+	assert.Equal(t, ev.Event, "keep-alive")
+
+	// A real notification still gets seq 1 — keep-alives didn't consume one.
 	err = ps.Publish(ctx, model.Notification{
 		Type:      "change",
 		Resources: []model.NotificationResource{{Action: "created", Type: "task", ID: 42}},
@@ -392,8 +404,14 @@ func TestSSE_KeepAlive(t *testing.T) {
 	})
 	assert.NilError(t, err)
 
-	ev, err = r.Read()
-	assert.NilError(t, err)
+	for {
+		ev, err = r.Read()
+		assert.NilError(t, err)
+		if ev.Event == "keep-alive" {
+			continue
+		}
+		break
+	}
 	assert.Equal(t, ev.Event, "change")
 	assert.Equal(t, ev.ID, "1")
 }
