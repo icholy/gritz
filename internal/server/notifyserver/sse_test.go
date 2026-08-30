@@ -384,13 +384,13 @@ func TestSSE_KeepAlive(t *testing.T) {
 	// id, so seq doesn't advance.
 	ev, err = r.Read()
 	assert.NilError(t, err)
-	assert.Equal(t, ev.Event, "keep-alive")
+	assert.Equal(t, ev.Event, "keepalive")
 	assert.Equal(t, ev.ID, "")
 	assert.Equal(t, len(ev.Data), 0)
 
 	ev, err = r.Read()
 	assert.NilError(t, err)
-	assert.Equal(t, ev.Event, "keep-alive")
+	assert.Equal(t, ev.Event, "keepalive")
 
 	// A real notification still gets seq 1 — keep-alives didn't consume one.
 	err = ps.Publish(ctx, model.Notification{
@@ -403,7 +403,7 @@ func TestSSE_KeepAlive(t *testing.T) {
 	for {
 		ev, err = r.Read()
 		assert.NilError(t, err)
-		if ev.Event == "keep-alive" {
+		if ev.Event == "keepalive" {
 			continue
 		}
 		break

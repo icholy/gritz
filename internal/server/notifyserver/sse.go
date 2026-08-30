@@ -78,7 +78,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-keepAlive.C:
-			if err := sw.Write(sse.Event{Event: "keep-alive"}); err != nil {
+			if err := sw.Write(sse.Event{Event: "keepalive"}); err != nil {
 				return
 			}
 		case n := <-ch:

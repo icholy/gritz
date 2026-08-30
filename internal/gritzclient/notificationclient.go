@@ -132,7 +132,7 @@ func (c *NotificationClient) connect(ctx context.Context) error {
 		}
 		// Keep-alives exist only to put bytes on an idle stream. They carry
 		// no data, so drop them before decoding.
-		if ev.Event == "keep-alive" {
+		if ev.Event == "keepalive" {
 			continue
 		}
 		var n model.Notification
