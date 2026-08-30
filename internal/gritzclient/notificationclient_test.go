@@ -1,9 +1,12 @@
 package gritzclient_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,9 +87,16 @@ func TestNotificationClient_DropsKeepAlives(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
+	// Keep-alives carry no data, so a client that failed to skip them would
+	// fall through to the decoder and log once per interval. Capture the log
+	// to catch that, since the handler itself stays clean either way.
+	var logBuf lockedBuffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, nil))
+
 	received := make(chan model.Notification, 32)
 	c := gritzclient.NewNotificationClient(gritzclient.NotificationClientOptions{
 		BaseURL: ts.URL,
+		Log:     logger,
 		Handler: func(n model.Notification) { received <- n },
 	})
 	runClient(t, c)
@@ -94,8 +104,7 @@ func TestNotificationClient_DropsKeepAlives(t *testing.T) {
 	assert.Equal(t, ready.Type, "ready")
 
 	// Act: sit idle across many keep-alives, then publish a real change.
-	// The stream must stay up (a keep-alive must not read as end-of-stream)
-	// and no keep-alive may reach the handler.
+	// The stream must stay up — a keep-alive must not read as end-of-stream.
 	time.Sleep(200 * time.Millisecond)
 	want := model.Notification{Type: "change", OrgID: testOrgID}
 	assert.NilError(t, ps.Publish(t.Context(), want))
@@ -104,6 +113,26 @@ func TestNotificationClient_DropsKeepAlives(t *testing.T) {
 	got := recv(t, received, time.Second, "change notification")
 	assert.DeepEqual(t, got, want)
 	assert.Equal(t, len(received), 0, "handler saw a keep-alive")
+	assert.Equal(t, logBuf.String(), "", "keep-alive reached the decoder")
+}
+
+// lockedBuffer is a bytes.Buffer safe for the client goroutine to write
+// while the test goroutine reads.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func TestNotificationClient_DecodesEvents(t *testing.T) {

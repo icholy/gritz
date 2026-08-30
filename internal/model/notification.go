@@ -3,9 +3,7 @@ package model
 import "time"
 
 // Notification is a lightweight change notification for one or more resources.
-// Type is "ready" (subscription is live), "change" (resources changed), or
-// "keep-alive" (idle-stream filler, carries no resources and is dropped by
-// subscribers).
+// Type is either "ready" (subscription is live) or "change" (resources changed).
 type Notification struct {
 	Type      string                 `json:"type"`
 	Resources []NotificationResource `json:"resources,omitempty"`

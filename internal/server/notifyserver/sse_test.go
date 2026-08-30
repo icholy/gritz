@@ -380,17 +380,13 @@ func TestSSE_KeepAlive(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Equal(t, ev.Event, "ready")
 
-	// The idle stream emits keep-alives: a well-formed event carrying a
-	// decodable notification, with no id so seq doesn't advance.
+	// The idle stream emits keep-alives: a named event with no data and no
+	// id, so seq doesn't advance.
 	ev, err = r.Read()
 	assert.NilError(t, err)
 	assert.Equal(t, ev.Event, "keep-alive")
 	assert.Equal(t, ev.ID, "")
-
-	var ka model.Notification
-	err = json.Unmarshal(ev.Data, &ka)
-	assert.NilError(t, err)
-	assert.DeepEqual(t, ka, model.Notification{Type: "keep-alive", OrgID: orgID})
+	assert.Equal(t, len(ev.Data), 0)
 
 	ev, err = r.Read()
 	assert.NilError(t, err)
