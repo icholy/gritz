@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.0.0](https://github.com/icholy/gritz/compare/v2.18.0...v3.0.0) (2026-08-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* The Go module path (github.com/icholy/gritz), protobuf package (gritz.v1), environment variable prefix (GRITZ_), config directory (~/.config/gritz), MCP server name, container name prefix (gritz-<task-id>), Docker image names, Fly app name, and public domain (gritz.dev) all change. Operational migration steps are required; see the PR description.
+
+### Bug Fixes
+
+* **deploy:** set HOME and make the bootstrap script resumable ([f006efc](https://github.com/icholy/gritz/commit/f006efcbacbf6d4fd8a3038901a5b59d789a8627))
+
+
+### Miscellaneous
+
+* **deploy:** add cloud-init for a dokku host on digitalocean ([ad5430b](https://github.com/icholy/gritz/commit/ad5430b7a766d6352b15a20d9e04fafce561f562))
+* **deploy:** fill in the data migration from the live fly setup ([def8e95](https://github.com/icholy/gritz/commit/def8e953a111b13e6b1a5af96d69fc5e060f8b94))
+* **deploy:** fix the deploy/import ordering and image requirement ([5665796](https://github.com/icholy/gritz/commit/5665796ba72ebf6503ffd5de5c83089f5bf2d526))
+* **deps:** update dependency flyctl to v0.4.72 ([892d0b4](https://github.com/icholy/gritz/commit/892d0b46be3f5f1e393635da5f2a221187ae068c))
+* **deps:** update dependency pnpm to v11.15.0 ([17a6096](https://github.com/icholy/gritz/commit/17a6096be27ee2d1e2db1987d3efc56e63462699))
+* **deps:** update dependency pnpm to v11.15.1 ([916059a](https://github.com/icholy/gritz/commit/916059a7aead35b94369a7bca167eecd82c97877))
+* **deps:** update radix-ui-primitives monorepo ([113c5f6](https://github.com/icholy/gritz/commit/113c5f67717e5ce7e563a14770a31edbf0129874))
+* fix stale proposals/accepted links to proposals/implemented ([5421683](https://github.com/icholy/gritz/commit/542168381165ca53de4ceb46875e6f6ba3d4cf71))
+* move implemented proposals from accepted to implemented ([d92beda](https://github.com/icholy/gritz/commit/d92bedaf74283c94f93ce89ca5189a7671e35477))
+* remove the fly.io deployment workflow ([13fd05b](https://github.com/icholy/gritz/commit/13fd05b18dba0862f04d6feda1bd0f79d4a6f80e))
+* rename project from xagent to gritz ([df210b4](https://github.com/icholy/gritz/commit/df210b4e39787b11ff5ec9bcadf2f29bc77bc15d))
+* **secrets:** restore decryptability of sops.env.yml ([aa76b7d](https://github.com/icholy/gritz/commit/aa76b7da943b14f88b2741ec9f772c8cd8695148))
+* **webui:** fix prettier formatting after rename ([3188be8](https://github.com/icholy/gritz/commit/3188be8392cdfc0226c404cceb6013997fc65202))
+
 ## [2.18.0](https://github.com/icholy/gritz/compare/v2.17.0...v2.18.0) (2026-07-25)
 
 
