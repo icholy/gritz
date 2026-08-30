@@ -114,21 +114,56 @@ ssh root@$IP 'dokku letsencrypt:set gritz email <email> && dokku letsencrypt:ena
 
 ## 6. Move the data
 
-Run this from a machine authenticated to Fly, since the source is only reachable
-over the Fly private network. Take the app down first so nothing writes during
-the dump.
+The source is Fly's `xagent-db`: a single `flyio/postgres-flex:17.2` machine in
+`yyz` on a 1 GB volume. It is small - 16 MB total, of which the app's tables are
+about 8 MB, the largest being `events` (~10k rows), `tasks` (~1.5k) and
+`task_links` (~1.9k).
+
+Two things about the source shape the dump:
+
+- The app connects as `postgres` with no database in the path, so its tables are
+  in the default `postgres` database, in the `public` schema.
+- Fly's replication manager lives in that *same* database, as a `repmgr` schema
+  and a `repmgr` extension. Dumping the whole database would carry both into the
+  droplet, where the extension does not exist and the restore fails. Hence
+  `--schema=public`, which also drops the extension, since `plpgsql` is the only
+  other one and it is built in.
+
+Postgres 17 into the droplet's 18.4 is the supported direction, but the client
+must be at least as new as the *server*, so use an 18 client rather than
+whatever the local distro ships.
+
+Run this from a machine authenticated to Fly - the database is only reachable
+over the Fly private network. Stop the app first so nothing writes mid-dump.
 
 ```bash
-fly scale count 0 -a gritz
+export PGPASSWORD=$(sops --output-type json -d sops.env.yml \
+  | jq -r '.GRITZ_DATABASE_URL | capture("://[^:]+:(?<p>[^@]+)@").p')
+
+fly scale count 0 -a xagent
 fly proxy 5432 -a xagent-db &
-pg_dump --no-owner --no-acl -Fc "postgres://<user>:<pass>@localhost:5432/gritz" -f gritz.dump
+
+docker run --rm --network host -e PGPASSWORD postgres:18-alpine \
+  pg_dump --no-owner --no-acl --schema=public -Fc \
+  -h localhost -p 5432 -U postgres -d postgres >gritz.dump
+
 scp gritz.dump root@$IP:/tmp/
-ssh root@$IP 'dokku postgres:import gritz-db < /tmp/gritz.dump && rm /tmp/gritz.dump'
+ssh root@$IP 'dokku postgres:import gritz-db </tmp/gritz.dump && rm /tmp/gritz.dump'
 ```
 
-Use a `pg_dump` at least as new as the Fly server's version, or it will refuse
-with a server-version mismatch. `docker run --rm postgres:18-alpine pg_dump ...`
-is the easy way to get one.
+`dokku postgres:import` restores into the service's own `gritz_db` database;
+`--no-owner --no-acl` is what lets the roles differ between the two hosts.
+
+Check the restore landed before cutting DNS over:
+
+```bash
+ssh root@$IP "dokku postgres:connect gritz-db -c \
+  'select relname, n_live_tup from pg_stat_user_tables order by n_live_tup desc'"
+```
+
+`schema_migrations` (dbmate) and `goose_db_version` (a leftover from the goose
+era) both come across; the server's startup migration reconciles from
+`schema_migrations`.
 
 ## 7. Cut CI over
 
@@ -144,4 +179,17 @@ That needs a deploy key in Actions secrets, added with
 `ssh root@$IP 'dokku ssh-keys:add github-actions'`.
 
 Keep the Fly app stopped rather than destroyed until the new host has run for a
-while - `fly scale count 1 -a gritz` is the rollback.
+while - `fly scale count 1 -a xagent` is the rollback.
+
+## Notes on the current Fly setup
+
+- The Fly apps are still named `xagent` and `xagent-db`; the rename was never
+  applied to them. `fly.toml` in this repo says `app = "gritz"`, so `mise run
+  deploy`, `mise run logs` and the `flyctl deploy` in `deploy.yml` all currently
+  target an app that does not exist. Nothing has hit it because no release has
+  been cut since the rename.
+- The Fly machine is 1 shared CPU / 2 GB. The droplet is 2 vCPU / 4 GB and also
+  carries Postgres, so it is still an upgrade.
+- Fly has 22 secrets to sops' 21. The extra one is `XAGENT_GIHTUB_CLIENT_SECRET`,
+  a typo'd duplicate of `XAGENT_GITHUB_CLIENT_SECRET` with an identical digest.
+  It is correctly absent from `sops.env.yml` and should not be carried over.
