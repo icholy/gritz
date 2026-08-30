@@ -141,6 +141,12 @@ run = "psql postgres://gritz:gritz@localhost:5433/gritz?sslmode=disable"
 description = "Tail production logs"
 run = 'ssh "root@$GRITZ_HOST" dokku logs gritz -t'
 
+# Bare `mise run ssh` opens a shell; extra args are appended, so
+# `mise run ssh -- dokku ps:report gritz` runs that remotely instead.
+[tasks.ssh]
+description = "SSH into the dokku host"
+run = 'ssh "root@$GRITZ_HOST"'
+
 [tasks.diagrams]
 description = "Render d2 diagrams to images/"
 run = [
