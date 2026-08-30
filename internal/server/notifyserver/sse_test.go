@@ -351,3 +351,49 @@ func TestSSE_CookieAuthForbidden(t *testing.T) {
 
 	assert.Equal(t, resp.StatusCode, http.StatusForbidden)
 }
+
+func TestSSE_KeepAlive(t *testing.T) {
+	t.Parallel()
+
+	ps := pubsub.NewLocalPubSub()
+	const orgID int64 = 1
+	srv := New(Options{Subscriber: ps, KeepAlive: 10 * time.Millisecond})
+
+	ts := httptest.NewServer(apiauth.WithTestUser(srv.Handler(), &apiauth.UserInfo{ID: "u", OrgID: orgID, Type: apiauth.AuthTypeApp}))
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", ts.URL+"/events", nil)
+	assert.NilError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	assert.NilError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, resp.StatusCode, http.StatusOK)
+
+	// Read the ready event.
+	r := sse.NewReader(resp.Body)
+	ev, err := r.Read()
+	assert.NilError(t, err)
+	assert.Equal(t, ev.Event, "ready")
+
+	// Let a handful of keep-alives go out on the idle stream, then publish.
+	// The keep-alives are comments, so the reader skips them and the next
+	// event read is the notification with an unchanged seq.
+	time.Sleep(100 * time.Millisecond)
+
+	err = ps.Publish(ctx, model.Notification{
+		Type:      "change",
+		Resources: []model.NotificationResource{{Action: "created", Type: "task", ID: 42}},
+		OrgID:     orgID,
+	})
+	assert.NilError(t, err)
+
+	ev, err = r.Read()
+	assert.NilError(t, err)
+	assert.Equal(t, ev.Event, "change")
+	assert.Equal(t, ev.ID, "1")
+}

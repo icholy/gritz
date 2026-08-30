@@ -40,9 +40,15 @@ func NewReader(r io.Reader) *Reader {
 func (r *Reader) Read() (Event, error) {
 	r.buf.Reset()
 	var ev Event
+	var field bool
 	for r.scanner.Scan() {
 		line := r.scanner.Bytes()
 		if len(line) == 0 {
+			// A block that carried no recognized field dispatches nothing.
+			// Keep-alive comments arrive this way.
+			if !field {
+				continue
+			}
 			ev.Data = r.buf.Bytes()
 			return ev, nil
 		}
@@ -60,7 +66,11 @@ func (r *Reader) Read() (Event, error) {
 			ev.Retry = string(value)
 		case bytes.Equal(name, []byte("data")):
 			r.buf.Write(value)
+		default:
+			// Comments (empty name) and unknown fields are ignored.
+			continue
 		}
+		field = true
 	}
 	if err := r.scanner.Err(); err != nil {
 		return Event{}, err
@@ -84,6 +94,17 @@ type Writer struct {
 // NewWriter returns a Writer that encodes events to w.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{w: w}
+}
+
+// WriteComment writes an SSE comment line. Comments carry no event and are
+// ignored by clients; they exist to put bytes on an otherwise idle stream so
+// intermediaries don't time it out.
+func (w *Writer) WriteComment(text string) error {
+	w.buf.Reset()
+	w.writeField(nil, []byte(text))
+	w.buf.WriteByte('\n')
+	_, err := w.buf.WriteTo(w.w)
+	return err
 }
 
 // Write encodes ev and writes it to the underlying writer, terminated by a
