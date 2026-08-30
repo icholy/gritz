@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/icholy/gritz/internal/pubsub"
 )
@@ -18,11 +19,16 @@ type OrgResolver interface {
 	ResolveOrg(ctx context.Context, userID string, orgID int64) (int64, error)
 }
 
+// DefaultKeepAlive is the interval at which idle SSE streams emit a comment.
+// It's well under the 60s nginx proxy_read_timeout default.
+const DefaultKeepAlive = 15 * time.Second
+
 // Server handles SSE subscriptions backed by a pubsub.Subscriber.
 type Server struct {
 	log         *slog.Logger
 	subscriber  pubsub.Subscriber
 	orgResolver OrgResolver
+	keepAlive   time.Duration
 }
 
 // Options configures a Server.
@@ -30,6 +36,8 @@ type Options struct {
 	Log         *slog.Logger
 	Subscriber  pubsub.Subscriber
 	OrgResolver OrgResolver
+	// KeepAlive overrides DefaultKeepAlive.
+	KeepAlive time.Duration
 }
 
 // New returns a new Server.
@@ -38,10 +46,15 @@ func New(opts Options) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
+	keepAlive := opts.KeepAlive
+	if keepAlive <= 0 {
+		keepAlive = DefaultKeepAlive
+	}
 	return &Server{
 		log:         log,
 		subscriber:  opts.Subscriber,
 		orgResolver: opts.OrgResolver,
+		keepAlive:   keepAlive,
 	}
 }
 

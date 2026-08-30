@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/icholy/gritz/internal/auth/apiauth"
 	"github.com/icholy/gritz/internal/model"
@@ -66,9 +67,19 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Keep the stream alive so reverse proxies with an idle read timeout
+	// (nginx defaults to 60s, Cloudflare 524s at 100s) don't tear it down.
+	// A comment is ignored by clients and doesn't advance seq.
+	keepAlive := time.NewTicker(s.keepAlive)
+	defer keepAlive.Stop()
+
 	ctx := r.Context()
 	for {
 		select {
+		case <-keepAlive.C:
+			if err := sw.WriteComment("keepalive"); err != nil {
+				return
+			}
 		case n := <-ch:
 			if runner != "" && n.Runner != runner {
 				continue
