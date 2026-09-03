@@ -5,8 +5,9 @@
 // store is backend-agnostic: it persists, lists, reads, and removes records
 // keyed by task id and never decodes a record's opaque Data.
 //
-// It is a dependency-free leaf: it must not import the backend package or
-// anything backend-specific.
+// It is a leaf: apart from the stdlib-only internal/x/atomicio helper it uses
+// for its writes, it must not import the backend package or anything
+// backend-specific.
 package taskstate
 
 import (
@@ -18,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/icholy/gritz/internal/x/atomicio"
 )
 
 // Record is the persisted task→sandbox-handle mapping. Data is opaque,
@@ -63,35 +66,9 @@ func (s *Store) Write(rec Record) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tmp, err := os.CreateTemp(s.dir, ".tmp-*")
-	if err != nil {
-		return fmt.Errorf("taskstate: create temp file: %w", err)
+	if err := atomicio.WriteFile(s.path(rec.TaskID), data, 0o600); err != nil {
+		return fmt.Errorf("taskstate: write record %d: %w", rec.TaskID, err)
 	}
-	tmpName := tmp.Name()
-
-	// Clean up the temp file on any error before the rename succeeds.
-	committed := false
-	defer func() {
-		if !committed {
-			_ = os.Remove(tmpName)
-		}
-	}()
-
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("taskstate: write temp file: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("taskstate: fsync temp file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("taskstate: close temp file: %w", err)
-	}
-	if err := os.Rename(tmpName, s.path(rec.TaskID)); err != nil {
-		return fmt.Errorf("taskstate: rename temp file: %w", err)
-	}
-	committed = true
 	return nil
 }
 
