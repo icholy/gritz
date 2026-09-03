@@ -1,6 +1,6 @@
 # Idempotent restart handling
 
-Issue: https://github.com/icholy/xagent/issues/1520
+Issue: https://github.com/icholy/gritz/issues/1520
 
 ## Problem
 
@@ -132,7 +132,7 @@ against an already-terminal task.
 
 Surface the rejection so the driver can self-terminate:
 
-- Extend `SubmitRunnerEventsResponse` (`proto/xagent/v1/xagent.proto`) with a per-event
+- Extend `SubmitRunnerEventsResponse` (`proto/gritz/v1/gritz.proto`) with a per-event
   `applied` result (e.g. `repeated bool applied = 1;` or a richer status enum).
 - In `Driver.Run`, if the `started` submit reports `applied == false`, the task has been
   superseded or terminated — log it and exit without doing the run, so no work is done
