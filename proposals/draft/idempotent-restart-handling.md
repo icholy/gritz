@@ -12,17 +12,13 @@ SIGKILLed the run the first pass had just launched.
 The restart command is designed to survive on the server until the new run's `started`
 event consumes it (`internal/runner/runner.go`). But the driver takes ~12s to boot
 (dockerd under sysbox), so any poll landing in the launch→`started` window still sees
-`Command=Restart` and re-runs the handler. Three defects compound:
+`Command=Restart` and re-runs the handler. Two defects compound:
 
 1. **Root cause — the restart handler is not idempotent.** The `Start` handler guards
    against a double-launch ("sandbox already running, do nothing"), but the `Restart`
    handler has no equivalent guard, so its `Kill` fires against the run the previous
    pass launched.
-2. **Contributing — a SIGTERM during driver boot is lost.** As PID 1 the driver
-   ignores SIGTERM until its handler is installed, so a stop landing in the boot window
-   always escalates to SIGKILL → exit 137 → the runner's `failed` backstop instead of a
-   clean stop.
-3. **Consequence — a zombie run.** A sandbox whose `started` event the server rejects
+2. **Consequence — a zombie run.** A sandbox whose `started` event the server rejects
    keeps running with no way to report. Here it did real work against a task the server
    had already marked `Failed`.
 
@@ -39,9 +35,8 @@ Reconstructed runner log (task 1421):
 
 ## Design
 
-The three defects are layered: fixing (1) alone resolves the reported incident, and
-(2) and (3) close the remaining latent windows (e.g. a genuine cancel during boot).
-Each is an independent slice.
+The two defects are layered: fixing (1) alone resolves the reported incident, and (2)
+closes the remaining latent window. Each is an independent slice.
 
 ### 1. Idempotent restart handler (root cause)
 
@@ -104,26 +99,7 @@ Notes on correctness:
 This mirrors the existing `Start` handler and needs no schema or proto change; the
 record already carries `Version`.
 
-### 2. Make a stop during driver boot survivable (defect #2)
-
-Two independent improvements, either or both:
-
-- **Install the driver's SIGTERM handler before any slow startup work.** In
-  `Driver.Run`, `signal.Notify` is already called before `GetTask`, but the boot cost
-  is the sandbox init that precedes the driver process. Move the `signal.Notify`
-  registration to the earliest point in the driver's `main`/command entry so the
-  handler is live the instant the driver binary starts, shrinking the PID-1 window.
-- **Do not turn a boot-window kill into `failed`.** When the runner signals a sandbox
-  that never emitted `started`, an escalation to SIGKILL is expected, not a driver
-  crash. The `supervise` backstop currently reads any non-zero exit as a lost report
-  and enqueues `failed`. Scope it so a sandbox killed by the runner before its run was
-  acknowledged does not produce a spurious `failed`. (With slice 1 in place the
-  reported incident no longer reaches this path, but a real cancel-during-boot still
-  can.)
-
-The exact mechanism is an open question (see below) — a proposal-review decision.
-
-### 3. Stop zombie runs whose `started` is rejected (defect #3)
+### 2. Stop zombie runs whose `started` is rejected (defect #2)
 
 `SubmitRunnerEvents` already computes `applied` per event but returns an empty
 `SubmitRunnerEventsResponse` (`internal/server/apiserver/runner.go`). A driver whose
@@ -151,18 +127,13 @@ self-healing.
    launch→`started` window, and asserts exactly one kill + one launch (and that the
    task is not marked `Failed`). This slice alone fixes the reported incident and is
    independently shippable.
-2. **Boot-window stop hardening** — Delivers: earlier `signal.Notify` registration in
-   the driver and/or a `supervise` change so a runner-initiated kill of a not-yet-
-   started run does not emit `failed`. Depends on: nothing (independent of 1).
-   Verifiable by: a driver/runner test that stops a sandbox before `started` and
-   asserts a clean cancel rather than `Failed`.
-3. **Reject-aware driver** — Delivers: the `applied` result on
+2. **Reject-aware driver** — Delivers: the `applied` result on
    `SubmitRunnerEventsResponse` and the driver self-terminating when its `started` is
    rejected. Depends on: the proto/response change (foundation), then the driver
    wire-up. Verifiable by: a driver test where `SubmitRunnerEvents` returns
    `applied=false` for `started` and the driver exits without running the agent.
 
-Order: land 1 first (fixes the bug), then 2 and 3 as independent hardening PRs.
+Order: land 1 first (fixes the bug), then 2 as an independent hardening PR.
 
 ## Trade-offs
 
@@ -176,18 +147,13 @@ Order: land 1 first (fixes the bug), then 2 and 3 as independent hardening PRs.
   new RPC to check whether its version is still live, but the `started` submit already
   round-trips to the server and already knows the answer; returning it is strictly
   cheaper and race-free.
-- **Scope.** Slices 2 and 3 are not strictly required to fix issue #1520 (slice 1 is),
-  but they close latent windows that would surface on a genuine cancel-during-boot. They
-  are kept as separate, optional slices so the critical fix ships without waiting on the
-  proto change.
+- **Scope.** Slice 2 is not strictly required to fix issue #1520 (slice 1 is), but it
+  closes a latent window that would surface on any future rejected `started`. It is kept
+  as a separate, optional slice so the critical fix ships without waiting on the proto
+  change.
 
 ## Open Questions
 
-- **Defect #2 mechanism.** Should the boot-window fix live in the driver (earlier signal
-  handler registration), the runner (`supervise` not emitting `failed` for a kill of an
-  unacknowledged run), or the backend (`Signal` semantics)? Each has different blast
-  radius; the runner-side guard is the most general but needs a way to know the run was
-  never acknowledged.
 - **Shape of the `applied` result.** A plain `repeated bool` is minimal; a status enum
   (`APPLIED` / `STALE_VERSION` / `TERMINAL`) is more self-describing and lets the driver
   log a precise reason. Preference?
