@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.1.0](https://github.com/icholy/gritz/compare/v3.0.1...v3.1.0) (2026-09-05)
+
+
+### Features
+
+* **cli:** support --version on the root command ([78f4678](https://github.com/icholy/gritz/commit/78f46783f0f4106e83cb40de0ac623fd94f3d291))
+
+
+### Bug Fixes
+
+* **runner:** make the restart handler idempotent ([6f058ac](https://github.com/icholy/gritz/commit/6f058ac50d78082834c4c7b6a720e0ce275b9728)), closes [#1520](https://github.com/icholy/gritz/issues/1520)
+
+
+### Miscellaneous
+
+* add an ssh task for the dokku host ([c2eab54](https://github.com/icholy/gritz/commit/c2eab548978d32a022e8bc164ff5defe8a43d93a))
+* **taskstate:** use shared atomicio.WriteFile ([2c0bd69](https://github.com/icholy/gritz/commit/2c0bd69d78eb7674c9c59683f390092003cdd0f7))
+* update stale xagent references to gritz ([12310d9](https://github.com/icholy/gritz/commit/12310d92c41694af27d184442171e3d96762f63f))
+* update the web ui screenshot ([0b9a0a8](https://github.com/icholy/gritz/commit/0b9a0a87e1596592d8993b1be885f4a151cf9c50))
+
 ## [3.0.1](https://github.com/icholy/gritz/compare/v3.0.0...v3.0.1) (2026-08-30)
 
 
