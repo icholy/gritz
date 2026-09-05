@@ -219,6 +219,25 @@ func (r *Runner) Poll(ctx context.Context) error {
 			})
 		case model.TaskCommandRestart:
 			g.Go(func() error {
+				// Idempotency guard: the record is stamped with the version of
+				// the run it launched, so a record already on the task's current
+				// version means this restart's new run was launched by an
+				// earlier poll pass. The driver takes ~12s to boot, so any poll
+				// landing in the launch→"started" window still sees the pending
+				// command; killing here would SIGKILL the run we just started
+				// (issue #1520). Do nothing and wait for "started" to consume
+				// the command, exactly like the start handler's already-running
+				// guard. A legacy version-0 record never matches a live task's
+				// version (>= 1), so the guard is a no-op for those.
+				rec, ok, err := r.store.Read(task.ID)
+				if err != nil {
+					r.log.Error("failed to read task record for restart", "task", task.ID, "err", err)
+					return nil
+				}
+				if ok && rec.Version == task.Version {
+					r.log.Debug("restart already processed, waiting for started", "task", task.ID, "version", task.Version)
+					return nil
+				}
 				// Kill existing sandbox if running. The old run's "stopped"
 				// is rejected by the status guard while the restart command is
 				// pending, so the command survives until the new run's
