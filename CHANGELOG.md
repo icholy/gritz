@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.2.0](https://github.com/icholy/gritz/compare/v3.1.0...v3.2.0) (2026-09-06)
+
+
+### Features
+
+* **agent:** add the driver log shipper ([4a22c70](https://github.com/icholy/gritz/commit/4a22c70d7276fbd404b23cb84161464cb36ae47b))
+* **cli:** read gritz logs from the server ([0325f83](https://github.com/icholy/gritz/commit/0325f83385af55b637595671138710805821888c))
+* **driver:** wire the log shipper into the driver ([4b9bdb6](https://github.com/icholy/gritz/commit/4b9bdb67a4a328cc32284d6fc1e6621381dba960))
+* **server:** add log chunk append and list RPCs ([4de7da0](https://github.com/icholy/gritz/commit/4de7da0a0f0cdde1541e70cdf7cdf77076138fc9))
+* **store:** add log chunk queries and store methods ([a8fc72b](https://github.com/icholy/gritz/commit/a8fc72bd8eb39a449726eb45443c0cca6d9a41bc))
+* **store:** add log_chunks table migration ([f7833c9](https://github.com/icholy/gritz/commit/f7833c98f8de10cded69b65073ac708bdee0781b))
+* **webui:** add a logs tab to the task page ([7abae8d](https://github.com/icholy/gritz/commit/7abae8d902e00720a8eb6ce08cfa81abed1ea948))
+
+
+### Bug Fixes
+
+* **webui:** keep tailing the logs tab after a task goes terminal ([6af920d](https://github.com/icholy/gritz/commit/6af920d17e344daa9cb28ff3633bc363e7704be1))
+
+
+### Miscellaneous
+
+* **agent:** move the log shipper into internal/logship ([00ef9b8](https://github.com/icholy/gritz/commit/00ef9b8d4f7e726f49a4a9af6ad60012b2d81670))
+* correct the log chunk list response in the proposal ([18c854f](https://github.com/icholy/gritz/commit/18c854fc8fa74183da1d9755e0ddaafd683263c3))
+* **gritzclient:** add a log chunk iterator ([b81d348](https://github.com/icholy/gritz/commit/b81d348c21772c849ea7127d325115b9ee8cf408))
+* mark ship-driver-logs-to-server as implemented ([0e1e67d](https://github.com/icholy/gritz/commit/0e1e67deb682456bb110ffaa30a1c521a0d9a941))
+
 ## [3.1.0](https://github.com/icholy/gritz/compare/v3.0.1...v3.1.0) (2026-09-05)
 
 
