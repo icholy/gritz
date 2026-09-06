@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"strconv"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/icholy/gritz/internal/configfile"
 	"github.com/icholy/gritz/internal/gritzclient"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
-	"github.com/icholy/gritz/internal/x/common"
 	"github.com/urfave/cli/v3"
 )
 
@@ -85,112 +85,25 @@ type logsOptions struct {
 }
 
 // printTaskLogs writes a task's whole log transcript to w, then — when
-// following — keeps writing appends until ctx is cancelled.
+// following — keeps writing appends until ctx is cancelled. The cursor rules
+// behind both walks live in gritzclient.TaskLog; this is the presentation half.
 func printTaskLogs(ctx context.Context, w io.Writer, client gritzclient.Client, opts logsOptions) error {
-	// The follow cursor comes out of the history walk: it is the tail page's
-	// next_page_token, the position everything appended after this point lands
-	// past.
-	token, err := printLogHistory(ctx, w, client, opts.TaskID)
-	if err != nil {
+	taskLog := gritzclient.OpenTaskLog(client, opts.TaskID, logPageSize)
+	if err := writeChunks(w, taskLog.History(ctx)); err != nil {
 		return err
 	}
 	if !opts.Follow {
 		return nil
 	}
-	for {
-		if !common.SleepContext(ctx, opts.Interval) {
-			return nil
-		}
-		if token == "" {
-			// The task has not shipped a single chunk yet, so there is no cursor to
-			// poll from — re-open at the tail until the first one lands. Nothing has
-			// been printed yet (an empty tail page is what leaves the cursor empty),
-			// so this cannot duplicate output.
-			if token, err = printLogHistory(ctx, w, client, opts.TaskID); err != nil {
-				return err
-			}
-			continue
-		}
-		// Drain everything newer than the cursor before sleeping again: a run that
-		// logged more than a page's worth between polls must not fall behind.
-		for {
-			resp, err := listLogChunks(ctx, client, opts.TaskID, token)
-			if err != nil {
-				return err
-			}
-			if err := writeChunks(w, resp.GetChunks()); err != nil {
-				return err
-			}
-			// next_page_token walks toward newer rows and is always populated — an
-			// empty poll echoes the cursor back — so it is what follow advances on.
-			// Hold the old cursor if it ever comes back empty: re-opening at the
-			// tail here would replay the transcript that was already printed.
-			if next := resp.GetNextPageToken(); next != "" {
-				token = next
-			}
-			// !more, not a short page: at an exact page_size boundary a full page
-			// with nothing behind it is indistinguishable by length.
-			if !resp.GetMore() {
-				break
-			}
-		}
-	}
+	return writeChunks(w, taskLog.Follow(ctx, opts.Interval))
 }
 
-// printLogHistory writes a task's transcript from its beginning to its current
-// tail and returns the follow cursor.
-//
-// The walk runs backwards: an empty page token opens at the tail (the newest
-// page), and prev_page_token steps toward older history until it is exhausted.
-// Only the tail page's next_page_token is a valid follow cursor — the later
-// pages' point back into history — so it is captured on the first response.
-func printLogHistory(ctx context.Context, w io.Writer, client gritzclient.Client, taskID int64) (string, error) {
-	var (
-		follow string
-		token  string
-		pages  [][]*gritzv1.LogChunk
-	)
-	for {
-		resp, err := listLogChunks(ctx, client, taskID, token)
+// writeChunks concatenates the raw bytes of an iterator's chunks onto w.
+func writeChunks(w io.Writer, chunks iter.Seq2[*gritzv1.LogChunk, error]) error {
+	for chunk, err := range chunks {
 		if err != nil {
-			return "", err
+			return fmt.Errorf("failed to list log chunks: %w", err)
 		}
-		if token == "" {
-			follow = resp.GetNextPageToken()
-		}
-		pages = append(pages, resp.GetChunks())
-		// more reports whether older rows remain; prev_page_token empties at the
-		// same point, but check both so a bad page can't spin the walk.
-		if !resp.GetMore() || resp.GetPrevPageToken() == "" {
-			break
-		}
-		token = resp.GetPrevPageToken()
-	}
-	// Chunks within a page are oldest-first, so a page's bytes concatenate
-	// directly; the pages themselves arrived newest-first, so unwind them.
-	for i := len(pages) - 1; i >= 0; i-- {
-		if err := writeChunks(w, pages[i]); err != nil {
-			return "", err
-		}
-	}
-	return follow, nil
-}
-
-func listLogChunks(ctx context.Context, client gritzclient.Client, taskID int64, token string) (*gritzv1.ListLogChunksByTaskResponse, error) {
-	resp, err := client.ListLogChunksByTask(ctx, &gritzv1.ListLogChunksByTaskRequest{
-		TaskId:    taskID,
-		PageSize:  logPageSize,
-		PageToken: token,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list log chunks: %w", err)
-	}
-	return resp, nil
-}
-
-// writeChunks concatenates a page's raw chunk bytes onto w.
-func writeChunks(w io.Writer, chunks []*gritzv1.LogChunk) error {
-	for _, chunk := range chunks {
 		if _, err := w.Write(chunk.GetData()); err != nil {
 			return fmt.Errorf("failed to write log output: %w", err)
 		}
