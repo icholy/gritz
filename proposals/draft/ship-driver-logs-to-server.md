@@ -29,9 +29,9 @@ every byte flows through (`internal/agent/log.go` — the slog handler,
 `Stdout()`/`Stderr()` for setup commands, and the agent CLI's stderr all write
 to it). This proposal adds a second consumer next to the `/gritz/log` file: a
 **log shipper** that buffers the same bytes and sends them to the server
-asynchronously in chunks over a new `AppendLogChunks` RPC. The server stores
-the chunks in a new `log_chunks` table. Before `Driver.Run` returns, the
-driver flushes whatever is still buffered.
+asynchronously, one chunk per `AppendLogChunk` call, over a new RPC. The
+server stores the chunks in a new `log_chunks` table. Before `Driver.Run`
+returns, the driver flushes whatever is still buffered.
 
 The `/gritz/log` file is unchanged and remains the in-sandbox copy; the server
 transcript is a byte-for-byte mirror of it from the moment the shipper is
@@ -74,23 +74,23 @@ the sink).
 Deleting a task cascades its chunks. There is no other retention in v1 (see
 Open Questions).
 
-### Proto: `AppendLogChunks` and `ListLogChunksByTask`
+### Proto: `AppendLogChunk` and `ListLogChunksByTask`
 
 Two new unary RPCs on `GritzService` (the codebase has no streaming RPCs;
 `UploadLogs` — now a vestigial transport for the MCP `report` tool — is left
 untouched):
 
 ```proto
-rpc AppendLogChunks(AppendLogChunksRequest) returns (AppendLogChunksResponse);
+rpc AppendLogChunk(AppendLogChunkRequest) returns (AppendLogChunkResponse);
 rpc ListLogChunksByTask(ListLogChunksByTaskRequest) returns (ListLogChunksByTaskResponse);
 
-message AppendLogChunksRequest {
+message AppendLogChunkRequest {
   int64 task_id = 1;
-  int64 version = 2;         // one batch is always from one run
-  repeated bytes chunks = 3; // in write order
+  int64 version = 2; // the run these bytes belong to
+  bytes data = 3;    // one chunk; the FIFO sender makes call order write order
 }
 
-message AppendLogChunksResponse {}
+message AppendLogChunkResponse {}
 
 message LogChunk {
   int64 id = 1;
@@ -115,15 +115,14 @@ message ListLogChunksByTaskResponse {
 
 ### Server handlers
 
-`AppendLogChunks` mirrors the `UploadLogs` handler's auth exactly
+`AppendLogChunk` mirrors the `UploadLogs` handler's auth exactly
 (`internal/server/apiserver/log.go`): coarse `AllowOp(OpTaskWrite)` gate,
 `GetTask` by `(id, org)`, then `Allow(OpTaskWrite, task.ScopeAttr()...)` — so
 the driver's narrow task JWT (which already carries `OpTaskWrite` bound to its
 task) authorizes it with no scope changes. The handler validates bounds
-(reject empty batches, chunks over 1 MiB, or batches over 4 MiB total with
-`CodeInvalidArgument` — the driver cuts far smaller chunks, so these are abuse
-caps, not tuning), then inserts the chunks in one transaction via a new store
-method `CreateLogChunks(ctx, tx, chunks)`.
+(reject an empty chunk or one over 1 MiB with `CodeInvalidArgument` — the
+driver cuts far smaller chunks, so this is an abuse cap, not tuning), then
+inserts it via a new store method `CreateLogChunk(ctx, tx, chunk)`.
 
 The handler publishes **no notification**. `UploadLogs`-driven channel
 notifications were already deliberately silenced as high-frequency log spam
@@ -144,8 +143,8 @@ A new `internal/agent` type wraps the network side:
 
 ```go
 // LogShipper is an io.Writer that mirrors log bytes to the server as
-// asynchronous batched chunks. Write never blocks and never returns an
-// error; a full buffer drops bytes rather than stall the run.
+// asynchronous chunks, one per request. Write never blocks and never returns
+// an error; a full buffer drops bytes rather than stall the run.
 type LogShipper struct { ... }
 
 func NewLogShipper(client gritzclient.Client, taskID int64) *LogShipper
@@ -160,23 +159,26 @@ Behavior:
   channel). A chunk is cut when the buffer reaches 32 KiB (the same chunk size
   as `shell.Serve`'s PTY pump) or when a 2s ticker fires with pending bytes,
   whichever comes first — so a quiet run still ships promptly and a chatty one
-  batches.
+  coalesces its writes into a chunk rather than a request per line.
 - **Bounded, drop-on-overflow.** Pending chunks are capped at 1 MiB total.
   When the server is unreachable and the cap is hit, new bytes are dropped and
   counted; when shipping resumes, the shipper emits a synthetic
   `[gritz: dropped N log bytes]\n` chunk so the gap is visible in the
   transcript. The complete log is still on disk in `/gritz/log`.
 - **Single in-flight sender.** One goroutine (started from `Run`, alongside
-  the driver's existing lifetime) sends pending chunks FIFO via one
-  `AppendLogChunks` call per batch, retrying transient failures with capped
+  the driver's existing lifetime) sends pending chunks FIFO, one
+  `AppendLogChunk` call per chunk, retrying transient failures with capped
   exponential backoff (`cenkalti/backoff`, as the outbox does). Never more
-  than one request in flight, so server insertion order is write order.
+  than one request in flight, so server insertion order is write order. The
+  per-request overhead is paid on a keep-alive connection and is negligible
+  next to a 32 KiB chunk.
 - **Version stamping.** The shipper is constructed in `command/driver.go`
   (where the `gritzclient` already exists) before the task fetch, so it
   buffers from process start with `version = 0`. `DriverLog.StartRun` — which
   already receives `task.Version` — additionally calls `SetVersion`, cutting a
   chunk at the boundary so pre-run preamble and run bytes are not mixed in one
-  chunk.
+  chunk. Because a request carries exactly one chunk, no request can straddle a
+  version boundary and the sender needs no splitting logic.
 
 Wiring is one line in `OpenDriverLog`'s callers' terms: the `DriverLog` sink
 becomes `io.MultiWriter(file, shipper)`. Every existing tee — slog handler,
@@ -200,11 +202,13 @@ anyway, and the bytes remain in `/gritz/log`.
 
 At-least-once, in order, best-effort:
 
-- **Ordering** comes from the single in-flight FIFO sender; a failed batch is
+- **Ordering** comes from the single in-flight FIFO sender; a failed chunk is
   retried before anything newer is sent (head-of-line blocking, like the
-  outbox).
+  outbox). Each chunk is its own statement, so the server-assigned ids are
+  write order by construction, not by any assumption about how a multi-row
+  insert orders its rows.
 - **Duplicates** are possible only on an ambiguous failure (e.g. a timeout
-  after the server committed): the retried batch inserts the same bytes twice.
+  after the server committed): the retried chunk inserts the same bytes twice.
   For a diagnostic transcript this is a visible-but-harmless repeated span,
   accepted rather than engineered away (see Trade-offs).
 - **Loss** is possible when the buffer overflows, the flush deadline expires,
@@ -232,13 +236,12 @@ At-least-once, in order, best-effort:
 1. **Schema migration** — Delivers: the `log_chunks` table and
    `idx_log_chunks_task_id_id`. Depends on: nothing. Verifiable by: migration
    runs cleanly up and down.
-2. **Store layer** — Delivers: sqlc queries and store methods
-   `CreateLogChunks` (batch insert) and the keyset Asc/Desc pair backing
-   `ListLogChunksByTaskPage`, with model↔row conversion, following
-   `internal/store/event.go`. Depends on: (1). Verifiable by: store unit tests
-   covering insert order, org scoping, cascade delete, and pagination in both
-   directions.
-3. **Proto + server handlers** — Delivers: the `AppendLogChunks` /
+2. **Store layer** — Delivers: sqlc queries and store methods `CreateLogChunk`
+   and the keyset Asc/Desc pair backing `ListLogChunksByTaskPage`, with
+   model↔row conversion, following `internal/store/event.go`. Depends on: (1).
+   Verifiable by: store unit tests covering insert order, org scoping, cascade
+   delete, and pagination in both directions.
+3. **Proto + server handlers** — Delivers: the `AppendLogChunk` /
    `ListLogChunksByTask` RPCs, generated code, and `apiserver` handlers with
    the `UploadLogs`-shaped scope checks and size caps. Depends on: (2).
    Verifiable by: handler tests exercising auth (task-token write, user read),
@@ -289,11 +292,19 @@ order once (3) is in.
   into JSONB event payloads would spam every timeline consumer and the
   driver's own event drain. A separate table with a separate lifecycle is the
   point, not a regression of that proposal.
-- **Unary batched RPC vs. streaming.** A client-streaming upload would shave
-  per-request overhead, but the codebase has zero streaming RPCs, the two
-  existing byte-stream surfaces (shell WebSocket, SSE) live outside Connect,
-  and batching at 32 KiB/2s makes request overhead negligible. Unary keeps the
-  handler, auth, and retry story identical to every other RPC.
+- **Unary per-chunk RPC vs. streaming (or batching).** A client-streaming
+  upload would shave per-request overhead, but the codebase has zero streaming
+  RPCs, the two existing byte-stream surfaces (shell WebSocket, SSE) live
+  outside Connect, and cutting at 32 KiB/2s over a keep-alive connection makes
+  request overhead negligible. Unary keeps the handler, auth, and retry story
+  identical to every other RPC. Sending a *batch* of chunks per request was
+  also considered and rejected: it buys nothing on top of the chunk cutting
+  that already bounds request rate, and it would make byte ordering — this
+  feature's whole correctness property — depend on a multi-row insert
+  preserving order. One chunk per request, one chunk per statement, makes id
+  order write order by construction. The store method still takes a `*sql.Tx`,
+  so a future caller can wrap N inserts in one transaction without a signature
+  change.
 - **Accepting duplicates vs. a dedup key.** A client-assigned `(version, seq)`
   with a unique index and `ON CONFLICT DO NOTHING` would make retries
   exactly-once, but a restarted run can reuse a version, so `seq` would need a
