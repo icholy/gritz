@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -374,7 +375,7 @@ func TestDriverRun_LogsToSink(t *testing.T) {
 	// command does in production via OpenDriverLog.
 	driver, _ := setupDriver(t, &Config{Type: TypeDummy})
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath)
+	driver.Log = OpenDriverLog(logPath, nil)
 	t.Cleanup(func() { _ = driver.Log.Close() })
 
 	// Act - two runs against the same file
@@ -401,7 +402,7 @@ func TestDriverRun_SetupCommandOutputTeed(t *testing.T) {
 		Commands: []string{"echo out-marker; echo err-marker >&2; false"},
 	})
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath)
+	driver.Log = OpenDriverLog(logPath, nil)
 	t.Cleanup(func() { _ = driver.Log.Close() })
 
 	// Act
@@ -413,4 +414,49 @@ func TestDriverRun_SetupCommandOutputTeed(t *testing.T) {
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Contains(string(got), "out-marker"))
 	assert.Assert(t, cmp.Contains(string(got), "err-marker"))
+}
+
+func TestDriverRun_ShipsLogToServer(t *testing.T) {
+	t.Parallel()
+	// Arrange - a failing dummy agent teeing into a real append-only log file
+	// with a shipper spliced into the sink, wired as the command does in
+	// production. The shipper's background sender is deliberately left
+	// unstarted, so the only thing that ships anything is Run's own end-of-run
+	// flush — which is what is under test.
+	driver, mock := setupDriver(t, &Config{
+		Type:  TypeDummy,
+		Dummy: &DummyOptions{Error: "dummy agent failed on purpose"},
+	})
+	mock.AppendLogChunkFunc = func(_ context.Context, _ *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+		return &gritzv1.AppendLogChunkResponse{}, nil
+	}
+	logPath := filepath.Join(t.TempDir(), "log")
+	driver.Log = OpenDriverLog(logPath, NewLogShipper(mock, 1))
+	t.Cleanup(func() { _ = driver.Log.Close() })
+	// A line emitted before the run, while the version is still unknown.
+	_, err := io.WriteString(driver.Log.Sink(), "preamble\n")
+	assert.NilError(t, err)
+
+	// Act
+	assert.NilError(t, driver.Run(t.Context()))
+
+	// Assert - the server received /gritz/log byte for byte, including the
+	// terminal failure line the flush deliberately runs after.
+	file, err := os.ReadFile(logPath)
+	assert.NilError(t, err)
+	assert.Assert(t, cmp.Contains(string(file), "task failed"))
+	chunks := mock.AppendedLogChunks()
+	var shipped []byte
+	for _, chunk := range chunks {
+		shipped = append(shipped, chunk.GetData()...)
+	}
+	assert.Equal(t, string(shipped), string(file))
+
+	// Assert - chunks are stamped with the run they belong to, and the boundary
+	// cut keeps the pre-run preamble out of the run's first chunk.
+	assert.DeepEqual(t, string(chunks[0].GetData()), "preamble\n")
+	assert.Equal(t, chunks[0].GetVersion(), int64(0))
+	for _, chunk := range chunks[1:] {
+		assert.Equal(t, chunk.GetVersion(), int64(testTaskVersion))
+	}
 }

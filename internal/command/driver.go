@@ -30,20 +30,36 @@ var DriverCommand = &cli.Command{
 		},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
+		taskID := cmd.Int64("task")
+		client := gritzclient.New(gritzclient.Options{
+			BaseURL: cmd.String("server"),
+			Token:   cmd.String("token"),
+		})
+
+		// Mirror the log to the server as well as to /gritz/log, so a run stays
+		// debuggable after its sandbox is pruned and without shell access to it.
+		// The shipper is built before anything else touches the server — in
+		// particular before the driver's task fetch — so bytes emitted before
+		// the run's version is known are still buffered, stamped version 0 until
+		// DriverLog.StartRun stamps the run. Its sender runs for the driver's
+		// lifetime; the deferred cancel below stops it after the final flush.
+		shipper := agent.NewLogShipper(client, taskID)
+		shipCtx, stopShipper := context.WithCancel(ctx)
+		defer stopShipper()
+		go shipper.Run(shipCtx)
+
 		// Open the append-only in-sandbox log: its logger tees the driver's slog
-		// output to os.Stderr and /gritz/log, and its sink is teed into setup
-		// command and Claude CLI stdio, so a completed run can be inspected
-		// post-mortem via the reverse-shell. Opening is best-effort and never
-		// fails the run (see agent.OpenDriverLog).
-		log := agent.OpenDriverLog(agent.DefaultLogPath)
+		// output to os.Stderr, /gritz/log and the shipper, and its sink is teed
+		// into setup command and Claude CLI stdio, so a completed run can be
+		// inspected post-mortem via the reverse-shell or the server. Opening is
+		// best-effort and never fails the run (see agent.OpenDriverLog). Close
+		// flushes the shipper as a backstop for early-error exits.
+		log := agent.OpenDriverLog(agent.DefaultLogPath, shipper)
 		defer log.Close()
 
 		driver := &agent.Driver{
-			TaskID: cmd.Int64("task"),
-			Client: gritzclient.New(gritzclient.Options{
-				BaseURL: cmd.String("server"),
-				Token:   cmd.String("token"),
-			}),
+			TaskID:    taskID,
+			Client:    client,
 			Log:       log,
 			Config:    agent.DefaultConfigStore,
 			ServerURL: cmd.String("server"),

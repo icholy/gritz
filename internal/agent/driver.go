@@ -103,10 +103,31 @@ func (d *Driver) Run(ctx context.Context) error {
 	// The terminal ack decides the exit code: acked means the outcome is
 	// durably recorded and the driver exits 0 even on agent failure; a lost
 	// report exits non-zero so the monitor's "failed" fires.
-	if serr := d.submit(eventCtx, event); serr != nil {
+	serr := d.submit(eventCtx, event)
+	// Ship the tail of the log last, after the terminal event, so the "task
+	// failed" / "agent stopped" lines written above are in the buffer and go
+	// out with it. eventCtx is deliberate for the same reason the events use
+	// it: it survives the SIGTERM cancellation.
+	d.flushLog(eventCtx)
+	if serr != nil {
 		return errors.Join(err, serr)
 	}
 	return nil
+}
+
+// flushLog drains the log shipper before the driver exits, under a short
+// deadline. It is best-effort and never affects the run's outcome: on deadline
+// the unshipped tail is given up on and the complete log is still in
+// /gritz/log for as long as the sandbox lives.
+func (d *Driver) flushLog(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, logFlushTimeout)
+	defer cancel()
+	if err := d.Log.Flush(ctx); err != nil {
+		// Not through d.Log: its handler writes into the sink the shipper is
+		// teed into, so reporting a failed flush there would buffer a line that
+		// can no longer be shipped. os.Stderr is outside the tee.
+		fmt.Fprintf(os.Stderr, "gritz: %v\n", err)
+	}
 }
 
 // submit reports a runner event for the driver's task and waits for the ack.
