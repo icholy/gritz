@@ -1,7 +1,7 @@
-\restrict MwUVzQHKmd91lvf0e6J08jfpxknEhIWzKjdNFWjcWck6fGfSPuuxkNTWdEQTwbQ
+\restrict dbmate
 
--- Dumped from database version 17.10
--- Dumped by pg_dump version 17.10 (Debian 17.10-0+deb13u1)
+-- Dumped from database version 18.6
+-- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -66,6 +66,39 @@ CREATE TABLE public.keys (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     scopes text[] DEFAULT ARRAY['*.*'::text]
 );
+
+
+--
+-- Name: log_chunks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.log_chunks (
+    id bigint NOT NULL,
+    org_id bigint NOT NULL,
+    task_id bigint NOT NULL,
+    version bigint NOT NULL,
+    data bytea NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
+);
+
+
+--
+-- Name: log_chunks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.log_chunks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: log_chunks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.log_chunks_id_seq OWNED BY public.log_chunks.id;
 
 
 --
@@ -165,7 +198,7 @@ ALTER SEQUENCE public.schedules_id_seq OWNED BY public.schedules.id;
 --
 
 CREATE TABLE public.schema_migrations (
-    version character varying(128) NOT NULL
+    version character varying NOT NULL
 );
 
 
@@ -220,7 +253,7 @@ CREATE TABLE public.tasks (
     archived boolean DEFAULT false NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    auto_archive bigint DEFAULT 0 NOT NULL,
+    auto_archive bigint DEFAULT 0 CONSTRAINT tasks_archive_after_not_null NOT NULL,
     shell_session text DEFAULT ''::text NOT NULL,
     namespace text DEFAULT ''::text NOT NULL
 );
@@ -304,6 +337,13 @@ ALTER TABLE ONLY public.events ALTER COLUMN id SET DEFAULT nextval('public.event
 
 
 --
+-- Name: log_chunks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.log_chunks ALTER COLUMN id SET DEFAULT nextval('public.log_chunks_id_seq'::regclass);
+
+
+--
 -- Name: orgs id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -352,6 +392,14 @@ ALTER TABLE ONLY public.events
 
 ALTER TABLE ONLY public.keys
     ADD CONSTRAINT keys_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: log_chunks log_chunks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.log_chunks
+    ADD CONSTRAINT log_chunks_pkey PRIMARY KEY (id);
 
 
 --
@@ -444,6 +492,13 @@ CREATE INDEX idx_keys_org_id ON public.keys USING btree (org_id);
 --
 
 CREATE UNIQUE INDEX idx_keys_token_hash ON public.keys USING btree (token_hash);
+
+
+--
+-- Name: idx_log_chunks_task_id_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_log_chunks_task_id_id ON public.log_chunks USING btree (task_id, id);
 
 
 --
@@ -636,6 +691,22 @@ ALTER TABLE ONLY public.workspaces
 
 
 --
+-- Name: log_chunks log_chunks_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.log_chunks
+    ADD CONSTRAINT log_chunks_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.orgs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: log_chunks log_chunks_task_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.log_chunks
+    ADD CONSTRAINT log_chunks_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id) ON DELETE CASCADE;
+
+
+--
 -- Name: org_members org_members_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -687,7 +758,7 @@ ALTER TABLE ONLY public.task_links
 -- PostgreSQL database dump complete
 --
 
-\unrestrict MwUVzQHKmd91lvf0e6J08jfpxknEhIWzKjdNFWjcWck6fGfSPuuxkNTWdEQTwbQ
+\unrestrict dbmate
 
 
 --
@@ -716,4 +787,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260712000002'),
     ('20260712000003'),
     ('20260718000001'),
-    ('20260718000002');
+    ('20260718000002'),
+    ('20260906000001');
