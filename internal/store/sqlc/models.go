@@ -30,6 +30,15 @@ type Key struct {
 	Scopes    []string     `json:"scopes"`
 }
 
+type LogChunk struct {
+	ID        int64     `json:"id"`
+	OrgID     int64     `json:"org_id"`
+	TaskID    int64     `json:"task_id"`
+	Version   int64     `json:"version"`
+	Data      []byte    `json:"data"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Org struct {
 	ID                     int64           `json:"id"`
 	Name                   string          `json:"name"`
