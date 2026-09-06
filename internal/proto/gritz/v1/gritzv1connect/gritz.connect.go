@@ -63,6 +63,12 @@ const (
 	GritzServiceOpenShellProcedure = "/gritz.v1.GritzService/OpenShell"
 	// GritzServiceUploadLogsProcedure is the fully-qualified name of the GritzService's UploadLogs RPC.
 	GritzServiceUploadLogsProcedure = "/gritz.v1.GritzService/UploadLogs"
+	// GritzServiceAppendLogChunkProcedure is the fully-qualified name of the GritzService's
+	// AppendLogChunk RPC.
+	GritzServiceAppendLogChunkProcedure = "/gritz.v1.GritzService/AppendLogChunk"
+	// GritzServiceListLogChunksByTaskProcedure is the fully-qualified name of the GritzService's
+	// ListLogChunksByTask RPC.
+	GritzServiceListLogChunksByTaskProcedure = "/gritz.v1.GritzService/ListLogChunksByTask"
 	// GritzServiceCreateLinkProcedure is the fully-qualified name of the GritzService's CreateLink RPC.
 	GritzServiceCreateLinkProcedure = "/gritz.v1.GritzService/CreateLink"
 	// GritzServiceListLinksProcedure is the fully-qualified name of the GritzService's ListLinks RPC.
@@ -181,6 +187,8 @@ type GritzServiceClient interface {
 	RestartTask(context.Context, *v1.RestartTaskRequest) (*v1.RestartTaskResponse, error)
 	OpenShell(context.Context, *v1.OpenShellRequest) (*v1.OpenShellResponse, error)
 	UploadLogs(context.Context, *v1.UploadLogsRequest) (*v1.UploadLogsResponse, error)
+	AppendLogChunk(context.Context, *v1.AppendLogChunkRequest) (*v1.AppendLogChunkResponse, error)
+	ListLogChunksByTask(context.Context, *v1.ListLogChunksByTaskRequest) (*v1.ListLogChunksByTaskResponse, error)
 	CreateLink(context.Context, *v1.CreateLinkRequest) (*v1.CreateLinkResponse, error)
 	ListLinks(context.Context, *v1.ListLinksRequest) (*v1.ListLinksResponse, error)
 	ListExternalEvents(context.Context, *v1.ListExternalEventsRequest) (*v1.ListExternalEventsResponse, error)
@@ -307,6 +315,18 @@ func NewGritzServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			httpClient,
 			baseURL+GritzServiceUploadLogsProcedure,
 			connect.WithSchema(gritzServiceMethods.ByName("UploadLogs")),
+			connect.WithClientOptions(opts...),
+		),
+		appendLogChunk: connect.NewClient[v1.AppendLogChunkRequest, v1.AppendLogChunkResponse](
+			httpClient,
+			baseURL+GritzServiceAppendLogChunkProcedure,
+			connect.WithSchema(gritzServiceMethods.ByName("AppendLogChunk")),
+			connect.WithClientOptions(opts...),
+		),
+		listLogChunksByTask: connect.NewClient[v1.ListLogChunksByTaskRequest, v1.ListLogChunksByTaskResponse](
+			httpClient,
+			baseURL+GritzServiceListLogChunksByTaskProcedure,
+			connect.WithSchema(gritzServiceMethods.ByName("ListLogChunksByTask")),
 			connect.WithClientOptions(opts...),
 		),
 		createLink: connect.NewClient[v1.CreateLinkRequest, v1.CreateLinkResponse](
@@ -549,6 +569,8 @@ type gritzServiceClient struct {
 	restartTask                    *connect.Client[v1.RestartTaskRequest, v1.RestartTaskResponse]
 	openShell                      *connect.Client[v1.OpenShellRequest, v1.OpenShellResponse]
 	uploadLogs                     *connect.Client[v1.UploadLogsRequest, v1.UploadLogsResponse]
+	appendLogChunk                 *connect.Client[v1.AppendLogChunkRequest, v1.AppendLogChunkResponse]
+	listLogChunksByTask            *connect.Client[v1.ListLogChunksByTaskRequest, v1.ListLogChunksByTaskResponse]
 	createLink                     *connect.Client[v1.CreateLinkRequest, v1.CreateLinkResponse]
 	listLinks                      *connect.Client[v1.ListLinksRequest, v1.ListLinksResponse]
 	listExternalEvents             *connect.Client[v1.ListExternalEventsRequest, v1.ListExternalEventsResponse]
@@ -699,6 +721,24 @@ func (c *gritzServiceClient) OpenShell(ctx context.Context, req *v1.OpenShellReq
 // UploadLogs calls gritz.v1.GritzService.UploadLogs.
 func (c *gritzServiceClient) UploadLogs(ctx context.Context, req *v1.UploadLogsRequest) (*v1.UploadLogsResponse, error) {
 	response, err := c.uploadLogs.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// AppendLogChunk calls gritz.v1.GritzService.AppendLogChunk.
+func (c *gritzServiceClient) AppendLogChunk(ctx context.Context, req *v1.AppendLogChunkRequest) (*v1.AppendLogChunkResponse, error) {
+	response, err := c.appendLogChunk.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// ListLogChunksByTask calls gritz.v1.GritzService.ListLogChunksByTask.
+func (c *gritzServiceClient) ListLogChunksByTask(ctx context.Context, req *v1.ListLogChunksByTaskRequest) (*v1.ListLogChunksByTaskResponse, error) {
+	response, err := c.listLogChunksByTask.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -1053,6 +1093,8 @@ type GritzServiceHandler interface {
 	RestartTask(context.Context, *v1.RestartTaskRequest) (*v1.RestartTaskResponse, error)
 	OpenShell(context.Context, *v1.OpenShellRequest) (*v1.OpenShellResponse, error)
 	UploadLogs(context.Context, *v1.UploadLogsRequest) (*v1.UploadLogsResponse, error)
+	AppendLogChunk(context.Context, *v1.AppendLogChunkRequest) (*v1.AppendLogChunkResponse, error)
+	ListLogChunksByTask(context.Context, *v1.ListLogChunksByTaskRequest) (*v1.ListLogChunksByTaskResponse, error)
 	CreateLink(context.Context, *v1.CreateLinkRequest) (*v1.CreateLinkResponse, error)
 	ListLinks(context.Context, *v1.ListLinksRequest) (*v1.ListLinksResponse, error)
 	ListExternalEvents(context.Context, *v1.ListExternalEventsRequest) (*v1.ListExternalEventsResponse, error)
@@ -1175,6 +1217,18 @@ func NewGritzServiceHandler(svc GritzServiceHandler, opts ...connect.HandlerOpti
 		GritzServiceUploadLogsProcedure,
 		svc.UploadLogs,
 		connect.WithSchema(gritzServiceMethods.ByName("UploadLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	gritzServiceAppendLogChunkHandler := connect.NewUnaryHandlerSimple(
+		GritzServiceAppendLogChunkProcedure,
+		svc.AppendLogChunk,
+		connect.WithSchema(gritzServiceMethods.ByName("AppendLogChunk")),
+		connect.WithHandlerOptions(opts...),
+	)
+	gritzServiceListLogChunksByTaskHandler := connect.NewUnaryHandlerSimple(
+		GritzServiceListLogChunksByTaskProcedure,
+		svc.ListLogChunksByTask,
+		connect.WithSchema(gritzServiceMethods.ByName("ListLogChunksByTask")),
 		connect.WithHandlerOptions(opts...),
 	)
 	gritzServiceCreateLinkHandler := connect.NewUnaryHandlerSimple(
@@ -1427,6 +1481,10 @@ func NewGritzServiceHandler(svc GritzServiceHandler, opts ...connect.HandlerOpti
 			gritzServiceOpenShellHandler.ServeHTTP(w, r)
 		case GritzServiceUploadLogsProcedure:
 			gritzServiceUploadLogsHandler.ServeHTTP(w, r)
+		case GritzServiceAppendLogChunkProcedure:
+			gritzServiceAppendLogChunkHandler.ServeHTTP(w, r)
+		case GritzServiceListLogChunksByTaskProcedure:
+			gritzServiceListLogChunksByTaskHandler.ServeHTTP(w, r)
 		case GritzServiceCreateLinkProcedure:
 			gritzServiceCreateLinkHandler.ServeHTTP(w, r)
 		case GritzServiceListLinksProcedure:
@@ -1560,6 +1618,14 @@ func (UnimplementedGritzServiceHandler) OpenShell(context.Context, *v1.OpenShell
 
 func (UnimplementedGritzServiceHandler) UploadLogs(context.Context, *v1.UploadLogsRequest) (*v1.UploadLogsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gritz.v1.GritzService.UploadLogs is not implemented"))
+}
+
+func (UnimplementedGritzServiceHandler) AppendLogChunk(context.Context, *v1.AppendLogChunkRequest) (*v1.AppendLogChunkResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gritz.v1.GritzService.AppendLogChunk is not implemented"))
+}
+
+func (UnimplementedGritzServiceHandler) ListLogChunksByTask(context.Context, *v1.ListLogChunksByTaskRequest) (*v1.ListLogChunksByTaskResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gritz.v1.GritzService.ListLogChunksByTask is not implemented"))
 }
 
 func (UnimplementedGritzServiceHandler) CreateLink(context.Context, *v1.CreateLinkRequest) (*v1.CreateLinkResponse, error) {

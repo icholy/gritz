@@ -70,6 +70,16 @@ export const openShell = GritzService.method.openShell;
 export const uploadLogs = GritzService.method.uploadLogs;
 
 /**
+ * @generated from rpc gritz.v1.GritzService.AppendLogChunk
+ */
+export const appendLogChunk = GritzService.method.appendLogChunk;
+
+/**
+ * @generated from rpc gritz.v1.GritzService.ListLogChunksByTask
+ */
+export const listLogChunksByTask = GritzService.method.listLogChunksByTask;
+
+/**
  * @generated from rpc gritz.v1.GritzService.CreateLink
  */
 export const createLink = GritzService.method.createLink;
