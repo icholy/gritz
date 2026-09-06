@@ -335,17 +335,20 @@ order once (3) is in.
 
 ## Open Questions
 
+Retention and live tail are still open; secret hygiene has since been settled.
+
 - **Retention.** Chunks grow unbounded until the task is deleted; archived
   tasks keep their logs. Is cascade-on-delete enough, or do we want age-based
   GC or a per-task byte cap (delete oldest chunks past N MiB) before this
   ships? The tail matters most for post-mortems, so a byte cap would be cheap
   and safe.
-- **Secret hygiene.** The sandbox-log proposal accepted secrets-on-sandbox-disk
-  because the shell was the same trust boundary as running the agent. Shipping
-  widens the audience: setup output and agent stderr become readable by anyone
-  with `OpTaskRead` in the org, persisted in Postgres. Is that acceptable
-  as-is, or does this need redaction (e.g. `toollog.Redact`-style patterns) at
-  the tee before bytes leave the sandbox?
+- ~~**Secret hygiene.**~~ **Resolved: out of scope for v1.** The sandbox-log
+  proposal accepted secrets-on-sandbox-disk because the shell was the same
+  trust boundary as running the agent. Shipping widens the audience: setup
+  output and agent stderr become readable by anyone with `OpTaskRead` in the
+  org, persisted in Postgres. That is accepted as-is — v1 ships raw bytes with
+  no redaction, filtering, or `toollog.Redact`-style scrubbing at the tee or in
+  the shipper. See icholy/gritz#1241 comment 5559907409.
 - **Live tail.** V1 follow mode is polling. If a real live tail is wanted, the
   cheap increment is a throttled `task_logs`/`appended` notification on the
   existing SSE channel (UI-only, excluded from channel summaries like
