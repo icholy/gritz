@@ -66,10 +66,13 @@ See [examples/runner/](examples/runner/) for running the runner as a Docker Comp
 
 ## Debugging
 
-View container logs:
+View a task's driver log — the agent CLI's output plus the driver's own
+logging, streamed to the server as the task runs, so it stays readable after the
+sandbox is gone and needs no Docker access:
 
 ```bash
-gritz logs -f <taskid>
+gritz logs <taskid>     # print the whole transcript
+gritz logs -f <taskid>  # follow it as the task runs
 ```
 
 Set `verbose: true` on a workspace's agent to bypass the CLI output parser and
