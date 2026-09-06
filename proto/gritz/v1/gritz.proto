@@ -21,6 +21,8 @@ service GritzService {
   rpc RestartTask(RestartTaskRequest) returns (RestartTaskResponse);
   rpc OpenShell(OpenShellRequest) returns (OpenShellResponse);
   rpc UploadLogs(UploadLogsRequest) returns (UploadLogsResponse);
+  rpc AppendLogChunk(AppendLogChunkRequest) returns (AppendLogChunkResponse);
+  rpc ListLogChunksByTask(ListLogChunksByTaskRequest) returns (ListLogChunksByTaskResponse);
   rpc CreateLink(CreateLinkRequest) returns (CreateLinkResponse);
   rpc ListLinks(ListLinksRequest) returns (ListLinksResponse);
   rpc ListExternalEvents(ListExternalEventsRequest) returns (ListExternalEventsResponse);
@@ -255,6 +257,46 @@ message UploadLogsRequest {
 }
 
 message UploadLogsResponse {}
+
+// LogChunk is an opaque run of driver log bytes. A task's transcript is the
+// concatenation of its chunks' data in id order — which is write order, because
+// the driver ships with a single in-flight sender.
+// See proposals/draft/ship-driver-logs-to-server.md.
+message LogChunk {
+  int64 id = 1;
+  int64 task_id = 2;
+  int64 version = 3;  // The run (task.version) the bytes belong to; 0 = pre-run preamble.
+  bytes data = 4;     // Raw log bytes, opaque to the server (not parsed into lines).
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message AppendLogChunkRequest {
+  int64 task_id = 1;
+  int64 version = 2;  // The run these bytes belong to.
+  bytes data = 3;     // Exactly one chunk; the driver's FIFO sender makes call order write order.
+                      // Must be non-empty and at most 1 MiB (an abuse cap — the driver cuts at 32 KiB).
+}
+
+message AppendLogChunkResponse {}
+
+message ListLogChunksByTaskRequest {
+  int64 task_id = 1;
+  int32 page_size = 2;    // Max chunks per page (default 50, max 200).
+  string page_token = 3;  // Opaque bidirectional cursor (encodes a boundary id + direction).
+                          // Empty returns the newest page — the end of the log.
+}
+
+message ListLogChunksByTaskResponse {
+  repeated LogChunk chunks = 1;  // Always oldest-first (ascending id), so data concatenates into
+                                 // transcript order.
+  string prev_page_token = 2;    // Older page (scroll back); empty when history is exhausted.
+  string next_page_token = 3;    // Newer page (live-follow); ALWAYS populated so a client can keep
+                                 // polling the tail for appends.
+  bool more = 4;                 // Whether another page exists beyond `chunks` in the direction just
+                                 // walked (older for a prev_page_token request, newer for live-follow).
+                                 // Break on !more instead of the shorter-than-page_size heuristic,
+                                 // which misfires at an exact page_size boundary.
+}
 
 message TaskLink {
   int64 id = 1;

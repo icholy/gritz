@@ -206,6 +206,16 @@ func taskInstanceHandlers() []struct {
 			})
 			return err
 		}},
+		{"AppendLogChunk", func(ctx context.Context, srv *Server, id int64) error {
+			_, err := srv.AppendLogChunk(ctx, &gritzv1.AppendLogChunkRequest{
+				TaskId: id, Version: 1, Data: []byte("x"),
+			})
+			return err
+		}},
+		{"ListLogChunksByTask", func(ctx context.Context, srv *Server, id int64) error {
+			_, err := srv.ListLogChunksByTask(ctx, &gritzv1.ListLogChunksByTaskRequest{TaskId: id})
+			return err
+		}},
 		{"ListEventsByTask", func(ctx context.Context, srv *Server, id int64) error {
 			_, err := srv.ListEventsByTask(ctx, &gritzv1.ListEventsByTaskRequest{TaskId: id})
 			return err

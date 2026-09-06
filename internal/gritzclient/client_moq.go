@@ -22,6 +22,9 @@ var _ Client = &ClientMock{}
 //			AddOrgMemberFunc: func(contextMoqParam context.Context, addOrgMemberRequest *gritzv1.AddOrgMemberRequest) (*gritzv1.AddOrgMemberResponse, error) {
 //				panic("mock out the AddOrgMember method")
 //			},
+//			AppendLogChunkFunc: func(contextMoqParam context.Context, appendLogChunkRequest *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+//				panic("mock out the AppendLogChunk method")
+//			},
 //			ArchiveTaskFunc: func(contextMoqParam context.Context, archiveTaskRequest *gritzv1.ArchiveTaskRequest) (*gritzv1.ArchiveTaskResponse, error) {
 //				panic("mock out the ArchiveTask method")
 //			},
@@ -103,6 +106,9 @@ var _ Client = &ClientMock{}
 //			ListLinksFunc: func(contextMoqParam context.Context, listLinksRequest *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error) {
 //				panic("mock out the ListLinks method")
 //			},
+//			ListLogChunksByTaskFunc: func(contextMoqParam context.Context, listLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest) (*gritzv1.ListLogChunksByTaskResponse, error) {
+//				panic("mock out the ListLogChunksByTask method")
+//			},
 //			ListOrgMembersFunc: func(contextMoqParam context.Context, listOrgMembersRequest *gritzv1.ListOrgMembersRequest) (*gritzv1.ListOrgMembersResponse, error) {
 //				panic("mock out the ListOrgMembers method")
 //			},
@@ -178,6 +184,9 @@ var _ Client = &ClientMock{}
 type ClientMock struct {
 	// AddOrgMemberFunc mocks the AddOrgMember method.
 	AddOrgMemberFunc func(contextMoqParam context.Context, addOrgMemberRequest *gritzv1.AddOrgMemberRequest) (*gritzv1.AddOrgMemberResponse, error)
+
+	// AppendLogChunkFunc mocks the AppendLogChunk method.
+	AppendLogChunkFunc func(contextMoqParam context.Context, appendLogChunkRequest *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error)
 
 	// ArchiveTaskFunc mocks the ArchiveTask method.
 	ArchiveTaskFunc func(contextMoqParam context.Context, archiveTaskRequest *gritzv1.ArchiveTaskRequest) (*gritzv1.ArchiveTaskResponse, error)
@@ -260,6 +269,9 @@ type ClientMock struct {
 	// ListLinksFunc mocks the ListLinks method.
 	ListLinksFunc func(contextMoqParam context.Context, listLinksRequest *gritzv1.ListLinksRequest) (*gritzv1.ListLinksResponse, error)
 
+	// ListLogChunksByTaskFunc mocks the ListLogChunksByTask method.
+	ListLogChunksByTaskFunc func(contextMoqParam context.Context, listLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest) (*gritzv1.ListLogChunksByTaskResponse, error)
+
 	// ListOrgMembersFunc mocks the ListOrgMembers method.
 	ListOrgMembersFunc func(contextMoqParam context.Context, listOrgMembersRequest *gritzv1.ListOrgMembersRequest) (*gritzv1.ListOrgMembersResponse, error)
 
@@ -334,6 +346,13 @@ type ClientMock struct {
 			ContextMoqParam context.Context
 			// AddOrgMemberRequest is the addOrgMemberRequest argument value.
 			AddOrgMemberRequest *gritzv1.AddOrgMemberRequest
+		}
+		// AppendLogChunk holds details about calls to the AppendLogChunk method.
+		AppendLogChunk []struct {
+			// ContextMoqParam is the contextMoqParam argument value.
+			ContextMoqParam context.Context
+			// AppendLogChunkRequest is the appendLogChunkRequest argument value.
+			AppendLogChunkRequest *gritzv1.AppendLogChunkRequest
 		}
 		// ArchiveTask holds details about calls to the ArchiveTask method.
 		ArchiveTask []struct {
@@ -524,6 +543,13 @@ type ClientMock struct {
 			// ListLinksRequest is the listLinksRequest argument value.
 			ListLinksRequest *gritzv1.ListLinksRequest
 		}
+		// ListLogChunksByTask holds details about calls to the ListLogChunksByTask method.
+		ListLogChunksByTask []struct {
+			// ContextMoqParam is the contextMoqParam argument value.
+			ContextMoqParam context.Context
+			// ListLogChunksByTaskRequest is the listLogChunksByTaskRequest argument value.
+			ListLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest
+		}
 		// ListOrgMembers holds details about calls to the ListOrgMembers method.
 		ListOrgMembers []struct {
 			// ContextMoqParam is the contextMoqParam argument value.
@@ -680,6 +706,7 @@ type ClientMock struct {
 		}
 	}
 	lockAddOrgMember                   sync.RWMutex
+	lockAppendLogChunk                 sync.RWMutex
 	lockArchiveTask                    sync.RWMutex
 	lockCancelTask                     sync.RWMutex
 	lockClearWorkspaces                sync.RWMutex
@@ -707,6 +734,7 @@ type ClientMock struct {
 	lockListExternalEvents             sync.RWMutex
 	lockListKeys                       sync.RWMutex
 	lockListLinks                      sync.RWMutex
+	lockListLogChunksByTask            sync.RWMutex
 	lockListOrgMembers                 sync.RWMutex
 	lockListOrgs                       sync.RWMutex
 	lockListRunnerTasks                sync.RWMutex
@@ -764,6 +792,42 @@ func (mock *ClientMock) AddOrgMemberCalls() []struct {
 	mock.lockAddOrgMember.RLock()
 	calls = mock.calls.AddOrgMember
 	mock.lockAddOrgMember.RUnlock()
+	return calls
+}
+
+// AppendLogChunk calls AppendLogChunkFunc.
+func (mock *ClientMock) AppendLogChunk(contextMoqParam context.Context, appendLogChunkRequest *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+	if mock.AppendLogChunkFunc == nil {
+		panic("ClientMock.AppendLogChunkFunc: method is nil but Client.AppendLogChunk was just called")
+	}
+	callInfo := struct {
+		ContextMoqParam       context.Context
+		AppendLogChunkRequest *gritzv1.AppendLogChunkRequest
+	}{
+		ContextMoqParam:       contextMoqParam,
+		AppendLogChunkRequest: appendLogChunkRequest,
+	}
+	mock.lockAppendLogChunk.Lock()
+	mock.calls.AppendLogChunk = append(mock.calls.AppendLogChunk, callInfo)
+	mock.lockAppendLogChunk.Unlock()
+	return mock.AppendLogChunkFunc(contextMoqParam, appendLogChunkRequest)
+}
+
+// AppendLogChunkCalls gets all the calls that were made to AppendLogChunk.
+// Check the length with:
+//
+//	len(mockedClient.AppendLogChunkCalls())
+func (mock *ClientMock) AppendLogChunkCalls() []struct {
+	ContextMoqParam       context.Context
+	AppendLogChunkRequest *gritzv1.AppendLogChunkRequest
+} {
+	var calls []struct {
+		ContextMoqParam       context.Context
+		AppendLogChunkRequest *gritzv1.AppendLogChunkRequest
+	}
+	mock.lockAppendLogChunk.RLock()
+	calls = mock.calls.AppendLogChunk
+	mock.lockAppendLogChunk.RUnlock()
 	return calls
 }
 
@@ -1736,6 +1800,42 @@ func (mock *ClientMock) ListLinksCalls() []struct {
 	mock.lockListLinks.RLock()
 	calls = mock.calls.ListLinks
 	mock.lockListLinks.RUnlock()
+	return calls
+}
+
+// ListLogChunksByTask calls ListLogChunksByTaskFunc.
+func (mock *ClientMock) ListLogChunksByTask(contextMoqParam context.Context, listLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest) (*gritzv1.ListLogChunksByTaskResponse, error) {
+	if mock.ListLogChunksByTaskFunc == nil {
+		panic("ClientMock.ListLogChunksByTaskFunc: method is nil but Client.ListLogChunksByTask was just called")
+	}
+	callInfo := struct {
+		ContextMoqParam            context.Context
+		ListLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest
+	}{
+		ContextMoqParam:            contextMoqParam,
+		ListLogChunksByTaskRequest: listLogChunksByTaskRequest,
+	}
+	mock.lockListLogChunksByTask.Lock()
+	mock.calls.ListLogChunksByTask = append(mock.calls.ListLogChunksByTask, callInfo)
+	mock.lockListLogChunksByTask.Unlock()
+	return mock.ListLogChunksByTaskFunc(contextMoqParam, listLogChunksByTaskRequest)
+}
+
+// ListLogChunksByTaskCalls gets all the calls that were made to ListLogChunksByTask.
+// Check the length with:
+//
+//	len(mockedClient.ListLogChunksByTaskCalls())
+func (mock *ClientMock) ListLogChunksByTaskCalls() []struct {
+	ContextMoqParam            context.Context
+	ListLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest
+} {
+	var calls []struct {
+		ContextMoqParam            context.Context
+		ListLogChunksByTaskRequest *gritzv1.ListLogChunksByTaskRequest
+	}
+	mock.lockListLogChunksByTask.RLock()
+	calls = mock.calls.ListLogChunksByTask
+	mock.lockListLogChunksByTask.RUnlock()
 	return calls
 }
 
