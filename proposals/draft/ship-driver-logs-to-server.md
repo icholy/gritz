@@ -102,16 +102,33 @@ message LogChunk {
 
 message ListLogChunksByTaskRequest {
   int64 task_id = 1;
-  int32 page_size = 2;
-  string page_token = 3;
+  int32 page_size = 2;    // max chunks per page (default 50, max 200)
+  string page_token = 3;  // opaque bidirectional cursor (a boundary id + direction);
+                          // empty returns the newest page — the end of the log
 }
 
 message ListLogChunksByTaskResponse {
-  repeated LogChunk chunks = 1;
-  string next_page_token = 2;
-  string prev_page_token = 3;
+  repeated LogChunk chunks = 1;  // always oldest-first (ascending id), so data concatenates
+                                 // into transcript order
+  string prev_page_token = 2;    // older page (scroll back); empty when history is exhausted
+  string next_page_token = 3;    // newer page (live-follow); ALWAYS populated so a client can
+                                 // keep polling the tail for appends
+  bool more = 4;                 // whether another page exists beyond `chunks` in the direction
+                                 // just walked (older for a prev_page_token request, newer for
+                                 // live-follow). Break on !more instead of the
+                                 // shorter-than-page_size heuristic, which misfires at an exact
+                                 // page_size boundary
 }
 ```
+
+The response mirrors `ListEventsByTaskResponse` field for field — same names,
+same numbers, same semantics — so the two paged task streams read identically
+to their consumers (the CLI in slice 6, the Web UI in slice 7). Note the
+deliberate inversion when mapping from the store: `pagination.Page.NextToken`
+walks toward *older* history and is returned as `prev_page_token`, while
+`PrevToken` walks toward *newer* rows and becomes `next_page_token`. The
+`ListEventsByTask` handler already does exactly this; copy it rather than
+re-deriving it.
 
 ### Server handlers
 
@@ -242,10 +259,14 @@ At-least-once, in order, best-effort:
    Verifiable by: store unit tests covering insert order, org scoping, cascade
    delete, and pagination in both directions.
 3. **Proto + server handlers** — Delivers: the `AppendLogChunk` /
-   `ListLogChunksByTask` RPCs, generated code, and `apiserver` handlers with
+   `ListLogChunksByTask` RPCs — the latter returning the
+   `ListEventsByTaskResponse`-shaped page (`chunks`, `prev_page_token`,
+   `next_page_token`, `more`) — generated code, and `apiserver` handlers with
    the `UploadLogs`-shaped scope checks and size caps. Depends on: (2).
    Verifiable by: handler tests exercising auth (task-token write, user read),
-   bounds rejection, and round-tripping bytes through both RPCs.
+   bounds rejection, round-tripping bytes through both RPCs, and the token
+   direction (a follow poll on `next_page_token` must not walk back into
+   existing history).
 4. **Driver shipper** — Delivers: `agent.LogShipper` (buffering, chunk
    cutting, overflow drop + marker, FIFO sender with backoff, `Flush`), not
    yet wired. Depends on: (3). Verifiable by: unit tests against a fake client
