@@ -72,6 +72,9 @@ var LogsCommand = &cli.Command{
 				return fmt.Errorf("failed to write log output: %w", err)
 			}
 		}
+		if !cmd.Bool("follow") {
+			return nil
+		}
 		for chunk, err := range tasklog.Follow(ctx, cmd.Duration("interval")) {
 			if err != nil {
 				return fmt.Errorf("failed to list log chunks: %w", err)
