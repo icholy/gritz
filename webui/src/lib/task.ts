@@ -25,11 +25,10 @@ export function isArchivedTask(task: TaskLike): boolean {
   return task.archived
 }
 
-// canOpenShell reports whether an in-browser debug shell can be opened for the
-// task. OpenShell relaunches the sandbox against the task's preserved disk, so it
-// is only valid for a finished (terminal) task — mirroring the server's
-// FailedPrecondition guard, which requires a terminal status.
-export function canOpenShell(task: TaskLike): boolean {
+// isTerminalTask reports whether the task has reached a terminal status — no
+// driver is running (or scheduled to run) for it, so nothing task-produced (log
+// output, lifecycle events) can still appear.
+export function isTerminalTask(task: TaskLike): boolean {
   switch (task.status) {
     case TaskStatus.COMPLETED:
     case TaskStatus.FAILED:
@@ -38,6 +37,14 @@ export function canOpenShell(task: TaskLike): boolean {
     default:
       return false
   }
+}
+
+// canOpenShell reports whether an in-browser debug shell can be opened for the
+// task. OpenShell relaunches the sandbox against the task's preserved disk, so it
+// is only valid for a finished (terminal) task — mirroring the server's
+// FailedPrecondition guard, which requires a terminal status.
+export function canOpenShell(task: TaskLike): boolean {
+  return isTerminalTask(task)
 }
 
 // taskLabel is a task's display name. A task exists before the agent gets
@@ -58,13 +65,13 @@ export function taskSearchValue(task: Pick<Task, 'id' | 'name'>): string {
 // TaskTab identifies which view of the task detail page is shown. It is mirrored
 // in the URL's ?tab= search param so views can be deep-linked and shared. Links
 // are not a view — they live in the task sidebar.
-export type TaskTab = 'timeline' | 'shell'
+export type TaskTab = 'timeline' | 'logs' | 'shell'
 
 // toTaskTab normalizes an untrusted value (e.g. a URL search param) into a valid
 // tab, falling back to the default "timeline" view. This also swallows stale
 // ?tab=links deep links from when links were a tab.
 export function toTaskTab(value: unknown): TaskTab {
-  if (value === 'shell') return value
+  if (value === 'logs' || value === 'shell') return value
   return 'timeline'
 }
 

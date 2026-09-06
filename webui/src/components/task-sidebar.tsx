@@ -42,13 +42,15 @@ import {
   List,
   Loader2,
   RotateCcw,
+  ScrollText,
   Terminal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 // TaskSidebar is the task page's left rail: everything about the task that
 // isn't the activity itself. It holds the status, title, the view switcher
-// (timeline / shell), the metadata details, the links, and the task actions.
+// (timeline / logs / shell), the metadata details, the links, and the task
+// actions.
 // It collapses to an icon rail; on small screens the expanded state overlays
 // the main view instead of squeezing it.
 export function TaskSidebar({
@@ -159,6 +161,13 @@ export function TaskSidebar({
             collapsed={collapsed}
             onClick={() => onTabChange('timeline')}
             badge={timelineCount}
+          />
+          <ViewItem
+            icon={<ScrollText className="h-4 w-4 shrink-0" />}
+            label="Logs"
+            active={tab === 'logs'}
+            collapsed={collapsed}
+            onClick={() => onTabChange('logs')}
           />
           <ViewItem
             icon={<Terminal className="h-4 w-4 shrink-0" />}
