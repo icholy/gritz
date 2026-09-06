@@ -12,7 +12,7 @@ import {
 import { useState, useRef, useLayoutEffect } from 'react'
 import type { TaskTab } from '@/lib/task'
 import { toTaskTab } from '@/lib/task'
-import { canOpenShell, isArchivedTask } from '@/lib/task'
+import { canOpenShell, isArchivedTask, isTerminalTask } from '@/lib/task'
 import { useTaskTimeline } from '@/hooks/use-task-timeline'
 import { useOrgId } from '@/hooks/use-org-id'
 import { useShellState } from '@/hooks/use-shell-state'
@@ -21,14 +21,15 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { TaskSidebar } from '@/components/task-sidebar'
 import { TaskTimelineChat } from '@/components/task-timeline-chat'
+import { TaskLogs } from '@/components/task-logs'
 import { TaskShellPanel } from '@/components/task-shell-panel'
 import { Send, Loader2 } from 'lucide-react'
 
 export const Route = createFileRoute('/tasks/$id')({
   staticData: { orgSwitchRedirect: '/tasks' },
-  // The active view is mirrored in ?tab= so the shell can be deep-linked. The
+  // The active view is mirrored in ?tab= so views can be deep-linked. The
   // default "timeline" is left out of the URL to keep the common link clean.
-  validateSearch: (search: Record<string, unknown>): { tab?: 'shell' } => {
+  validateSearch: (search: Record<string, unknown>): { tab?: Exclude<TaskTab, 'timeline'> } => {
     const tab = toTaskTab(search.tab)
     return tab === 'timeline' ? {} : { tab }
   },
@@ -248,6 +249,10 @@ function TaskDetail() {
             }
           />
         )}
+
+        {/* The shipped driver log. Follow (tail polling) only while the task
+            can still produce output — a terminal task's log is settled. */}
+        {tab === 'logs' && <TaskLogs taskId={taskId} follow={!isTerminalTask(task)} />}
 
         {tab === 'shell' && (
           <TaskShellPanel taskId={taskId} orgId={orgId} canOpen={canOpenShell(task)} />

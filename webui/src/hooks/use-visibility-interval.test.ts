@@ -52,6 +52,15 @@ describe('useVisibilityInterval', () => {
     expect(cb).toHaveBeenCalledTimes(3)
   })
 
+  it('pauses when given a null delay', async () => {
+    const cb = vi.fn()
+    await render(() => useVisibilityInterval(cb, null))
+
+    await act(async () => vi.advanceTimersByTime(90_000))
+
+    expect(cb).not.toHaveBeenCalled()
+  })
+
   it('does not fire while the document is hidden', async () => {
     hidden = true
     const cb = vi.fn()

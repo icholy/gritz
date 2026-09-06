@@ -26,6 +26,7 @@ describe('taskSearchValue', () => {
 
 describe('toTaskTab', () => {
   it('passes through the non-default views', () => {
+    expect(toTaskTab('logs')).toBe('logs')
     expect(toTaskTab('shell')).toBe('shell')
   })
 
