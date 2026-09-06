@@ -5,10 +5,11 @@ import { Loader2 } from 'lucide-react'
 // TaskLogs renders the task's shipped driver log — the server-side mirror of
 // the sandbox's /gritz/log — as a monospace scrollback. It opens at the tail
 // (a post-mortem reads the end first), loads older pages on scroll-up, and
-// polls the tail while the task is still running. The bytes are a raw terminal
+// polls the tail. `live` only picks the empty-state wording; it does not gate
+// polling, since a task's last chunks land after it reports terminal. The bytes are a raw terminal
 // transcript, not structured events, so they render as plain preformatted text.
-export function TaskLogs({ taskId, follow }: { taskId: bigint; follow: boolean }) {
-  const { text, isLoading, hasOlder, loadOlder, isLoadingOlder } = useTaskLogs(taskId, follow)
+export function TaskLogs({ taskId, live }: { taskId: bigint; live: boolean }) {
+  const { text, isLoading, hasOlder, loadOlder, isLoadingOlder } = useTaskLogs(taskId)
 
   if (isLoading) {
     return (
@@ -22,7 +23,7 @@ export function TaskLogs({ taskId, follow }: { taskId: bigint; follow: boolean }
   if (!text) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground">
-        {follow ? 'No logs yet.' : 'No logs.'}
+        {live ? 'No logs yet.' : 'No logs.'}
       </div>
     )
   }

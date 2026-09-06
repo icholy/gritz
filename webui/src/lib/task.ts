@@ -26,8 +26,12 @@ export function isArchivedTask(task: TaskLike): boolean {
 }
 
 // isTerminalTask reports whether the task has reached a terminal status — no
-// driver is running (or scheduled to run) for it, so nothing task-produced (log
-// output, lifecycle events) can still appear.
+// driver is running (or scheduled to run) for it.
+//
+// It does NOT mean everything the task produced has already arrived. The driver
+// submits its terminal runner event before flushing the log
+// (internal/agent/driver.go), so a task's final chunks land after this turns
+// true — don't use it to stop polling for task-produced data.
 export function isTerminalTask(task: TaskLike): boolean {
   switch (task.status) {
     case TaskStatus.COMPLETED:

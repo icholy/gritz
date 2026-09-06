@@ -250,9 +250,10 @@ function TaskDetail() {
           />
         )}
 
-        {/* The shipped driver log. Follow (tail polling) only while the task
-            can still produce output — a terminal task's log is settled. */}
-        {tab === 'logs' && <TaskLogs taskId={taskId} follow={!isTerminalTask(task)} />}
+        {/* The shipped driver log. `live` only selects the empty-state wording —
+            tailing runs regardless, because the driver ships its final chunks
+            after the terminal event that would otherwise stop it. */}
+        {tab === 'logs' && <TaskLogs taskId={taskId} live={!isTerminalTask(task)} />}
 
         {tab === 'shell' && (
           <TaskShellPanel taskId={taskId} orgId={orgId} canOpen={canOpenShell(task)} />

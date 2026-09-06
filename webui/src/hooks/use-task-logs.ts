@@ -13,9 +13,12 @@ import { useVisibilityInterval } from './use-visibility-interval'
 const PAGE_SIZE = 50
 
 // There is no append notification for log chunks (deliberately — see the
-// ship-driver-logs proposal), so follow mode is purely poll-based in v1,
-// reusing the timeline's backstop interval.
-const FOLLOW_POLL_MS = 30_000
+// ship-driver-logs proposal), so follow mode is purely poll-based in v1 and
+// this interval is the only thing driving the tail. It is NOT a backstop behind
+// a faster signal, which is what the timeline's identically-named constant is.
+// The shipper cuts a chunk at most every 2s, so there is little point polling
+// much faster than that.
+const FOLLOW_POLL_MS = 5_000
 
 // Follow polls return an empty page once the tail is caught up (next_page_token
 // is always populated, so it can't signal "done"). Left alone those empty pages
@@ -58,7 +61,7 @@ export function decodeChunks(data: InfiniteData<ListLogChunksByTaskResponse> | u
 // end of the log — what a post-mortem reader wants first), loads older pages
 // via loadOlder, and, while `follow` is set (the task is still producing
 // output), polls the tail on the backstop interval.
-export function useTaskLogs(taskId: bigint, follow: boolean) {
+export function useTaskLogs(taskId: bigint) {
   const transport = useTransport()
   const queryClient = useQueryClient()
 
@@ -105,9 +108,13 @@ export function useTaskLogs(taskId: bigint, follow: boolean) {
     )
   }, [fetchNextPage, queryClient, transport, input])
 
-  // Poll the tail while the task is still running. A finished task's log can't
-  // grow, so the interval pauses (null) instead of idling empty-page requests.
-  useVisibilityInterval(() => void followTail(), follow ? FOLLOW_POLL_MS : null)
+  // Poll unconditionally, including for a terminal task. The driver submits its
+  // terminal runner event BEFORE flushing the log (internal/agent/driver.go), so
+  // a task's final chunks — the "task failed" / "agent stopped" lines and
+  // whatever DriverLog.Close's backstop ships — always land after the status has
+  // already flipped. Gating on !isTerminalTask meant those were never fetched
+  // until a remount. `gritz logs -f` has never gated on status either.
+  useVisibilityInterval(() => void followTail(), FOLLOW_POLL_MS)
 
   return {
     text: useMemo(() => decodeChunks(data), [data]),
