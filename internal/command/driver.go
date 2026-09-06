@@ -5,6 +5,7 @@ import (
 
 	"github.com/icholy/gritz/internal/agent"
 	"github.com/icholy/gritz/internal/gritzclient"
+	"github.com/icholy/gritz/internal/logship"
 	"github.com/urfave/cli/v3"
 )
 
@@ -43,7 +44,7 @@ var DriverCommand = &cli.Command{
 		// the run's version is known are still buffered, stamped version 0 until
 		// DriverLog.StartRun stamps the run. Its sender runs for the driver's
 		// lifetime; the deferred cancel below stops it after the final flush.
-		shipper := agent.NewLogShipper(client, taskID)
+		shipper := logship.New(client, taskID)
 		shipCtx, stopShipper := context.WithCancel(ctx)
 		defer stopShipper()
 		go shipper.Run(shipCtx)

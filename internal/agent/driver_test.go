@@ -12,6 +12,7 @@ import (
 
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"github.com/icholy/gritz/internal/gritzclient"
+	"github.com/icholy/gritz/internal/logship"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -431,7 +432,7 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, NewLogShipper(mock, 1))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1))
 	t.Cleanup(func() { _ = driver.Log.Close() })
 	// A line emitted before the run, while the version is still unknown.
 	_, err := io.WriteString(driver.Log.Sink(), "preamble\n")

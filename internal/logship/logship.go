@@ -1,4 +1,9 @@
-package agent
+// Package logship mirrors a driver's log bytes to the server as asynchronous
+// chunks. Its Shipper is an io.Writer spliced into the driver's log tee, so
+// buffering, chunk cutting, overflow accounting and retry all happen behind a
+// Write that never blocks and never fails. It depends only on the gritz client
+// and the proto types, not on internal/agent.
+package logship
 
 import (
 	"context"
@@ -18,33 +23,33 @@ import (
 	"github.com/icholy/gritz/internal/x/wakeup"
 )
 
-// Shipper defaults. They are fields on LogShipper rather than constants used
+// Shipper defaults. They are fields on Shipper rather than constants used
 // directly so tests can shrink them; production always takes these.
 const (
-	// defaultLogChunkSize is the buffered-byte threshold that cuts a chunk. It
+	// defaultChunkSize is the buffered-byte threshold that cuts a chunk. It
 	// matches shell.Serve's PTY pump: big enough that per-request overhead is
 	// negligible, small enough to keep a chatty run's chunks flowing.
-	defaultLogChunkSize = 32 << 10 // 32 KiB
-	// defaultLogFlushInterval cuts a partial chunk when it fires with pending
+	defaultChunkSize = 32 << 10 // 32 KiB
+	// defaultFlushInterval cuts a partial chunk when it fires with pending
 	// bytes, so a quiet run still ships promptly instead of sitting in the
 	// buffer until the next 32 KiB.
-	defaultLogFlushInterval = 2 * time.Second
-	// defaultMaxPendingLogBytes caps the unsent bytes held in memory (buffered
+	defaultFlushInterval = 2 * time.Second
+	// defaultMaxPendingBytes caps the unsent bytes held in memory (buffered
 	// plus queued). Past it, writes are dropped rather than allowed to grow
 	// without bound while the server is unreachable.
-	defaultMaxPendingLogBytes = 1 << 20 // 1 MiB
+	defaultMaxPendingBytes = 1 << 20 // 1 MiB
 )
 
-// logChunk is one queued unit of work: an opaque byte run stamped with the run
+// chunk is one queued unit of work: an opaque byte run stamped with the run
 // version that was current when it was cut.
-type logChunk struct {
+type chunk struct {
 	version int64
 	data    []byte
 }
 
-// LogShipper is an io.Writer that mirrors log bytes to the server as
-// asynchronous chunks, one per AppendLogChunk request. Write never blocks and
-// never returns an error; a full buffer drops bytes rather than stall the run.
+// Shipper is an io.Writer that mirrors log bytes to the server as asynchronous
+// chunks, one per AppendLogChunk request. Write never blocks and never returns
+// an error; a full buffer drops bytes rather than stall the run.
 //
 // It borrows the shape of the runner's outbox.Outbox — FIFO delivery,
 // head-of-line retry with backoff, permanent-vs-transient classification —
@@ -56,12 +61,12 @@ type logChunk struct {
 //
 // Shipping is best-effort end to end: a slow or unreachable server never blocks
 // a write, never fails a run, and at worst loses log bytes.
-type LogShipper struct {
+type Shipper struct {
 	client gritzclient.Client
 	taskID int64
 
-	// Tunables, defaulted by NewLogShipper. Tests shrink them before Run; they
-	// are not mutated once the sender is running.
+	// Tunables, defaulted by New. Tests shrink them before Run; they are not
+	// mutated once the sender is running.
 	chunkSize     int
 	flushInterval time.Duration
 	maxPending    int
@@ -83,24 +88,24 @@ type LogShipper struct {
 	mu           sync.Mutex
 	version      int64
 	buf          []byte
-	pending      []logChunk
+	pending      []chunk
 	pendingBytes int
 	dropped      int
 }
 
-var _ io.Writer = (*LogShipper)(nil)
+var _ io.Writer = (*Shipper)(nil)
 
-// NewLogShipper returns a shipper that mirrors everything written to it to the
-// server as log chunks for taskID. It buffers from construction with version 0
-// — the pre-run preamble — until SetVersion stamps a run. Nothing is sent until
-// Run (or Flush) drains it.
-func NewLogShipper(client gritzclient.Client, taskID int64) *LogShipper {
-	return &LogShipper{
+// New returns a shipper that mirrors everything written to it to the server as
+// log chunks for taskID. It buffers from construction with version 0 — the
+// pre-run preamble — until SetVersion stamps a run. Nothing is sent until Run
+// (or Flush) drains it.
+func New(client gritzclient.Client, taskID int64) *Shipper {
+	return &Shipper{
 		client:        client,
 		taskID:        taskID,
-		chunkSize:     defaultLogChunkSize,
-		flushInterval: defaultLogFlushInterval,
-		maxPending:    defaultMaxPendingLogBytes,
+		chunkSize:     defaultChunkSize,
+		flushInterval: defaultFlushInterval,
+		maxPending:    defaultMaxPendingBytes,
 		backoff:       backoff.NewExponentialBackOff(),
 		// Deliberately not the driver's logger: the driver's slog handler writes
 		// through the same sink this shipper is teed into, so logging a send
@@ -117,7 +122,7 @@ func NewLogShipper(client gritzclient.Client, taskID int64) *LogShipper {
 // boundary so pre-run preamble and run bytes never share one. Because a request
 // carries exactly one chunk, no request can straddle a version boundary and the
 // sender needs no splitting logic.
-func (s *LogShipper) SetVersion(version int64) {
+func (s *Shipper) SetVersion(version int64) {
 	s.mu.Lock()
 	cut := s.cutLocked()
 	s.version = version
@@ -132,7 +137,7 @@ func (s *LogShipper) SetVersion(version int64) {
 // its other writers (the /gritz/log file, os.Stderr) still hold the bytes.
 // Bytes past the pending cap are dropped and counted, and the gap is later
 // reported in the transcript as a synthetic marker chunk.
-func (s *LogShipper) Write(p []byte) (int, error) {
+func (s *Shipper) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	cut := s.appendLocked(p)
 	s.mu.Unlock()
@@ -145,7 +150,7 @@ func (s *LogShipper) Write(p []byte) (int, error) {
 // Run drains pending chunks until ctx is cancelled, cutting a partial chunk
 // every flushInterval so a trickle of output still ships. It is the shipper's
 // background sender and is expected to run for the driver's lifetime.
-func (s *LogShipper) Run(ctx context.Context) {
+func (s *Shipper) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.flushInterval)
 	defer ticker.Stop()
 	for {
@@ -167,7 +172,7 @@ func (s *LogShipper) Run(ctx context.Context) {
 // caller is expected to log it and carry on, since the full log remains in
 // /gritz/log. It is safe to call while Run is sending; the two never have two
 // requests in flight.
-func (s *LogShipper) Flush(ctx context.Context) error {
+func (s *Shipper) Flush(ctx context.Context) error {
 	s.mu.Lock()
 	s.cutLocked()
 	// A drop streak that never saw another accepted write has no later chunk to
@@ -182,7 +187,7 @@ func (s *LogShipper) Flush(ctx context.Context) error {
 
 // appendLocked buffers p, dropping it when the pending cap is reached, and
 // reports whether a chunk was queued.
-func (s *LogShipper) appendLocked(p []byte) bool {
+func (s *Shipper) appendLocked(p []byte) bool {
 	if len(p) == 0 {
 		return false
 	}
@@ -208,7 +213,7 @@ func (s *LogShipper) appendLocked(p []byte) bool {
 
 // cutLocked queues everything buffered, including a partial trailing chunk. It
 // reports whether anything was queued.
-func (s *LogShipper) cutLocked() bool {
+func (s *Shipper) cutLocked() bool {
 	cut := s.cutFullLocked()
 	if len(s.buf) > 0 {
 		s.queueLocked(s.buf)
@@ -224,7 +229,7 @@ func (s *LogShipper) cutLocked() bool {
 // buffered to coalesce with the next write. Cutting at a fixed size (rather
 // than at whatever a single write happened to deliver) is also what keeps a
 // huge write from becoming a request over the server's per-chunk cap.
-func (s *LogShipper) cutFullLocked() bool {
+func (s *Shipper) cutFullLocked() bool {
 	cut := false
 	for len(s.buf) >= s.chunkSize {
 		// Full slice expression: the queued chunk aliases buf's array, and
@@ -238,7 +243,7 @@ func (s *LogShipper) cutFullLocked() bool {
 
 // markDroppedLocked queues the synthetic marker for a finished drop streak, so
 // the gap is visible in the transcript rather than silently missing.
-func (s *LogShipper) markDroppedLocked() {
+func (s *Shipper) markDroppedLocked() {
 	if s.dropped == 0 {
 		return
 	}
@@ -247,23 +252,23 @@ func (s *LogShipper) markDroppedLocked() {
 }
 
 // queueLocked appends data to the send queue, stamped with the current version.
-func (s *LogShipper) queueLocked(data []byte) {
-	s.pending = append(s.pending, logChunk{version: s.version, data: data})
+func (s *Shipper) queueLocked(data []byte) {
+	s.pending = append(s.pending, chunk{version: s.version, data: data})
 	s.pendingBytes += len(data)
 }
 
 // head returns the chunk at the front of the send queue.
-func (s *LogShipper) head() (logChunk, bool) {
+func (s *Shipper) head() (chunk, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.pending) == 0 {
-		return logChunk{}, false
+		return chunk{}, false
 	}
 	return s.pending[0], true
 }
 
 // pop removes the delivered head, freeing its bytes against the pending cap.
-func (s *LogShipper) pop() {
+func (s *Shipper) pop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pendingBytes -= len(s.pending[0].data)
@@ -276,7 +281,7 @@ func (s *LogShipper) pop() {
 // blocking, as the outbox does) so a retry can never be overtaken by a newer
 // chunk; a permanent one drops the head and advances rather than wedge the
 // queue forever.
-func (s *LogShipper) drain(ctx context.Context) bool {
+func (s *Shipper) drain(ctx context.Context) bool {
 	select {
 	case s.sendSem <- struct{}{}:
 	case <-ctx.Done():

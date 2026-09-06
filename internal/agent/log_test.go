@@ -11,6 +11,7 @@ import (
 	"gotest.tools/v3/assert"
 
 	"github.com/icholy/gritz/internal/gritzclient"
+	"github.com/icholy/gritz/internal/logship"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 )
 
@@ -102,7 +103,7 @@ func TestDriverLog_CloseFlushesShipper(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), NewLogShipper(client, 7))
+	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), logship.New(client, 7))
 	_, err := io.WriteString(log.Sink(), "early failure\n")
 	assert.NilError(t, err)
 
