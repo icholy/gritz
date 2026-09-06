@@ -22,7 +22,7 @@ const logPageSize = 50
 // logPollInterval is the default --follow poll interval. The shipper cuts a
 // chunk at most every 2s when a run is quiet, so polling faster than that only
 // buys empty responses. Follow is deliberately poll-based in v1 — see the
-// live-tail open question in proposals/draft/ship-driver-logs-to-server.md.
+// live-tail open question in proposals/implemented/ship-driver-logs-to-server.md.
 const logPollInterval = 2 * time.Second
 
 // LogsCommand prints a task's driver log — the same byte stream the driver tees

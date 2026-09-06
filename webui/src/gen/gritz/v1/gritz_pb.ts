@@ -788,7 +788,7 @@ export const UploadLogsResponseSchema: GenMessage<UploadLogsResponse> = /*@__PUR
  * LogChunk is an opaque run of driver log bytes. A task's transcript is the
  * concatenation of its chunks' data in id order — which is write order, because
  * the driver ships with a single in-flight sender.
- * See proposals/draft/ship-driver-logs-to-server.md.
+ * See proposals/implemented/ship-driver-logs-to-server.md.
  *
  * @generated from message gritz.v1.LogChunk
  */
