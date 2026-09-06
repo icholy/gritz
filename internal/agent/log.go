@@ -8,6 +8,8 @@ import (
 	"os"
 	"path"
 	"time"
+
+	"github.com/icholy/gritz/internal/logship"
 )
 
 // DefaultLogPath is the in-sandbox location of the driver's append-only log
@@ -70,7 +72,7 @@ type DriverLog struct {
 	// (DiscardDriverLog, directly-invoked drivers). It is held here rather than
 	// on the Driver because the sink is where the bytes are, and because
 	// StartRun already carries the run version the chunks are stamped with.
-	shipper *LogShipper
+	shipper *logship.Shipper
 }
 
 // DiscardDriverLog is a DriverLog that discards everything. Tests and
@@ -93,7 +95,7 @@ var DiscardDriverLog = &DriverLog{
 // still writes to os.Stderr, and the failure is logged through that logger — a
 // run never fails because logging could not be set up. The returned DriverLog
 // must be closed.
-func OpenDriverLog(logPath string, shipper *LogShipper) *DriverLog {
+func OpenDriverLog(logPath string, shipper *logship.Shipper) *DriverLog {
 	file, err := OpenLogSink(logPath)
 	var sink io.Writer = file
 	if shipper != nil {

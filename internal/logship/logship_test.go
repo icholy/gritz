@@ -1,4 +1,4 @@
-package agent
+package logship
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/icholy/gritz/internal/x/testx"
 )
 
-func TestLogShipper_Flush(t *testing.T) {
+func TestShipper_Flush(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	client := &gritzclient.ClientMock{
@@ -27,7 +27,7 @@ func TestLogShipper_Flush(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 
 	// Act - a write below the chunk size stays buffered until Flush cuts it
 	n, err := shipper.Write([]byte("hello\n"))
@@ -46,7 +46,7 @@ func TestLogShipper_Flush(t *testing.T) {
 	)
 }
 
-func TestLogShipper_CutsAtChunkSize(t *testing.T) {
+func TestShipper_CutsAtChunkSize(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	client := &gritzclient.ClientMock{
@@ -54,7 +54,7 @@ func TestLogShipper_CutsAtChunkSize(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.chunkSize = 4
 
 	// Act - one oversized write is cut into whole chunks; the 2-byte remainder
@@ -75,7 +75,7 @@ func TestLogShipper_CutsAtChunkSize(t *testing.T) {
 	)
 }
 
-func TestLogShipper_SetVersion(t *testing.T) {
+func TestShipper_SetVersion(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	client := &gritzclient.ClientMock{
@@ -83,7 +83,7 @@ func TestLogShipper_SetVersion(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 
 	// Act - the pre-run preamble ships as version 0, run bytes as version 3
 	_, err := shipper.Write([]byte("preamble\n"))
@@ -104,7 +104,7 @@ func TestLogShipper_SetVersion(t *testing.T) {
 	)
 }
 
-func TestLogShipper_OrderingAcrossRetries(t *testing.T) {
+func TestShipper_OrderingAcrossRetries(t *testing.T) {
 	t.Parallel()
 	// Arrange - the first two attempts fail transiently
 	var attempts atomic.Int64
@@ -116,7 +116,7 @@ func TestLogShipper_OrderingAcrossRetries(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.chunkSize = 4
 	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
 	shipper.log = slog.New(slog.DiscardHandler)
@@ -143,7 +143,7 @@ func TestLogShipper_OrderingAcrossRetries(t *testing.T) {
 	)
 }
 
-func TestLogShipper_PermanentErrorDropsChunk(t *testing.T) {
+func TestShipper_PermanentErrorDropsChunk(t *testing.T) {
 	t.Parallel()
 	// Arrange - the server rejects one chunk in a way no retry can fix
 	client := &gritzclient.ClientMock{
@@ -154,7 +154,7 @@ func TestLogShipper_PermanentErrorDropsChunk(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.chunkSize = 4
 	shipper.log = slog.New(slog.DiscardHandler)
 
@@ -175,7 +175,7 @@ func TestLogShipper_PermanentErrorDropsChunk(t *testing.T) {
 	)
 }
 
-func TestLogShipper_OverflowDropsAndAccounts(t *testing.T) {
+func TestShipper_OverflowDropsAndAccounts(t *testing.T) {
 	t.Parallel()
 	// Arrange - nothing drains, so the cap is reached after two chunks
 	client := &gritzclient.ClientMock{
@@ -183,7 +183,7 @@ func TestLogShipper_OverflowDropsAndAccounts(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.chunkSize = 8
 	shipper.maxPending = 16
 
@@ -208,7 +208,7 @@ func TestLogShipper_OverflowDropsAndAccounts(t *testing.T) {
 	)
 }
 
-func TestLogShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
+func TestShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
 	t.Parallel()
 	// Arrange - an unreachable server, so the queue fills and stays full
 	var delivered testx.SafeSlice[string]
@@ -223,7 +223,7 @@ func TestLogShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.chunkSize = 8
 	shipper.maxPending = 16
 	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
@@ -255,7 +255,7 @@ func TestLogShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
 	})
 }
 
-func TestLogShipper_FlushDeadline(t *testing.T) {
+func TestShipper_FlushDeadline(t *testing.T) {
 	t.Parallel()
 	// Arrange - a server that never recovers within the flush deadline
 	client := &gritzclient.ClientMock{
@@ -263,7 +263,7 @@ func TestLogShipper_FlushDeadline(t *testing.T) {
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("server unreachable"))
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
 	shipper.log = slog.New(slog.DiscardHandler)
 	_, err := shipper.Write([]byte("hello\n"))
@@ -284,7 +284,7 @@ func TestLogShipper_FlushDeadline(t *testing.T) {
 	assert.Equal(t, n, 5)
 }
 
-func TestLogShipper_Run(t *testing.T) {
+func TestShipper_Run(t *testing.T) {
 	t.Parallel()
 	// Arrange
 	var delivered testx.SafeSlice[string]
@@ -294,7 +294,7 @@ func TestLogShipper_Run(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.flushInterval = 10 * time.Millisecond
 	go shipper.Run(t.Context())
 
@@ -309,7 +309,7 @@ func TestLogShipper_Run(t *testing.T) {
 	assert.DeepEqual(t, delivered.Slice(), []string{"trickle\n"})
 }
 
-func TestLogShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
+func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 	t.Parallel()
 	// Arrange - every send hangs until the test releases it, so the sender is
 	// stuck in flight for the whole run of writes.
@@ -324,7 +324,7 @@ func TestLogShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := NewLogShipper(client, 7)
+	shipper := New(client, 7)
 	shipper.chunkSize = 8
 	shipper.maxPending = 16
 	go shipper.Run(t.Context())
