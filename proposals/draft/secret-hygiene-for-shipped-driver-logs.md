@@ -172,11 +172,12 @@ func Transformer(secrets map[string]string) transform.Transformer
 func String(s string, secrets map[string]string) string
 ```
 
-`String` is the entry point for callers holding a value rather than a stream.
-Both share one ordering rule: rules apply longest value first, so that when
-one declared secret's value is a prefix of another's, the shorter rule cannot
-fire first and leave the longer value's tail in the output beside a marker
-that makes it look masked.
+`String` is the entry point for callers holding a value rather than a stream;
+it is `Transformer` applied to a whole input, so the two cannot drift. The
+ordering rule they share: rules apply longest value first, so that when one
+declared secret's value is a prefix of another's, the shorter rule cannot fire
+first and leave the longer value's tail in the output beside a marker that
+makes it look masked.
 
 Each rule is `replace.String(value, Marker(name))` — a stateless
 `transform.Transformer` (it embeds `transform.NopResetter`) — and

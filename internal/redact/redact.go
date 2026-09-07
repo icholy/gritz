@@ -41,15 +41,6 @@ func names(secrets map[string]string) []string {
 	return names
 }
 
-// String returns s with every occurrence of each secret value replaced by
-// Marker(name).
-func String(s string, secrets map[string]string) string {
-	for _, name := range names(secrets) {
-		s = strings.ReplaceAll(s, secrets[name], Marker(name))
-	}
-	return s
-}
-
 // Transformer returns a transform.Transformer that replaces every occurrence of
 // each secret value with Marker(name). The rules are chained in names() order,
 // so the longest value is masked first.
@@ -66,4 +57,15 @@ func Transformer(secrets map[string]string) transform.Transformer {
 		rules = append(rules, replace.String(secrets[name], Marker(name)))
 	}
 	return transform.Chain(rules...)
+}
+
+// String returns s with every occurrence of each secret value replaced by
+// Marker(name). It is the entry point for callers holding a whole value rather
+// than a stream, and runs the same Transformer, so the two cannot drift.
+func String(s string, secrets map[string]string) string {
+	// The rules are fixed-string replacements over a complete input, so the
+	// transform cannot fail; on the impossible error, keep what was masked
+	// rather than fall back to the raw string.
+	out, _, _ := transform.String(Transformer(secrets), s)
+	return out
 }
