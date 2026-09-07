@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/cenkalti/backoff/v5"
+	"github.com/icholy/replace"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -27,7 +28,7 @@ func TestShipper_Flush(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 
 	// Act - a write below the chunk size stays buffered until Flush cuts it
 	n, err := shipper.Write([]byte("hello\n"))
@@ -54,7 +55,7 @@ func TestShipper_CutsAtChunkSize(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.chunkSize = 4
 
 	// Act - one oversized write is cut into whole chunks; the 2-byte remainder
@@ -83,7 +84,7 @@ func TestShipper_SetVersion(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 
 	// Act - the pre-run preamble ships as version 0, run bytes as version 3
 	_, err := shipper.Write([]byte("preamble\n"))
@@ -116,7 +117,7 @@ func TestShipper_OrderingAcrossRetries(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.chunkSize = 4
 	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
 	shipper.log = slog.New(slog.DiscardHandler)
@@ -154,7 +155,7 @@ func TestShipper_PermanentErrorDropsChunk(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.chunkSize = 4
 	shipper.log = slog.New(slog.DiscardHandler)
 
@@ -183,7 +184,7 @@ func TestShipper_OverflowDropsAndAccounts(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.chunkSize = 8
 	shipper.maxPending = 16
 
@@ -223,7 +224,7 @@ func TestShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.chunkSize = 8
 	shipper.maxPending = 16
 	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
@@ -263,7 +264,7 @@ func TestShipper_FlushDeadline(t *testing.T) {
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("server unreachable"))
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
 	shipper.log = slog.New(slog.DiscardHandler)
 	_, err := shipper.Write([]byte("hello\n"))
@@ -294,7 +295,7 @@ func TestShipper_Run(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.flushInterval = 10 * time.Millisecond
 	go shipper.Run(t.Context())
 
@@ -324,7 +325,7 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7)
+	shipper := New(client, 7, nil)
 	shipper.chunkSize = 8
 	shipper.maxPending = 16
 	go shipper.Run(t.Context())
@@ -355,6 +356,89 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 			{TaskId: 7, Data: []byte("aaaaaaaa")},
 			{TaskId: 7, Data: []byte("aaaaaaaa")},
 			{TaskId: 7, Data: []byte("[gritz: dropped 7984 log bytes]\n")},
+		},
+		protocmp.Transform(),
+	)
+}
+
+// maskGHToken is the fixed-string transformer the driver builds for a declared
+// secret (redact.Transformer chains one of these per secret).
+var maskGHToken = replace.String("ghp_abc123", "[gritz:masked GH_TOKEN]")
+
+// TestShipper_MasksAcrossWrites asserts a secret split across two writes is
+// still masked: log bytes arrive in arbitrary runs, so a value can land on any
+// write boundary.
+func TestShipper_MasksAcrossWrites(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper := New(client, 7, maskGHToken)
+
+	// Act
+	for _, w := range []string{"cloning with ghp_", "abc123 now\n"} {
+		_, err := shipper.Write([]byte(w))
+		assert.NilError(t, err)
+	}
+	assert.NilError(t, shipper.Flush(t.Context()))
+
+	// Assert
+	assert.Equal(t, client.ShippedLog(), "cloning with [gritz:masked GH_TOKEN] now\n")
+}
+
+// TestShipper_MasksAcrossChunks asserts the mask state outlives a chunk cut:
+// with one-byte writes and a chunk cut every four bytes, both boundaries fall
+// inside the secret, and it must still never reach the server.
+func TestShipper_MasksAcrossChunks(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper := New(client, 7, maskGHToken)
+	shipper.chunkSize = 4
+
+	// Act
+	for _, b := range []byte("using ghp_abc123 now\n") {
+		_, err := shipper.Write([]byte{b})
+		assert.NilError(t, err)
+	}
+	assert.NilError(t, shipper.Flush(t.Context()))
+
+	// Assert - chunk boundaries fall wherever they fall, but the reassembled
+	// transcript carries the marker and not the value.
+	assert.Assert(t, len(client.AppendedLogChunks()) > 1, "expected more than one chunk")
+	assert.Equal(t, client.ShippedLog(), "using [gritz:masked GH_TOKEN] now\n")
+}
+
+// TestShipper_FlushDrainsHeldBytes asserts Flush drains the tail the mask holds
+// back mid-potential-match, so a run's last bytes ship with that run instead of
+// arriving a run late.
+func TestShipper_FlushDrainsHeldBytes(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper := New(client, 7, maskGHToken)
+
+	// Act - the stream ends mid-match, so "ghp_abc" is held back
+	_, err := shipper.Write([]byte("prefix ghp_abc"))
+	assert.NilError(t, err)
+	assert.NilError(t, shipper.Flush(t.Context()))
+
+	// Assert - a partial match is not a secret; it ships whole, in this flush
+	assert.DeepEqual(t,
+		client.AppendedLogChunks(),
+		[]*gritzv1.AppendLogChunkRequest{
+			{TaskId: 7, Data: []byte("prefix ghp_abc")},
 		},
 		protocmp.Transform(),
 	)

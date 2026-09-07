@@ -2,10 +2,13 @@ package command
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	"github.com/icholy/gritz/internal/agent"
 	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/logship"
+	"github.com/icholy/gritz/internal/redact"
 	"github.com/urfave/cli/v3"
 )
 
@@ -44,7 +47,10 @@ var DriverCommand = &cli.Command{
 		// the run's version is known are still buffered, stamped version 0 until
 		// DriverLog.StartRun stamps the run. Its sender runs for the driver's
 		// lifetime; the deferred cancel below stops it after the final flush.
-		shipper := logship.New(client, taskID)
+		//
+		// Declared secret values are masked on their way into the shipper, so
+		// they never reach the server; /gritz/log and stderr stay raw.
+		shipper := logship.New(client, taskID, redact.Transformer(driverSecrets(cmd.String("token"))))
 		shipCtx, stopShipper := context.WithCancel(ctx)
 		defer stopShipper()
 		go shipper.Run(shipCtx)
@@ -68,4 +74,22 @@ var DriverCommand = &cli.Command{
 		}
 		return driver.Run(ctx)
 	},
+}
+
+// driverSecrets returns the values the driver masks in the log it ships: the
+// workspace secrets the runner declared in GRITZ_SECRETS, whose values it reads
+// from its own environment where the runner injected them, plus its own task
+// token — the one secret the platform mints rather than the workspace, and the
+// string agents disclose when they log their MCP config.
+func driverSecrets(token string) map[string]string {
+	secrets := map[string]string{}
+	for _, name := range strings.Split(os.Getenv("GRITZ_SECRETS"), ",") {
+		if name != "" {
+			secrets[name] = os.Getenv(name)
+		}
+	}
+	// Last, so a workspace secret that happens to be named "token" cannot
+	// displace the task JWT and leave it shipping unmasked.
+	secrets["token"] = token
+	return secrets
 }

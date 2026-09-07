@@ -75,18 +75,19 @@ this proposal scrubs.
 ## Design
 
 **Declare secrets explicitly in the workspace config; mask exactly those
-values (plus the task token) at the tee, on the shipped branch only.** A new
+values (plus the task token) in the log shipper, on the shipped branch
+only.** A new
 `secrets:` map in the workspace is the single source of truth for what a
 secret *is* — there is no name heuristic, no pattern library, and no entropy
 scanning. The runner injects declared secrets into the sandbox as environment
 variables and tells the driver their names; the driver masks their values in
 everything it ships, using `github.com/icholy/replace` (a streaming
-replacement library built on `golang.org/x/text/transform`) spliced between
-the sink and the shipper. The in-sandbox `/gritz/log` file and the process
+replacement library built on `golang.org/x/text/transform`), applied by the
+log shipper on its way out. The in-sandbox `/gritz/log` file and the process
 stderr (docker logs) stay raw — they are inside the original trust boundary
 and keep full fidelity for shell-based post-mortems.
 
-Alongside the filter, a small per-task purge tool handles logs already
+Alongside the mask, a small per-task purge tool handles logs already
 shipped.
 
 ### The `secrets:` workspace config
@@ -143,7 +144,7 @@ The runner's `spec()` (`internal/runner/runner.go`) appends to `Spec.Env`:
 `backend/lambdamicrovm/lambdamicrovm.go:243` both
 `append(workspaceEnv, spec.Env...)`), so no per-backend work. Names travel by
 env rather than through `agent.Config` because `command/driver.go` opens the
-`DriverLog` *before* the driver loads its config file — the filter must exist
+shipper *before* the driver loads its config file — the mask must exist
 before the first shipped byte — and because keeping values out of the config
 JSON avoids a second on-disk copy.
 
@@ -152,7 +153,7 @@ read from its own environment, plus its own `--token` (the task JWT, the one
 secret the platform injects rather than the workspace — masked as
 `[gritz:masked token]`).
 
-### The filter: `icholy/replace` at the tee
+### The mask: `icholy/replace` in the shipper
 
 A thin `internal/redact` package (a few dozen lines, no custom scanning
 logic):
@@ -162,49 +163,51 @@ logic):
 // "[gritz:masked NAME]".
 func Marker(name string) string
 
-// NewWriter wraps w so every occurrence of each secret value is replaced by
-// Marker(name). Close flushes any held partial match; it does not close w.
-func NewWriter(w io.Writer, secrets map[string]string) io.WriteCloser
+// Transformer returns a transform.Transformer that replaces every occurrence
+// of each secret value with Marker(name).
+func Transformer(secrets map[string]string) transform.Transformer
 
 // String returns s with every occurrence of each secret value replaced by
 // Marker(name).
 func String(s string, secrets map[string]string) string
 ```
 
-`String` is the entry point for callers holding a value rather than a stream.
-Both share one ordering rule: rules apply longest value first, so that when
-one declared secret's value is a prefix of another's, the shorter rule cannot
-fire first and leave the longer value's tail in the output beside a marker
-that makes it look masked.
+`String` is the entry point for callers holding a value rather than a stream;
+it is `Transformer` applied to a whole input, so the two cannot drift. The
+ordering rule they share: rules apply longest value first, so that when one
+declared secret's value is a prefix of another's, the shorter rule cannot fire
+first and leave the longer value's tail in the output beside a marker that
+makes it look masked.
 
-Internally each rule is `replace.String(value, Marker(name))` — a stateless
-`transform.Transformer` — layered with one `transform.NewWriter` per rule,
-innermost writer last. Nested writers rather than `transform.Chain`, which
-the replace library documents as unsafe to combine with. The transform
-machinery is what makes this correct with no bespoke code: writes into the
-sink are arbitrary byte runs, and a `transform.Writer` holds back a trailing
-potential-match prefix across `Write` calls, so a secret straddling two
-writes (or a chunk boundary downstream) is still caught. The old design's
-line-buffering writer, 64 KiB holdback cap, and flush-ordering dance are all
-deleted in favor of the library.
+Each rule is `replace.String(value, Marker(name))` — a stateless
+`transform.Transformer` (it embeds `transform.NopResetter`) — and
+`Transformer` returns them combined with `transform.Chain` in that order.
+Chaining is safe: the library's caveats about combining transformers sit
+under its *Notes Regexp\* functions* heading and apply to the `Regexp*`
+transformers, not to the fixed-string one used here. The transform machinery
+is what makes this correct with no bespoke code: log bytes arrive in
+arbitrary runs, and a fixed-string transformer signals `ErrShortSrc` for a
+trailing potential match rather than emitting it, so its caller can hold those
+bytes back and a secret straddling two writes is still caught. The old
+design's line-buffering writer, 64 KiB holdback cap, and flush-ordering dance
+are all deleted in favor of the library.
 
-`agent.OpenDriverLog` grows a `secrets map[string]string` parameter and
-splices the filter into only the shipped branch:
+The mask is applied by `logship.Shipper`, the boundary that ships:
+`New(client, taskID, mask)` takes the transformer, and `Write` runs bytes
+through it before they are buffered. Because masking happens ahead of chunk
+cutting, the 32 KiB chunk boundaries are irrelevant to it — the transformer's
+held-back tail lives on the shipper across writes *and* chunks, not per
+request. `Flush` drains that tail at EOF before cutting the final chunk, so
+nothing arrives a run late. Held bytes are at most one secret value long and
+only when the stream ends mid-potential-match — log output is line-oriented,
+so in practice the holdback is empty.
 
-```go
-filtered := redact.NewWriter(shipper, secrets)   // empty secrets → shipper as-is
-sink := io.MultiWriter(file, filtered)
-```
-
-Every existing tee — slog handler, `Sink()`, `Stdout()`, `Stderr()`,
-`StartRun` — is filtered automatically, because they all already write
-through the sink; no call site changes. `DriverLog` holds the filter so
-`Close` can order the shutdown: `filtered.Close()` (flushes any held partial
-match into the shipper) before the shipper's final `Flush`, before the file
-close. Mid-run, held bytes are at most one secret-prefix long and only when
-the stream ends mid-potential-match — log output is line-oriented, so in
-practice the holdback is empty; the worst case is a few tail bytes shipping
-one flush late or being stamped into the next run's version, both cosmetic.
+`agent.OpenDriverLog` is untouched: the sink stays
+`io.MultiWriter(file, shipper)`, every existing tee — slog handler, `Sink()`,
+`Stdout()`, `Stderr()`, `StartRun` — is masked automatically because they all
+write through the sink, and the file and `os.Stderr` branches stay raw because
+the shipper is the only writer that masks. `command/driver.go` builds the
+secret map and hands `redact.Transformer(secrets)` to the shipper.
 
 ### Already-shipped logs: purge, not rewrite
 
@@ -249,18 +252,20 @@ a feature that shipped days ago. Instead:
    Depends on: nothing. Verifiable by: a runner spec test asserting the
    sandbox env carries the `NAME=value` pairs and the names list.
 2. **`internal/redact`** — Delivers: `Marker`, the `icholy/replace`-backed
-   `NewWriter` (Close-flush), and `String`. Depends on: nothing. Verifiable
-   by: unit tests covering secrets straddling `Write` boundaries, overlapping
-   values (the longer masked whole), and marker output.
+   `Transformer` (`transform.Chain`, longest value first), and `String`.
+   Depends on: nothing. Verifiable by: unit tests covering overlapping values
+   (the longer masked whole), an empty declared value, and marker output.
 3. **Driver wiring** — Delivers: secret-map construction in
-   `command/driver.go` (`GRITZ_SECRETS` + `--token`), the `OpenDriverLog`
-   splice, and `DriverLog.Close` ordering. Depends on: (1), (2). Verifiable
-   by: a driver test with a dummy agent and a declared secret asserting the
-   value appears in `/gritz/log` but only `[gritz:masked …]` in the bytes the
-   fake server received — and, for the token rule, that the Copilot MCP
-   config dump *does* ship, with `[gritz:masked token]` where the JWT was,
-   pinning that the filter (not deleted log lines) is what protects the
-   shipped branch.
+   `command/driver.go` (`GRITZ_SECRETS` + `--token`) and the shipper applying
+   the transformer (`logship.New`'s `mask`, drained at EOF by `Flush`).
+   Depends on: (1), (2). Verifiable by: shipper tests for a secret straddling
+   two writes and two chunks and for the held tail draining on `Flush`; and a
+   driver test with a dummy agent and a declared secret asserting the value
+   appears in `/gritz/log` but only `[gritz:masked …]` in the bytes the fake
+   server received — and, for the token rule, that the Copilot MCP config
+   dump *does* ship, with `[gritz:masked token]` where the JWT was, pinning
+   that the mask (not deleted log lines) is what protects the shipped
+   branch.
 4. **Docs & examples** — Delivers: `secrets:` in the default `workspaces.yaml`
    template, `examples/workspaces/private-repo.yml` rewritten to the
    `${GH_TOKEN}` pattern, README/CLAUDE.md notes. Depends on: (3). Verifiable
@@ -274,7 +279,7 @@ a feature that shipped days ago. Instead:
    known leak shapes, purge hits via (5), archive tasks whose transcripts
    held their live JWT. Verifiable by: re-running the scan → zero hits.
 
-Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
+Slices 1–4 and 5 are independent stacks; 6 follows once the mask is live.
 
 ## Trade-offs
 
@@ -289,42 +294,44 @@ Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
   without unwinding anything here; the reverse is not true.
 - **The runtime-minted gap.** GitHub App installation tokens handed out by
   `gritz git-credential` and `get_github_token` are not declared anywhere, so
-  the filter cannot know them — echoes of those tokens ship unmasked. This is
+  the mask cannot know them — echoes of those tokens ship unmasked. This is
   accepted: installation tokens expire within an hour, so an at-rest copy
   goes dead quickly — unlike the no-expiry task JWT (masked as the `--token`
   literal) and workspace credentials (declared). If it proves real in
   practice, the server could register the values *it* minted for a task and
   scrub them on ingest — a contained future addition, since the server knows
   those exact strings and needs no detection.
-- **`icholy/replace` vs. a bespoke filter writer.** The earlier revision
+- **`icholy/replace` vs. a bespoke masking writer.** The earlier revision
   specified a custom line-buffering writer with holdback caps and explicit
   flush ordering. The replace library's `transform.Transformer`s already
   handle cross-`Write` straddling with bounded memory, and fixed-string rules
   are stateless — the entire custom scanning layer disappears. Costs: a new
-  (same-author, dependency-free) module, and `transform.Writer` only flushes
-  held bytes on `Close` — acceptable because holdback is nonzero only when
-  the stream ends mid-potential-match, and `DriverLog.Close` closes the
-  filter before the final shipper flush.
-- **Tee filtering vs. ingest vs. read time.** Only the driver's side of the
-  boundary knows the secret values (the sandbox env; the server never sees
-  it), so filtering at the tee is exact where server-side filtering would
-  need detection. It also keeps secrets out of Postgres entirely — no
-  credentials in backups or `pg_dump`s, and no future read surface that must
-  remember to filter. And the shipper cuts chunks at 32 KiB offsets with no
-  regard for content, so a server-side scanner would need cross-chunk,
-  cross-retry reassembly; before the shipper, chunking is irrelevant. The
-  known costs: tee filtering cannot fix bytes already shipped (the purge
-  slice), and a driver-side bug ships raw bytes silently (mitigated by the
-  filter being a tiny well-tested splice, and by retention as the backstop).
+  (same-author, dependency-free) module, and a transformer only emits its
+  held tail when told the stream is at EOF — acceptable because holdback is
+  nonzero only when the stream ends mid-potential-match, and the shipper's
+  `Flush` drains it before the final chunk.
+- **Masking in the shipper vs. at ingest vs. at read time.** Only the
+  driver's side of the boundary knows the secret values (the sandbox env; the
+  server never sees it), so masking on the way out is exact where server-side
+  filtering would need detection. It also keeps secrets out of Postgres
+  entirely — no credentials in backups or `pg_dump`s, and no future read
+  surface that must remember to mask. And the shipper cuts chunks at 32 KiB
+  offsets with no regard for content, so a server-side scanner would need
+  cross-chunk, cross-retry reassembly; masking ahead of the cut makes
+  chunking irrelevant.
+  The known costs: masking on the way out cannot fix bytes already shipped
+  (the purge slice), and a driver-side bug ships raw bytes silently
+  (mitigated by the mask being a tiny well-tested transformer, and by
+  retention as the backstop).
 - **Narrowing read access instead of scrubbing.** Rejected as the primary
   lever: org members hold the wildcard admin scope
   (`internal/auth/apiauth/jwt.go:42`) — there is no role model to narrow
-  *with*, and building one is a far bigger project than a filter. More
+  *with*, and building one is a far bigger project than a mask. More
   fundamentally, any member can already shell into a live task's sandbox and
   read the raw log, so read-narrowing shipped logs would not change who can
   see secrets — only make the sanctioned path less useful. And it does
   nothing about secrets at rest in Postgres.
-- **Filtering only the shipped branch vs. also `/gritz/log`.** Filtering the
+- **Masking only the shipped branch vs. also `/gritz/log`.** Masking the
   file too would be one more wrapped writer, but it destroys post-mortem
   fidelity inside a boundary that already holds the secrets in env, config
   files, and `/proc` — masking the log there is theater. The asymmetry is the
@@ -339,20 +346,20 @@ Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
 ## Open Questions
 
 - **Secrets truncated upstream by `toollog.Summarize` are not masked.** The
-  tee filter matches whole values, so it only masks what actually reaches it
+  mask matches whole values, so it only masks what actually reaches it
   as a contiguous literal. `toollog.Summarize` caps an individual rendered
   value at 120 runes and the whole summary line at 200
   (`internal/agent/toollog/toollog.go:17,19`), and both caps fall at an
   offset determined by the rendered line, not by where a secret sits in it —
-  so a credential inside a summarized tool call can arrive at the filter as a
+  so a credential inside a summarized tool call can arrive at the mask as a
   fragment of *any* length, and a fragment is not the needle. No downstream
-  filter can repair this: by the time the bytes arrive the value is already
+  mask can repair this: by the time the bytes arrive the value is already
   gone. An earlier revision registered each value's 16-byte prefix as an
   extra rule to catch it; that was dropped, because it masks only truncations
   that happen to leave ≥16 bytes while implying general coverage it does not
   have. Closing this properly means acting at the truncation site — redact
   before `Summarize` truncates, or stop logging those fields — which is a
-  change to `toollog`'s callers, not to the filter. Out of scope here; the
+  change to `toollog`'s callers, not to the mask. Out of scope here; the
   purge tool remains the answer for a transcript that catches one.
 - **Retention as the backstop (#1241).** Explicit config is exact but only as
   complete as the declarations; a bounded retention window caps the exposure

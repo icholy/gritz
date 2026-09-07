@@ -10,9 +10,10 @@ import (
 	"syscall"
 	"testing"
 
-	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
 	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/logship"
+	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/redact"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -432,7 +433,7 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, nil))
 	t.Cleanup(func() { _ = driver.Log.Close() })
 	// A line emitted before the run, while the version is still unknown.
 	_, err := io.WriteString(driver.Log.Sink(), "preamble\n")
@@ -446,18 +447,89 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 	file, err := os.ReadFile(logPath)
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Contains(string(file), "task failed"))
-	chunks := mock.AppendedLogChunks()
-	var shipped []byte
-	for _, chunk := range chunks {
-		shipped = append(shipped, chunk.GetData()...)
-	}
-	assert.Equal(t, string(shipped), string(file))
+	assert.Equal(t, mock.ShippedLog(), string(file))
 
 	// Assert - chunks are stamped with the run they belong to, and the boundary
 	// cut keeps the pre-run preamble out of the run's first chunk.
+	chunks := mock.AppendedLogChunks()
 	assert.DeepEqual(t, string(chunks[0].GetData()), "preamble\n")
 	assert.Equal(t, chunks[0].GetVersion(), int64(0))
 	for _, chunk := range chunks[1:] {
 		assert.Equal(t, chunk.GetVersion(), int64(testTaskVersion))
 	}
+}
+
+// TestDriverRun_MasksSecretsInShippedLog asserts the declared secret's value
+// reaches /gritz/log raw but never leaves the sandbox: the shipped copy carries
+// only the marker. The setup command echoes the value the way a failed
+// authenticated clone or a `set -x` step would.
+func TestDriverRun_MasksSecretsInShippedLog(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	const secret = "ghp_S3CR3TV4LU3"
+	driver, mock := setupDriver(t, &Config{
+		Type:     TypeDummy,
+		Commands: []string{"echo cloning with " + secret},
+	})
+	mock.AppendLogChunkFunc = func(_ context.Context, _ *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+		return &gritzv1.AppendLogChunkResponse{}, nil
+	}
+	logPath := filepath.Join(t.TempDir(), "log")
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, redact.Transformer(map[string]string{"GH_TOKEN": secret})))
+
+	// Act - Close as the driver command defers it, draining the shipper
+	assert.NilError(t, driver.Run(t.Context()))
+	assert.NilError(t, driver.Log.Close())
+
+	// Assert - the in-sandbox log keeps full fidelity
+	file, err := os.ReadFile(logPath)
+	assert.NilError(t, err)
+	assert.Assert(t, cmp.Contains(string(file), secret))
+
+	// Assert - the server got the same lines with the value masked
+	shipped := mock.ShippedLog()
+	assert.Assert(t, cmp.Contains(shipped, "cloning with [gritz:masked GH_TOKEN]"))
+	assert.Assert(t, !strings.Contains(shipped, secret), "shipped log leaked the secret")
+}
+
+// TestDriverRun_MasksTokenInShippedLog asserts the Copilot MCP config dump —
+// which discloses the driver's own task token as the injected gritz server's
+// --token argument — still ships, with the token masked. It is the mask, not a
+// deleted log line, that protects the shipped branch.
+func TestDriverRun_MasksTokenInShippedLog(t *testing.T) {
+	t.Parallel()
+	// Arrange - a copilot agent whose binary exits non-zero, so the run reaches
+	// the mcp config dump without needing a real copilot install.
+	const token = "eyJhbGciOiJIUzI1NiJ9.dGFzay10b2tlbg.c2lnbmF0dXJl"
+	driver, mock := setupDriver(t, &Config{
+		Type:    TypeCopilot,
+		Copilot: &CopilotOptions{Bin: "false"},
+		McpServers: map[string]McpServer{
+			"gritz": {
+				Type:    "stdio",
+				Command: "gritz",
+				Args:    []string{"tool", "agent-mcp", "--task", "1", "--token", token},
+			},
+		},
+	})
+	mock.AppendLogChunkFunc = func(_ context.Context, _ *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+		return &gritzv1.AppendLogChunkResponse{}, nil
+	}
+	logPath := filepath.Join(t.TempDir(), "log")
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, redact.Transformer(map[string]string{"token": token})))
+
+	// Act
+	assert.NilError(t, driver.Run(t.Context()))
+	assert.NilError(t, driver.Log.Close())
+
+	// Assert - the in-sandbox log holds the live token, as it already did
+	file, err := os.ReadFile(logPath)
+	assert.NilError(t, err)
+	assert.Assert(t, cmp.Contains(string(file), token))
+
+	// Assert - the shipped copy keeps the dump, minus the credential
+	shipped := mock.ShippedLog()
+	assert.Assert(t, cmp.Contains(shipped, "mcp config"))
+	assert.Assert(t, cmp.Contains(shipped, "[gritz:masked token]"))
+	assert.Assert(t, !strings.Contains(shipped, token), "shipped log leaked the task token")
 }

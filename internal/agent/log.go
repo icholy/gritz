@@ -91,6 +91,11 @@ var DiscardDriverLog = &DriverLog{
 // any of them knowing about it. A nil shipper (tests, directly-invoked drivers)
 // leaves the log file as the only consumer.
 //
+// Declared secrets are masked by the shipper itself, so only the shipped copy
+// is redacted: the log file and os.Stderr stay raw, since they are in-sandbox
+// surfaces whose audience already holds those values, and full fidelity is what
+// makes them useful post-mortem.
+//
 // Opening is best-effort: on failure the sink degrades to a no-op, the logger
 // still writes to os.Stderr, and the failure is logged through that logger — a
 // run never fails because logging could not be set up. The returned DriverLog
