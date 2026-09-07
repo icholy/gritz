@@ -124,15 +124,6 @@ Semantics:
   expanded value (a failed clone printing the credentialed URL, `set -x`,
   `env` dumps).
 
-Validation in `Workspace.Validate`:
-
-- A `GRITZ_*` name is an error: it is appended after the runner's own
-  injection and would silently override `GRITZ_TOKEN` or `GRITZ_SECRETS`,
-  breaking the driver in a confusing way.
-- A value that expands to the empty string is an error — an empty needle
-  matches at every position, so the mask would shred the log rather than
-  redact it.
-
 Migration is mechanical: move credential entries from `environment:` to
 `secrets:` (`examples/workspaces/private-repo.yml` and the default
 `workspaces.yaml` template are updated in the docs slice). Undeclared secrets
@@ -247,10 +238,9 @@ a feature that shipped days ago. Instead:
 ## Implementation Plan
 
 1. **Workspace `secrets:` config** — Delivers: the `Secrets` map on
-   `Workspace`, validation (the `GRITZ_*` reservation, empty values), and
-   runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
-   Depends on: nothing. Verifiable by: workspace-load tests and a runner spec
-   test asserting the sandbox env and the names list.
+   `Workspace` and runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
+   Depends on: nothing. Verifiable by: a runner spec test asserting the
+   sandbox env carries the `NAME=value` pairs and the names list.
 2. **`internal/redact`** — Delivers: `Marker` and the `icholy/replace`-backed
    `NewWriter` (prefix registration, Close-flush). Depends on: nothing.
    Verifiable by: unit tests covering secrets straddling `Write` boundaries,
