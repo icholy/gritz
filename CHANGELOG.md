@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.3.0](https://github.com/icholy/gritz/compare/v3.2.0...v3.3.0) (2026-09-07)
+
+
+### Features
+
+* **redact:** mask known secret values in a byte stream ([d942136](https://github.com/icholy/gritz/commit/d9421362c440cb4a10964c6b6f6ed71eaf3961e0))
+* **webui:** render the logs tab on a dark surface ([5d93a3d](https://github.com/icholy/gritz/commit/5d93a3de230c48aa29357a9ea14033b6615b15b0))
+* **workspace:** declare secrets in the workspace config ([abd7c3e](https://github.com/icholy/gritz/commit/abd7c3e3fab3af5241f7a6766fde884c54e5674e))
+
+
+### Bug Fixes
+
+* **command/logs:** only follow when the -f flag is set ([50e9c0a](https://github.com/icholy/gritz/commit/50e9c0a9ea2dddd2075d234356c7a9229be5daa0))
+* **redact:** order mask rules by descending value length ([3e160c5](https://github.com/icholy/gritz/commit/3e160c53d6dc12f604da517ba44af9eab9625075))
+
+
+### Miscellaneous
+
+* **command/logs:** inline the log loops ([d88bd7c](https://github.com/icholy/gritz/commit/d88bd7cd7026caa20bb008eea3fb752d665c0b70))
+* **redact:** drop prefix rules, add a String entry point ([3b10bb7](https://github.com/icholy/gritz/commit/3b10bb7b217958f7c6c59e7dd1c964b8b2dedd23))
+* **workspace:** drop secret validation and its tests ([c105463](https://github.com/icholy/gritz/commit/c105463217b0108ae1daddfe74208a92e7a1e806))
+* **workspace:** trim secret validation to reserved names ([c49c2eb](https://github.com/icholy/gritz/commit/c49c2ebac487f0dbaf0b16b9d97825b1526dbec6))
+
 ## [3.2.0](https://github.com/icholy/gritz/compare/v3.1.0...v3.2.0) (2026-09-06)
 
 
