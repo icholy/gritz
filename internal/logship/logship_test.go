@@ -365,15 +365,6 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 // secret (redact.Transformer chains one of these per secret).
 var maskGHToken = replace.String("ghp_abc123", "[gritz:masked GH_TOKEN]")
 
-// shipped joins the chunk data the server received back into one stream.
-func shipped(client *gritzclient.ClientMock) string {
-	var data []byte
-	for _, req := range client.AppendedLogChunks() {
-		data = append(data, req.GetData()...)
-	}
-	return string(data)
-}
-
 // TestShipper_MasksAcrossWrites asserts a secret split across two writes is
 // still masked: log bytes arrive in arbitrary runs, so a value can land on any
 // write boundary.
@@ -395,7 +386,7 @@ func TestShipper_MasksAcrossWrites(t *testing.T) {
 	assert.NilError(t, shipper.Flush(t.Context()))
 
 	// Assert
-	assert.Equal(t, shipped(client), "cloning with [gritz:masked GH_TOKEN] now\n")
+	assert.Equal(t, client.ShippedLog(), "cloning with [gritz:masked GH_TOKEN] now\n")
 }
 
 // TestShipper_MasksAcrossChunks asserts the mask state outlives a chunk cut:
@@ -422,7 +413,7 @@ func TestShipper_MasksAcrossChunks(t *testing.T) {
 	// Assert - chunk boundaries fall wherever they fall, but the reassembled
 	// transcript carries the marker and not the value.
 	assert.Assert(t, len(client.AppendedLogChunks()) > 1, "expected more than one chunk")
-	assert.Equal(t, shipped(client), "using [gritz:masked GH_TOKEN] now\n")
+	assert.Equal(t, client.ShippedLog(), "using [gritz:masked GH_TOKEN] now\n")
 }
 
 // TestShipper_FlushDrainsHeldBytes asserts Flush drains the tail the mask holds

@@ -447,15 +447,11 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 	file, err := os.ReadFile(logPath)
 	assert.NilError(t, err)
 	assert.Assert(t, cmp.Contains(string(file), "task failed"))
-	chunks := mock.AppendedLogChunks()
-	var shipped []byte
-	for _, chunk := range chunks {
-		shipped = append(shipped, chunk.GetData()...)
-	}
-	assert.Equal(t, string(shipped), string(file))
+	assert.Equal(t, mock.ShippedLog(), string(file))
 
 	// Assert - chunks are stamped with the run they belong to, and the boundary
 	// cut keeps the pre-run preamble out of the run's first chunk.
+	chunks := mock.AppendedLogChunks()
 	assert.DeepEqual(t, string(chunks[0].GetData()), "preamble\n")
 	assert.Equal(t, chunks[0].GetVersion(), int64(0))
 	for _, chunk := range chunks[1:] {
@@ -491,7 +487,7 @@ func TestDriverRun_MasksSecretsInShippedLog(t *testing.T) {
 	assert.Assert(t, cmp.Contains(string(file), secret))
 
 	// Assert - the server got the same lines with the value masked
-	shipped := shippedLog(mock)
+	shipped := mock.ShippedLog()
 	assert.Assert(t, cmp.Contains(shipped, "cloning with [gritz:masked GH_TOKEN]"))
 	assert.Assert(t, !strings.Contains(shipped, secret), "shipped log leaked the secret")
 }
@@ -532,17 +528,8 @@ func TestDriverRun_MasksTokenInShippedLog(t *testing.T) {
 	assert.Assert(t, cmp.Contains(string(file), token))
 
 	// Assert - the shipped copy keeps the dump, minus the credential
-	shipped := shippedLog(mock)
+	shipped := mock.ShippedLog()
 	assert.Assert(t, cmp.Contains(shipped, "mcp config"))
 	assert.Assert(t, cmp.Contains(shipped, "[gritz:masked token]"))
 	assert.Assert(t, !strings.Contains(shipped, token), "shipped log leaked the task token")
-}
-
-// shippedLog joins the chunks the fake server received back into one stream.
-func shippedLog(mock *gritzclient.ClientMock) string {
-	var shipped []byte
-	for _, chunk := range mock.AppendedLogChunks() {
-		shipped = append(shipped, chunk.GetData()...)
-	}
-	return string(shipped)
 }

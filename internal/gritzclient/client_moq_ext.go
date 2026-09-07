@@ -15,6 +15,16 @@ func (mock *ClientMock) AppendedLogChunks() []*gritzv1.AppendLogChunkRequest {
 	return chunks
 }
 
+// ShippedLog returns every appended log chunk's data joined back into one
+// stream, which is the transcript the server would hold for the task.
+func (mock *ClientMock) ShippedLog() string {
+	var data []byte
+	for _, chunk := range mock.AppendedLogChunks() {
+		data = append(data, chunk.GetData()...)
+	}
+	return string(data)
+}
+
 // SubmittedRunnerEvents returns every runner event submitted across all
 // SubmitRunnerEvents calls, flattened in submission order.
 func (mock *ClientMock) SubmittedRunnerEvents() []*gritzv1.RunnerEvent {
