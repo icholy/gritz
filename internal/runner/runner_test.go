@@ -226,6 +226,66 @@ func TestRunnerSpec_PreCreatesLogDir(t *testing.T) {
 	assert.Assert(t, found, "spec should pre-create the log dir %q", logDir)
 }
 
+// TestRunnerSpec_Secrets asserts the runner injects each declared workspace
+// secret into the sandbox as a plain environment variable and names them all in
+// GRITZ_SECRETS, which is how the driver learns which values to mask in the log
+// it ships (nothing consumes the list yet).
+func TestRunnerSpec_Secrets(t *testing.T) {
+	t.Parallel()
+
+	mock := &gritzclient.ClientMock{
+		CreateTaskTokenFunc: func(_ context.Context, req *gritzv1.CreateTaskTokenRequest) (*gritzv1.CreateTaskTokenResponse, error) {
+			return &gritzv1.CreateTaskTokenResponse{Token: "test-token"}, nil
+		},
+	}
+	client := gritzclient.New(gritzclient.Options{BaseURL: "http://localhost"})
+	be, err := dockerbackend.New(dockerbackend.Options{RunnerID: "test-runner"})
+	assert.NilError(t, err)
+	queue, err := NewRunnerEventOutbox(RunnerEventOutboxOptions{
+		StoreDir: t.TempDir(),
+		Client:   client,
+		Backoff:  backoff.NewConstantBackOff(0),
+		Log:      slog.Default(),
+	})
+	assert.NilError(t, err)
+	r, err := New(Options{
+		Client:    mock,
+		Backend:   be,
+		Store:     testStore(t),
+		ServerURL: "http://localhost",
+		Queue:     queue,
+		Workspaces: &workspace.Config{
+			Workspaces: map[string]workspace.Workspace{
+				"test": {
+					Container: workspace.Container{Image: "alpine:latest"},
+					Agent:     workspace.Agent{Type: "dummy"},
+					Secrets: map[string]string{
+						"NPM_TOKEN": "npm_secretvalue",
+						"GH_TOKEN":  "gho_secretvalue",
+					},
+				},
+			},
+		},
+		Concurrency: 1,
+		RunnerID:    "test-runner",
+	})
+	assert.NilError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	task := &model.Task{ID: 1, Runner: "test-runner", Workspace: "test", Version: 1}
+	spec, err := r.spec(t.Context(), task)
+	assert.NilError(t, err)
+
+	assert.DeepEqual(t, spec.Env, []string{
+		"GRITZ_TASK_ID=1",
+		"GRITZ_TOKEN=test-token",
+		"GRITZ_SERVER=http://localhost",
+		"GH_TOKEN=gho_secretvalue",
+		"NPM_TOKEN=npm_secretvalue",
+		"GRITZ_SECRETS=GH_TOKEN,NPM_TOKEN",
+	})
+}
+
 // submitted drives the outbox until it drains the persisted events, then returns
 // the events it delivered through the mock client. The outbox's first Run pass
 // delivers everything already persisted, so this exercises the same durable path
