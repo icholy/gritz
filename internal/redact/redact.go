@@ -9,6 +9,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/icholy/replace"
 	"golang.org/x/text/transform"
@@ -31,10 +32,19 @@ func Marker(name string) string {
 // an empty needle matches at every position and would shred the stream.
 // Close flushes any held partial match; it does not close w.
 func NewWriter(w io.Writer, secrets map[string]string) io.WriteCloser {
-	// Full values before prefixes: a prefix rule applied first would mask the
-	// head of a full value and leave its tail in the stream.
+	// Longest value first, then full values before prefixes: a shorter rule
+	// applied first would mask the head of a longer value and leave its tail in
+	// the stream, beside a marker that makes the line look masked. Ties break
+	// on name to keep the order deterministic.
+	names := slices.SortedFunc(maps.Keys(secrets), func(a, b string) int {
+		if n := len(secrets[b]) - len(secrets[a]); n != 0 {
+			return n
+		}
+		return strings.Compare(a, b)
+	})
+
 	var full, prefixes []transform.Transformer
-	for _, name := range slices.Sorted(maps.Keys(secrets)) {
+	for _, name := range names {
 		value := secrets[name]
 		if value == "" {
 			continue

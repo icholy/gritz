@@ -62,6 +62,26 @@ func TestNewWriter_TruncatedValue(t *testing.T) {
 		"full [gritz:masked GH_TOKEN] cut [gritz:masked GH_TOKEN]\n")
 }
 
+// TestNewWriter_OverlappingValues asserts that when one declared secret's value
+// is a prefix of another's, the longer value still masks whole -- rule order
+// follows value length, not name, so the shorter rule cannot bite into the
+// longer value and leave its tail beside a marker.
+func TestNewWriter_OverlappingValues(t *testing.T) {
+	// Arrange -- A sorts first by name but must not fire first.
+	short := "gho_abcdefghijklmnop"
+	long := short + "QRSTUVWXYZ99"
+	var buf bytes.Buffer
+	w := NewWriter(&buf, map[string]string{"A_TOKEN": short, "B_TOKEN": long})
+
+	// Act
+	_, err := w.Write([]byte("using " + long + " now\n"))
+	assert.NilError(t, err)
+	assert.NilError(t, w.Close())
+
+	// Assert
+	assert.Equal(t, buf.String(), "using [gritz:masked B_TOKEN] now\n")
+}
+
 // TestNewWriter_Close asserts Close flushes bytes the transformer held back as
 // a potential match, and leaves the underlying writer open -- the driver keeps
 // writing to the shipper after closing the filter.
