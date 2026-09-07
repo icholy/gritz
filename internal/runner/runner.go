@@ -10,6 +10,7 @@ import (
 	"math"
 	"path"
 	"regexp"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/icholy/gritz/internal/agent"
@@ -497,6 +498,24 @@ func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, err
 		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	env := []string{
+		fmt.Sprintf("GRITZ_TASK_ID=%d", task.ID),
+		fmt.Sprintf("GRITZ_TOKEN=%s", token),
+		"GRITZ_SERVER=" + r.serverURL,
+	}
+	// Declared workspace secrets enter the sandbox as ordinary environment
+	// variables; GRITZ_SECRETS carries their names so the driver can look the
+	// values up in its own environment and mask them in the log it ships. The
+	// names travel by env rather than in the agent config because the driver
+	// opens its log before it reads that config — the mask has to exist before
+	// the first shipped byte.
+	if names := ws.SecretNames(); len(names) > 0 {
+		for _, name := range names {
+			env = append(env, name+"="+ws.Secrets[name])
+		}
+		env = append(env, "GRITZ_SECRETS="+strings.Join(names, ","))
+	}
+
 	return &backend.Spec{
 		TaskID:    task.ID,
 		Workspace: ws,
@@ -506,11 +525,7 @@ func (r *Runner) spec(ctx context.Context, task *model.Task) (*backend.Spec, err
 			"--task", fmt.Sprint(task.ID),
 			"--token", token,
 		},
-		Env: []string{
-			fmt.Sprintf("GRITZ_TASK_ID=%d", task.ID),
-			fmt.Sprintf("GRITZ_TOKEN=%s", token),
-			"GRITZ_SERVER=" + r.serverURL,
-		},
+		Env: env,
 		Files: []backend.File{
 			// Allow non-root agents to write to this directory.
 			{Path: path.Dir(agent.DefaultConfigStore.Path(task.ID)), Mode: 0777, Dir: true},
