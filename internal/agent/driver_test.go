@@ -13,6 +13,7 @@ import (
 	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/logship"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/redact"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -376,7 +377,7 @@ func TestDriverRun_LogsToSink(t *testing.T) {
 	// command does in production via OpenDriverLog.
 	driver, _ := setupDriver(t, &Config{Type: TypeDummy})
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, nil, nil)
+	driver.Log = OpenDriverLog(logPath, nil)
 	t.Cleanup(func() { _ = driver.Log.Close() })
 
 	// Act - two runs against the same file
@@ -403,7 +404,7 @@ func TestDriverRun_SetupCommandOutputTeed(t *testing.T) {
 		Commands: []string{"echo out-marker; echo err-marker >&2; false"},
 	})
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, nil, nil)
+	driver.Log = OpenDriverLog(logPath, nil)
 	t.Cleanup(func() { _ = driver.Log.Close() })
 
 	// Act
@@ -432,7 +433,7 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1), nil)
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, nil))
 	t.Cleanup(func() { _ = driver.Log.Close() })
 	// A line emitted before the run, while the version is still unknown.
 	_, err := io.WriteString(driver.Log.Sink(), "preamble\n")
@@ -478,10 +479,9 @@ func TestDriverRun_MasksSecretsInShippedLog(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1), map[string]string{"GH_TOKEN": secret})
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, redact.Transformer(map[string]string{"GH_TOKEN": secret})))
 
-	// Act - Close as the driver command defers it, flushing the filter into the
-	// shipper before the shipper's own final flush.
+	// Act - Close as the driver command defers it, draining the shipper
 	assert.NilError(t, driver.Run(t.Context()))
 	assert.NilError(t, driver.Log.Close())
 
@@ -498,8 +498,8 @@ func TestDriverRun_MasksSecretsInShippedLog(t *testing.T) {
 
 // TestDriverRun_MasksTokenInShippedLog asserts the Copilot MCP config dump —
 // which discloses the driver's own task token as the injected gritz server's
-// --token argument — still ships, with the token masked. It is the filter, not
-// a deleted log line, that protects the shipped branch.
+// --token argument — still ships, with the token masked. It is the mask, not a
+// deleted log line, that protects the shipped branch.
 func TestDriverRun_MasksTokenInShippedLog(t *testing.T) {
 	t.Parallel()
 	// Arrange - a copilot agent whose binary exits non-zero, so the run reaches
@@ -520,7 +520,7 @@ func TestDriverRun_MasksTokenInShippedLog(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1), map[string]string{"token": token})
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, redact.Transformer(map[string]string{"token": token})))
 
 	// Act
 	assert.NilError(t, driver.Run(t.Context()))

@@ -83,7 +83,7 @@ func TestOpenDriverLog_FailureDegrades(t *testing.T) {
 	logPath := filepath.Join(file, "log")
 
 	// Act - OpenDriverLog never returns nil and never fails the run
-	log := OpenDriverLog(logPath, nil, nil)
+	log := OpenDriverLog(logPath, nil)
 	defer log.Close()
 
 	// Assert - the sink is a usable no-op and the logger still works
@@ -103,7 +103,7 @@ func TestDriverLog_CloseFlushesShipper(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), logship.New(client, 7), nil)
+	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), logship.New(client, 7, nil))
 	_, err := io.WriteString(log.Sink(), "early failure\n")
 	assert.NilError(t, err)
 
@@ -125,7 +125,7 @@ func TestDriverLog_NoShipperNeverShips(t *testing.T) {
 	t.Parallel()
 	// Arrange - a nil shipper, as tests and directly-invoked drivers pass. The
 	// mock has no AppendLogChunkFunc, so any call at all would panic.
-	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), nil, nil)
+	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), nil)
 
 	// Act
 	_, err := io.WriteString(log.Sink(), "not shipped\n")
