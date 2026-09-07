@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	"github.com/icholy/gritz/internal/agent"
 	"github.com/icholy/gritz/internal/gritzclient"
@@ -54,8 +56,9 @@ var DriverCommand = &cli.Command{
 		// into setup command and Claude CLI stdio, so a completed run can be
 		// inspected post-mortem via the reverse-shell or the server. Opening is
 		// best-effort and never fails the run (see agent.OpenDriverLog). Close
-		// flushes the shipper as a backstop for early-error exits.
-		log := agent.OpenDriverLog(agent.DefaultLogPath, shipper)
+		// flushes the shipper as a backstop for early-error exits. Declared
+		// secrets are masked on the shipped branch only; /gritz/log stays raw.
+		log := agent.OpenDriverLog(agent.DefaultLogPath, shipper, driverSecrets(cmd.String("token")))
 		defer log.Close()
 
 		driver := &agent.Driver{
@@ -68,4 +71,19 @@ var DriverCommand = &cli.Command{
 		}
 		return driver.Run(ctx)
 	},
+}
+
+// driverSecrets returns the values the driver masks in the log it ships: the
+// workspace secrets the runner declared in GRITZ_SECRETS, whose values it reads
+// from its own environment where the runner injected them, plus its own task
+// token — the one secret the platform mints rather than the workspace, and the
+// string agents disclose when they log their MCP config.
+func driverSecrets(token string) map[string]string {
+	secrets := map[string]string{"token": token}
+	for _, name := range strings.Split(os.Getenv("GRITZ_SECRETS"), ",") {
+		if name != "" {
+			secrets[name] = os.Getenv(name)
+		}
+	}
+	return secrets
 }

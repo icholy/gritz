@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/icholy/gritz/internal/logship"
+	"github.com/icholy/gritz/internal/redact"
 )
 
 // DefaultLogPath is the in-sandbox location of the driver's append-only log
@@ -73,6 +74,10 @@ type DriverLog struct {
 	// on the Driver because the sink is where the bytes are, and because
 	// StartRun already carries the run version the chunks are stamped with.
 	shipper *logship.Shipper
+	// filter masks declared secret values on the way to the shipper, nil when
+	// nothing is shipped. Held here so Close can flush its held partial match
+	// into the shipper before the shipper's final flush.
+	filter io.WriteCloser
 }
 
 // DiscardDriverLog is a DriverLog that discards everything. Tests and
@@ -91,22 +96,29 @@ var DiscardDriverLog = &DriverLog{
 // any of them knowing about it. A nil shipper (tests, directly-invoked drivers)
 // leaves the log file as the only consumer.
 //
+// Every occurrence of a secrets value is masked on the way to the shipper, and
+// only there: the log file and os.Stderr stay raw, since they are in-sandbox
+// surfaces whose audience already holds these values, and full fidelity is what
+// makes them useful post-mortem. An empty (or nil) secrets map masks nothing.
+//
 // Opening is best-effort: on failure the sink degrades to a no-op, the logger
 // still writes to os.Stderr, and the failure is logged through that logger — a
 // run never fails because logging could not be set up. The returned DriverLog
 // must be closed.
-func OpenDriverLog(logPath string, shipper *logship.Shipper) *DriverLog {
+func OpenDriverLog(logPath string, shipper *logship.Shipper, secrets map[string]string) *DriverLog {
 	file, err := OpenLogSink(logPath)
 	var sink io.Writer = file
+	var filter io.WriteCloser
 	if shipper != nil {
-		sink = io.MultiWriter(file, shipper)
+		filter = redact.NewWriter(shipper, secrets)
+		sink = io.MultiWriter(file, filter)
 	}
 	logger := slog.New(slog.NewTextHandler(io.MultiWriter(os.Stderr, sink), nil))
 	if err != nil {
 		logger.Warn("failed to open driver log sink, continuing without it",
 			"path", logPath, "err", err)
 	}
-	return &DriverLog{Logger: *logger, sink: sink, closer: file, shipper: shipper}
+	return &DriverLog{Logger: *logger, sink: sink, closer: file, shipper: shipper, filter: filter}
 }
 
 // Sink returns the raw byte sink to tee stdio into, defaulting to io.Discard so
@@ -155,13 +167,21 @@ func (l *DriverLog) Flush(ctx context.Context) error {
 	return l.shipper.Flush(ctx)
 }
 
-// Close flushes the shipper and releases the underlying log file, if any.
+// Close flushes the secret filter and the shipper, then releases the underlying
+// log file, if any. The order matters: the filter can be holding back the tail
+// of a potential match, and those bytes have to reach the shipper before its
+// final flush or they ship a run late.
 //
 // The flush is a backstop for exits that return before Driver.Run's own
 // end-of-run flush — a failed GetTask, say. It uses its own deadline rather
 // than the run's context, which by Close time is typically already cancelled.
 // A flush failure does not fail Close: the bytes are still in the log file.
 func (l *DriverLog) Close() error {
+	if l.filter != nil {
+		if err := l.filter.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "gritz: %v\n", err)
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), logFlushTimeout)
 	defer cancel()
 	if err := l.Flush(ctx); err != nil {
