@@ -126,14 +126,12 @@ Semantics:
 
 Validation in `Workspace.Validate`:
 
-- A name colliding with a `container:`/`lambda_microvm:` `environment:` key or
-  a `GRITZ_*` name is an error.
-- A value that expands to fewer than 8 bytes is an error — degenerate masks
-  (`""`, `"1"`) would shred the log, and a secret that short is a
-  misconfiguration.
-- As a migration nudge, config load *warns* when an `environment:` key matches
-  a credential-shaped name (`TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL|AUTH`) —
-  "consider moving X to secrets:". The heuristic is a lint, never a mechanism.
+- A `GRITZ_*` name is an error: it is appended after the runner's own
+  injection and would silently override `GRITZ_TOKEN` or `GRITZ_SECRETS`,
+  breaking the driver in a confusing way.
+- A value that expands to the empty string is an error — an empty needle
+  matches at every position, so the mask would shred the log rather than
+  redact it.
 
 Migration is mechanical: move credential entries from `environment:` to
 `secrets:` (`examples/workspaces/private-repo.yml` and the default
@@ -249,8 +247,8 @@ a feature that shipped days ago. Instead:
 ## Implementation Plan
 
 1. **Workspace `secrets:` config** — Delivers: the `Secrets` map on
-   `Workspace`, validation (collisions, minimum length, the migration
-   warning), and runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
+   `Workspace`, validation (the `GRITZ_*` reservation, empty values), and
+   runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
    Depends on: nothing. Verifiable by: workspace-load tests and a runner spec
    test asserting the sandbox env and the names list.
 2. **`internal/redact`** — Delivers: `Marker` and the `icholy/replace`-backed
@@ -290,9 +288,8 @@ Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
   has zero false positives, no pattern set to curate or update, and a
   contract an operator can state in one sentence — *what you list in
   `secrets:` never ships*. The cost is coverage: an undeclared secret ships
-  unmasked. That gap is narrowed by the migration warning on
-  credential-shaped `environment:` names, bounded by retention (below), and
-  answered operationally by the purge tool. Detection can be layered on later
+  unmasked. That gap is bounded by retention (below) and answered
+  operationally by the purge tool. Detection can be layered on later
   without unwinding anything here; the reverse is not true.
 - **The runtime-minted gap.** GitHub App installation tokens handed out by
   `gritz git-credential` and `get_github_token` are not declared anywhere, so
@@ -357,8 +354,3 @@ Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
   a credentialed URL). Should the driver run its event submissions through
   the same secret map? Cheap once the plumbing exists, but it widens scope
   past the log pipeline this issue is about.
-- **Should the migration warning ever become an error?** A credential-shaped
-  `environment:` name that is not declared in `secrets:` is probably a
-  mistake, but hard-failing existing configs on a heuristic is hostile.
-  Warning now, revisit once `secrets:` has been the documented pattern for a
-  while.

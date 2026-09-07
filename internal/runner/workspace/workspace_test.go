@@ -65,26 +65,6 @@ func TestWorkspaceValidate_Secrets(t *testing.T) {
 			},
 		},
 		{
-			name: "collides with container environment",
-			ws: workspace.Workspace{
-				Container: workspace.Container{
-					Environment: map[string]string{"GH_TOKEN": "gho_supersecretvalue"},
-				},
-				Secrets: map[string]string{"GH_TOKEN": "gho_supersecretvalue"},
-			},
-			err: "secrets.GH_TOKEN: also set in container.environment",
-		},
-		{
-			name: "collides with lambda_microvm environment",
-			ws: workspace.Workspace{
-				LambdaMicroVM: &workspace.LambdaMicroVM{
-					Environment: map[string]string{"GH_TOKEN": "gho_supersecretvalue"},
-				},
-				Secrets: map[string]string{"GH_TOKEN": "gho_supersecretvalue"},
-			},
-			err: "secrets.GH_TOKEN: also set in lambda_microvm.environment",
-		},
-		{
 			name: "reserved name",
 			ws: workspace.Workspace{
 				Secrets: map[string]string{"GRITZ_TOKEN": "gho_supersecretvalue"},
@@ -92,18 +72,11 @@ func TestWorkspaceValidate_Secrets(t *testing.T) {
 			err: "secrets.GRITZ_TOKEN: GRITZ_* names are reserved",
 		},
 		{
-			name: "value too short",
-			ws: workspace.Workspace{
-				Secrets: map[string]string{"GH_TOKEN": "short"},
-			},
-			err: "secrets.GH_TOKEN: value is 5 bytes, want at least 8",
-		},
-		{
 			name: "empty value",
 			ws: workspace.Workspace{
 				Secrets: map[string]string{"GH_TOKEN": ""},
 			},
-			err: "secrets.GH_TOKEN: value is 0 bytes, want at least 8",
+			err: "secrets.GH_TOKEN: value is empty",
 		},
 	}
 	for _, tt := range tests {
@@ -117,41 +90,4 @@ func TestWorkspaceValidate_Secrets(t *testing.T) {
 			assert.ErrorContains(t, err, tt.err)
 		})
 	}
-}
-
-// TestWarnings covers the migration nudge: a credential-shaped environment: key
-// is only ever a warning, never a failure, and never changes behaviour.
-func TestWarnings(t *testing.T) {
-	t.Parallel()
-	// Arrange
-	cfg := &workspace.Config{
-		Workspaces: map[string]workspace.Workspace{
-			"test": {
-				Container: workspace.Container{
-					Environment: map[string]string{
-						"CLAUDE_CODE_OAUTH_TOKEN": "sk-secretvalue",
-						"HOME":                    "/root",
-					},
-				},
-				LambdaMicroVM: &workspace.LambdaMicroVM{
-					Environment: map[string]string{"NPM_SECRET": "npm-secretvalue"},
-				},
-			},
-			"clean": {
-				Container: workspace.Container{
-					Environment: map[string]string{"HOME": "/root"},
-				},
-			},
-		},
-	}
-
-	// Act
-	warnings := cfg.Warnings()
-
-	// Assert
-	assert.NilError(t, cfg.Validate())
-	assert.DeepEqual(t, warnings, []string{
-		`workspace "test": container.environment.CLAUDE_CODE_OAUTH_TOKEN looks like a credential: consider moving it to secrets:`,
-		`workspace "test": lambda_microvm.environment.NPM_SECRET looks like a credential: consider moving it to secrets:`,
-	})
 }
