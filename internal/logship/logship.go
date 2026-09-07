@@ -1,8 +1,8 @@
 // Package logship mirrors a driver's log bytes to the server as asynchronous
 // chunks. Its Shipper is an io.Writer spliced into the driver's log tee, so
-// buffering, chunk cutting, overflow accounting and retry all happen behind a
-// Write that never blocks and never fails. It depends only on the gritz client
-// and the proto types, not on internal/agent.
+// buffering, secret masking, chunk cutting, overflow accounting and retry all
+// happen behind a Write that never blocks and never fails. It depends only on
+// the gritz client and the proto types, not on internal/agent.
 package logship
 
 import (
@@ -16,6 +16,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/text/transform"
 
 	"github.com/icholy/gritz/internal/gritzclient"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
@@ -38,6 +39,9 @@ const (
 	// plus queued). Past it, writes are dropped rather than allowed to grow
 	// without bound while the server is unreachable.
 	defaultMaxPendingBytes = 1 << 20 // 1 MiB
+	// maskBufSize is the scratch destination one mask pass transforms into; a
+	// larger input just takes more passes.
+	maskBufSize = 4 << 10 // 4 KiB
 )
 
 // chunk is one queued unit of work: an opaque byte run stamped with the run
@@ -64,6 +68,12 @@ type chunk struct {
 type Shipper struct {
 	client gritzclient.Client
 	taskID int64
+	// mask replaces secret values in the bytes on their way into the buffer,
+	// nil when nothing is masked. It runs before chunking, so a value split
+	// across writes or chunks is still caught: the transformer signals a
+	// trailing potential match and held keeps those bytes for the next write.
+	mask transform.Transformer
+	held []byte
 
 	// Tunables, defaulted by New. Tests shrink them before Run; they are not
 	// mutated once the sender is running.
@@ -99,10 +109,17 @@ var _ io.Writer = (*Shipper)(nil)
 // log chunks for taskID. It buffers from construction with version 0 — the
 // pre-run preamble — until SetVersion stamps a run. Nothing is sent until Run
 // (or Flush) drains it.
-func New(client gritzclient.Client, taskID int64) *Shipper {
+//
+// A non-nil mask is applied to every byte before it is buffered, so nothing it
+// replaces can reach the server; a nil one ships the bytes verbatim. Masking
+// belongs here rather than in the caller's tee because this is the boundary
+// that ships: the driver's other writers (the /gritz/log file, os.Stderr) stay
+// raw.
+func New(client gritzclient.Client, taskID int64, mask transform.Transformer) *Shipper {
 	return &Shipper{
 		client:        client,
 		taskID:        taskID,
+		mask:          mask,
 		chunkSize:     defaultChunkSize,
 		flushInterval: defaultFlushInterval,
 		maxPending:    defaultMaxPendingBytes,
@@ -136,10 +153,11 @@ func (s *Shipper) SetVersion(version int64) {
 // error: the caller is a log tee that must not learn about network trouble, and
 // its other writers (the /gritz/log file, os.Stderr) still hold the bytes.
 // Bytes past the pending cap are dropped and counted, and the gap is later
-// reported in the transcript as a synthetic marker chunk.
+// reported in the transcript as a synthetic marker chunk. Secret values are
+// masked on the way in, so nothing the mask replaces is ever buffered.
 func (s *Shipper) Write(p []byte) (int, error) {
 	s.mu.Lock()
-	cut := s.appendLocked(p)
+	cut := s.appendLocked(s.maskLocked(p, false))
 	s.mu.Unlock()
 	if cut {
 		s.notify.Wake()
@@ -174,6 +192,10 @@ func (s *Shipper) Run(ctx context.Context) {
 // requests in flight.
 func (s *Shipper) Flush(ctx context.Context) error {
 	s.mu.Lock()
+	// Drain the mask at EOF before cutting: it can be holding the tail of a
+	// potential match, and those bytes belong in the chunks this flush ships
+	// rather than in whatever the next run writes.
+	s.appendLocked(s.maskLocked(nil, true))
 	s.cutLocked()
 	// A drop streak that never saw another accepted write has no later chunk to
 	// precede, so record it here rather than lose the accounting.
@@ -183,6 +205,41 @@ func (s *Shipper) Flush(ctx context.Context) error {
 		return fmt.Errorf("flushing log chunks: %w", ctx.Err())
 	}
 	return nil
+}
+
+// maskLocked runs p through the mask and returns the bytes to buffer, which is
+// everything the transformer emitted: input it consumed, minus a trailing
+// potential match it held back for the next call (at most one secret value
+// long), plus any replacement markers. With atEOF set, the held bytes are
+// drained too and the transformer is reset for continued use.
+func (s *Shipper) maskLocked(p []byte, atEOF bool) []byte {
+	if s.mask == nil {
+		return p
+	}
+	// Prepend what the last call held back, so a value split across two writes
+	// is seen whole.
+	src := p
+	if len(s.held) > 0 {
+		src = append(s.held, p...)
+	}
+	var out []byte
+	dst := make([]byte, maskBufSize)
+	for {
+		nDst, nSrc, err := s.mask.Transform(dst, src, atEOF)
+		out = append(out, dst[:nDst]...)
+		src = src[nSrc:]
+		// Another pass only for a filled scratch buffer, and only while the
+		// transformer is still making progress. Any other outcome — a trailing
+		// potential match, most often — leaves src held for the next call.
+		if err != transform.ErrShortDst || nDst+nSrc == 0 {
+			break
+		}
+	}
+	s.held = append(s.held[:0], src...)
+	if atEOF {
+		s.mask.Reset()
+	}
+	return out
 }
 
 // appendLocked buffers p, dropping it when the pending cap is reached, and

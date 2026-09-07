@@ -5,8 +5,6 @@
 package redact
 
 import (
-	"errors"
-	"io"
 	"slices"
 	"strings"
 
@@ -52,37 +50,20 @@ func String(s string, secrets map[string]string) string {
 	return s
 }
 
-// NewWriter wraps w so every occurrence of each secret value is replaced by
-// Marker(name). Close flushes any held partial match; it does not close w.
-func NewWriter(w io.Writer, secrets map[string]string) io.WriteCloser {
-	// One transform.Writer per rule, nested innermost-first -- replace
-	// documents its transformers as unsafe to use with transform.Chain. The
-	// last writer built is the outermost, so it sees the bytes first; build in
-	// reverse so the longest value is masked first.
-	f := &filter{Writer: w}
-	for _, name := range slices.Backward(names(secrets)) {
-		tw := transform.NewWriter(f.Writer, replace.String(secrets[name], Marker(name)))
-		f.Writer = tw
-		f.writers = append(f.writers, tw)
+// Transformer returns a transform.Transformer that replaces every occurrence of
+// each secret value with Marker(name). The rules are chained in names() order,
+// so the longest value is masked first.
+//
+// Chaining is safe here: replace's fixed-string transformer is a stateless
+// value (it embeds transform.NopResetter), and the library's caveats about
+// combining transformers apply to its Regexp* functions, not to this one. A
+// value straddling two writes is still masked, because a chained
+// transform.Transformer signals ErrShortSrc for a trailing potential match and
+// its caller retains those bytes for the next call.
+func Transformer(secrets map[string]string) transform.Transformer {
+	var rules []transform.Transformer
+	for _, name := range names(secrets) {
+		rules = append(rules, replace.String(secrets[name], Marker(name)))
 	}
-	return f
-}
-
-// filter writes through a stack of transform writers. Writer is the outermost
-// of them (or the caller's writer when there are no rules); writers holds them
-// innermost-first.
-type filter struct {
-	io.Writer
-	writers []*transform.Writer
-}
-
-// Close flushes each transform writer's held bytes, outermost first: closing
-// one writes its holdback into the next, which then has to flush its own. The
-// underlying writer is left open.
-func (f *filter) Close() error {
-	var err error
-	for _, tw := range slices.Backward(f.writers) {
-		err = errors.Join(err, tw.Close())
-	}
-	return err
+	return transform.Chain(rules...)
 }
