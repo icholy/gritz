@@ -2,12 +2,10 @@ package workspace
 
 import (
 	"fmt"
-	"log/slog"
 	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -82,19 +80,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// Warnings returns every workspace's non-fatal config advice, each prefixed
-// with the workspace it came from.
-func (c *Config) Warnings() []string {
-	var warnings []string
-	for _, name := range slices.Sorted(maps.Keys(c.Workspaces)) {
-		ws := c.Workspaces[name]
-		for _, w := range ws.Warnings() {
-			warnings = append(warnings, fmt.Sprintf("workspace %q: %s", name, w))
-		}
-	}
-	return warnings
-}
-
 type Workspace struct {
 	Description string `yaml:"description"`
 	// Container holds the Docker backend's runtime config. LambdaMicroVM holds
@@ -119,42 +104,9 @@ type Workspace struct {
 	Secrets map[string]string `yaml:"secrets,omitempty"`
 }
 
-// minSecretLen is the shortest accepted secret value. A shorter value is a
-// misconfiguration, and masking it downstream would shred the log rather than
-// redact it.
-const minSecretLen = 8
-
-// credentialName matches environment variable names that look like they hold a
-// credential. It backs the secrets: migration warning and nothing else: the
-// heuristic is a lint, never a mechanism.
-var credentialName = regexp.MustCompile(`(?i)TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL|AUTH`)
-
 // SecretNames returns the declared secret names, sorted.
 func (w *Workspace) SecretNames() []string {
 	return slices.Sorted(maps.Keys(w.Secrets))
-}
-
-// Warnings returns non-fatal advice about the workspace config. Nothing keys
-// off it: it is printed at load time so operators notice credential-shaped
-// environment: entries that would ship unmasked.
-func (w *Workspace) Warnings() []string {
-	type section struct {
-		path string
-		env  map[string]string
-	}
-	sections := []section{{"container.environment", w.Container.Environment}}
-	if w.LambdaMicroVM != nil {
-		sections = append(sections, section{"lambda_microvm.environment", w.LambdaMicroVM.Environment})
-	}
-	var warnings []string
-	for _, s := range sections {
-		for _, name := range slices.Sorted(maps.Keys(s.env)) {
-			if credentialName.MatchString(name) {
-				warnings = append(warnings, fmt.Sprintf("%s.%s looks like a credential: consider moving it to secrets:", s.path, name))
-			}
-		}
-	}
-	return warnings
 }
 
 type Agent struct {
@@ -231,25 +183,17 @@ func (w *Workspace) Validate() error {
 	return nil
 }
 
-// validateSecrets rejects secret declarations that cannot work: a name the
-// sandbox environment already binds (the injected pair would silently win or
-// lose, depending on backend ordering), a name reserved by the platform, or a
-// value too short to mask safely.
+// validateSecrets rejects secret declarations that cannot work: a GRITZ_* name,
+// which would append after the runner's own injection and silently override it,
+// and an empty value, which the driver's mask would match at every position —
+// shredding the log instead of redacting it.
 func (w *Workspace) validateSecrets() error {
 	for _, name := range w.SecretNames() {
 		if strings.HasPrefix(name, "GRITZ_") {
 			return fmt.Errorf("secrets.%s: GRITZ_* names are reserved", name)
 		}
-		if _, ok := w.Container.Environment[name]; ok {
-			return fmt.Errorf("secrets.%s: also set in container.environment", name)
-		}
-		if w.LambdaMicroVM != nil {
-			if _, ok := w.LambdaMicroVM.Environment[name]; ok {
-				return fmt.Errorf("secrets.%s: also set in lambda_microvm.environment", name)
-			}
-		}
-		if n := len(w.Secrets[name]); n < minSecretLen {
-			return fmt.Errorf("secrets.%s: value is %d bytes, want at least %d", name, n, minSecretLen)
+		if w.Secrets[name] == "" {
+			return fmt.Errorf("secrets.%s: value is empty", name)
 		}
 	}
 	return nil
@@ -405,10 +349,6 @@ func LoadConfig(path string, expand ExpandFunc) (*Config, error) {
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
-	}
-
-	for _, warning := range cfg.Warnings() {
-		slog.Warn(warning)
 	}
 
 	return &cfg, nil
