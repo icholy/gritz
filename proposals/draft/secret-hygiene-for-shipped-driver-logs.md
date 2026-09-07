@@ -86,9 +86,8 @@ the sink and the shipper. The in-sandbox `/gritz/log` file and the process
 stderr (docker logs) stay raw — they are inside the original trust boundary
 and keep full fidelity for shell-based post-mortems.
 
-Alongside the filter, the two structural leaks (Copilot's MCP config dump,
-dummy's argv line) are fixed at the source, and a small per-task purge tool
-handles logs already shipped.
+Alongside the filter, a small per-task purge tool handles logs already
+shipped.
 
 ### The `secrets:` workspace config
 
@@ -211,21 +210,6 @@ the stream ends mid-potential-match — log output is line-oriented, so in
 practice the holdback is empty; the worst case is a few tail bytes shipping
 one flush late or being stamped into the next run's version, both cosmetic.
 
-### Fixing the structural leaks at the source
-
-The byte-layer filter is the backstop, not an excuse to keep logging secrets
-on purpose:
-
-- `internal/agent/copilot.go:44` — stop logging the MCP config JSON; log the
-  server names and count instead (matching the driver's own
-  `"mcp_servers", len(cfg.McpServers)` restraint in `driver.go:179`).
-- `internal/agent/dummy.go:122` — drop `"args", mcpConfig.Args` from the
-  "connecting to MCP server" line; name and command suffice.
-
-These are plain `fix:` changes, independently landable, and worth shipping
-first — they remove the two *unconditional* token disclosures regardless of
-when the filter lands.
-
 ### Already-shipped logs: purge, not rewrite
 
 In-place scrubbing of stored chunks would have to reassemble straddled and
@@ -247,46 +231,56 @@ a feature that shipped days ago. Instead:
 
 - `/gritz/log` and stderr/docker-logs: in-sandbox and runner-host surfaces,
   unchanged trust boundary, full fidelity for `gritz shell` post-mortems.
+- The Copilot MCP config dump (`copilot.go:44`) and dummy argv line
+  (`dummy.go:122`): kept as-is because they are genuinely useful for
+  debugging MCP wiring. The token they disclose is the same string as the
+  driver's `--token` — `Runner.spec` mints one token per task and reuses it
+  for the driver flag, the injected MCP server's `--token` arg, and
+  `GRITZ_TOKEN` (`runner.go:485,507,511`) — so the task-token rule masks
+  both lines on the shipped branch (a JWT survives `json.MarshalIndent` as a
+  contiguous literal, so the fixed-string transformer matches it). Accepted
+  consequence: `/gritz/log` and docker logs keep the live JWT in those
+  lines, the same trust boundary this section already accepts for raw
+  surfaces.
 - Shell/PTY bytes: never shipped (`shellwire.Data` frames only), out of scope.
 - Event payloads (`task failed` reasons, `report` messages): a different,
   lower-volume surface with its own audience; see Open Questions.
 
 ## Implementation Plan
 
-1. **Source fixes** — Delivers: `fix:` for `copilot.go:44` (MCP config dump →
-   names/count) and `dummy.go:122` (drop argv from the connect line). Depends
-   on: nothing; landable immediately. Verifiable by: agent tests asserting the
-   injected `--token` value never appears in the sink for a Copilot/dummy run.
-2. **Workspace `secrets:` config** — Delivers: the `Secrets` map on
+1. **Workspace `secrets:` config** — Delivers: the `Secrets` map on
    `Workspace`, validation (collisions, minimum length, the migration
    warning), and runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
    Depends on: nothing. Verifiable by: workspace-load tests and a runner spec
    test asserting the sandbox env and the names list.
-3. **`internal/redact`** — Delivers: `Marker` and the `icholy/replace`-backed
+2. **`internal/redact`** — Delivers: `Marker` and the `icholy/replace`-backed
    `NewWriter` (prefix registration, Close-flush). Depends on: nothing.
    Verifiable by: unit tests covering secrets straddling `Write` boundaries,
    truncated values (16-byte prefix still masked), multiple overlapping
    rules, and marker output.
-4. **Driver wiring** — Delivers: secret-map construction in
+3. **Driver wiring** — Delivers: secret-map construction in
    `command/driver.go` (`GRITZ_SECRETS` + `--token`), the `OpenDriverLog`
-   splice, and `DriverLog.Close` ordering. Depends on: (2), (3). Verifiable
+   splice, and `DriverLog.Close` ordering. Depends on: (1), (2). Verifiable
    by: a driver test with a dummy agent and a declared secret asserting the
    value appears in `/gritz/log` but only `[gritz:masked …]` in the bytes the
-   fake server received.
-5. **Docs & examples** — Delivers: `secrets:` in the default `workspaces.yaml`
+   fake server received — and, for the token rule, that the Copilot MCP
+   config dump *does* ship, with `[gritz:masked token]` where the JWT was,
+   pinning that the filter (not deleted log lines) is what protects the
+   shipped branch.
+4. **Docs & examples** — Delivers: `secrets:` in the default `workspaces.yaml`
    template, `examples/workspaces/private-repo.yml` rewritten to the
-   `${GH_TOKEN}` pattern, README/CLAUDE.md notes. Depends on: (4). Verifiable
+   `${GH_TOKEN}` pattern, README/CLAUDE.md notes. Depends on: (3). Verifiable
    by: example configs load cleanly.
-6. **Purge tool** — Delivers: `DeleteLogChunksByTask` store method + RPC
+5. **Purge tool** — Delivers: `DeleteLogChunksByTask` store method + RPC
    (task-scoped `OpTaskWrite` auth, following the `AppendLogChunk` handler
    shape) and `gritz logs purge <task-id>`. Depends on: nothing (parallel to
-   2–4). Verifiable by: store/handler tests (delete scoped to the task and
+   1–3). Verifiable by: store/handler tests (delete scoped to the task and
    org, auth rejection) and an end-to-end purge leaving `gritz logs` empty.
-7. **One-time cleanup** — Operational, not a PR: scan existing chunks for the
-   known leak shapes, purge hits via (6), archive tasks whose transcripts
+6. **One-time cleanup** — Operational, not a PR: scan existing chunks for the
+   known leak shapes, purge hits via (5), archive tasks whose transcripts
    held their live JWT. Verifiable by: re-running the scan → zero hits.
 
-Slice 1 should land first; 2–5 and 6 are independent stacks.
+Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
 
 ## Trade-offs
 
