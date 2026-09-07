@@ -177,25 +177,6 @@ func (w *Workspace) Validate() error {
 			return fmt.Errorf("unknown capability %q", capability)
 		}
 	}
-	if err := w.validateSecrets(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// validateSecrets rejects secret declarations that cannot work: a GRITZ_* name,
-// which would append after the runner's own injection and silently override it,
-// and an empty value, which the driver's mask would match at every position —
-// shredding the log instead of redacting it.
-func (w *Workspace) validateSecrets() error {
-	for _, name := range w.SecretNames() {
-		if strings.HasPrefix(name, "GRITZ_") {
-			return fmt.Errorf("secrets.%s: GRITZ_* names are reserved", name)
-		}
-		if w.Secrets[name] == "" {
-			return fmt.Errorf("secrets.%s: value is empty", name)
-		}
-	}
 	return nil
 }
 
