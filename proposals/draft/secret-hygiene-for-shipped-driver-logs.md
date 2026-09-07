@@ -163,12 +163,19 @@ logic):
 func Marker(name string) string
 
 // NewWriter wraps w so every occurrence of each secret value is replaced by
-// Marker(name). For values longer than 16 bytes, the 16-byte prefix is
-// registered as well, so a value truncated downstream (toollog's 120-rune
-// cap) still masks — and a prefix-only hit destroys the credential anyway.
-// Close flushes any held partial match; it does not close w.
+// Marker(name). Close flushes any held partial match; it does not close w.
 func NewWriter(w io.Writer, secrets map[string]string) io.WriteCloser
+
+// String returns s with every occurrence of each secret value replaced by
+// Marker(name).
+func String(s string, secrets map[string]string) string
 ```
+
+`String` is the entry point for callers holding a value rather than a stream.
+Both share one ordering rule: rules apply longest value first, so that when
+one declared secret's value is a prefix of another's, the shorter rule cannot
+fire first and leave the longer value's tail in the output beside a marker
+that makes it look masked.
 
 Internally each rule is `replace.String(value, Marker(name))` — a stateless
 `transform.Transformer` — layered with one `transform.NewWriter` per rule,
@@ -241,11 +248,10 @@ a feature that shipped days ago. Instead:
    `Workspace` and runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
    Depends on: nothing. Verifiable by: a runner spec test asserting the
    sandbox env carries the `NAME=value` pairs and the names list.
-2. **`internal/redact`** — Delivers: `Marker` and the `icholy/replace`-backed
-   `NewWriter` (prefix registration, Close-flush). Depends on: nothing.
-   Verifiable by: unit tests covering secrets straddling `Write` boundaries,
-   truncated values (16-byte prefix still masked), multiple overlapping
-   rules, and marker output.
+2. **`internal/redact`** — Delivers: `Marker`, the `icholy/replace`-backed
+   `NewWriter` (Close-flush), and `String`. Depends on: nothing. Verifiable
+   by: unit tests covering secrets straddling `Write` boundaries, overlapping
+   values (the longer masked whole), and marker output.
 3. **Driver wiring** — Delivers: secret-map construction in
    `command/driver.go` (`GRITZ_SECRETS` + `--token`), the `OpenDriverLog`
    splice, and `DriverLog.Close` ordering. Depends on: (1), (2). Verifiable
@@ -332,6 +338,22 @@ Slices 1–4 and 5 are independent stacks; 6 follows once the filter is live.
 
 ## Open Questions
 
+- **Secrets truncated upstream by `toollog.Summarize` are not masked.** The
+  tee filter matches whole values, so it only masks what actually reaches it
+  as a contiguous literal. `toollog.Summarize` caps an individual rendered
+  value at 120 runes and the whole summary line at 200
+  (`internal/agent/toollog/toollog.go:17,19`), and both caps fall at an
+  offset determined by the rendered line, not by where a secret sits in it —
+  so a credential inside a summarized tool call can arrive at the filter as a
+  fragment of *any* length, and a fragment is not the needle. No downstream
+  filter can repair this: by the time the bytes arrive the value is already
+  gone. An earlier revision registered each value's 16-byte prefix as an
+  extra rule to catch it; that was dropped, because it masks only truncations
+  that happen to leave ≥16 bytes while implying general coverage it does not
+  have. Closing this properly means acting at the truncation site — redact
+  before `Summarize` truncates, or stop logging those fields — which is a
+  change to `toollog`'s callers, not to the filter. Out of scope here; the
+  purge tool remains the answer for a transcript that catches one.
 - **Retention as the backstop (#1241).** Explicit config is exact but only as
   complete as the declarations; a bounded retention window caps the exposure
   of anything undeclared. There is currently *no* deletion path at all —

@@ -2,7 +2,6 @@ package redact
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -41,25 +40,6 @@ func TestNewWriter_StraddledWrite(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, buf.String(), "cloning with [gritz:masked GH_TOKEN] now\n")
-}
-
-// TestNewWriter_TruncatedValue asserts a value cut short downstream (toollog
-// caps tool-call fields at 120 runes) still masks via its 16-byte prefix.
-func TestNewWriter_TruncatedValue(t *testing.T) {
-	// Arrange
-	secret := strings.Repeat("s", 16) + "-tail"
-	var buf bytes.Buffer
-	w := NewWriter(&buf, map[string]string{"GH_TOKEN": secret})
-
-	// Act
-	_, err := w.Write([]byte("full " + secret + " cut " + secret[:16] + "\n"))
-	assert.NilError(t, err)
-	assert.NilError(t, w.Close())
-
-	// Assert -- the full value masks whole, not as a masked prefix plus a
-	// leaked "-tail".
-	assert.Equal(t, buf.String(),
-		"full [gritz:masked GH_TOKEN] cut [gritz:masked GH_TOKEN]\n")
 }
 
 // TestNewWriter_OverlappingValues asserts that when one declared secret's value
@@ -117,4 +97,22 @@ func TestNewWriter_EmptyValue(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, buf.String(), "hello [gritz:masked GH_TOKEN]\n")
+}
+
+// TestString asserts the string entry point masks every occurrence and shares
+// NewWriter's longest-value-first ordering.
+func TestString(t *testing.T) {
+	// Arrange
+	short := "gho_abcdefghijklmnop"
+	long := short + "QRSTUVWXYZ99"
+
+	// Act
+	got := String("using "+long+" and "+short+"\n", map[string]string{
+		"A_TOKEN": short,
+		"B_TOKEN": long,
+	})
+
+	// Assert
+	assert.Equal(t, got,
+		"using [gritz:masked B_TOKEN] and [gritz:masked A_TOKEN]\n")
 }
