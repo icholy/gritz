@@ -8,7 +8,6 @@ import (
 	"github.com/icholy/gritz/internal/agent"
 	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/logship"
-	"github.com/icholy/gritz/internal/redact"
 	"github.com/urfave/cli/v3"
 )
 
@@ -50,7 +49,7 @@ var DriverCommand = &cli.Command{
 		//
 		// Declared secret values are masked on their way into the shipper, so
 		// they never reach the server; /gritz/log and stderr stay raw.
-		shipper := logship.New(client, taskID, redact.Transformer(driverSecrets(cmd.String("token"))))
+		shipper := logship.New(client, taskID, driverSecrets(cmd.String("token")))
 		shipCtx, stopShipper := context.WithCancel(ctx)
 		defer stopShipper()
 		go shipper.Run(shipCtx)

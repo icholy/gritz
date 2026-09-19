@@ -13,7 +13,6 @@ import (
 	"github.com/icholy/gritz/internal/gritzclient"
 	"github.com/icholy/gritz/internal/logship"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
-	"github.com/icholy/gritz/internal/redact"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -475,7 +474,7 @@ func TestDriverRun_MasksSecretsInShippedLog(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, redact.Transformer(map[string]string{"GH_TOKEN": secret})))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, map[string]string{"GH_TOKEN": secret}))
 
 	// Act - Close as the driver command defers it, draining the shipper
 	assert.NilError(t, driver.Run(t.Context()))
@@ -516,7 +515,7 @@ func TestDriverRun_MasksTokenInShippedLog(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, redact.Transformer(map[string]string{"token": token})))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, map[string]string{"token": token}))
 
 	// Act
 	assert.NilError(t, driver.Run(t.Context()))

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/cenkalti/backoff/v5"
-	"github.com/icholy/replace"
 	"google.golang.org/protobuf/testing/protocmp"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
@@ -361,9 +361,38 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 	)
 }
 
-// maskGHToken is the fixed-string transformer the driver builds for a declared
-// secret (redact.Transformer chains one of these per secret).
-var maskGHToken = replace.String("ghp_abc123", "[gritz:masked GH_TOKEN]")
+// ghTokenSecret is the secrets map the driver hands the shipper for one
+// declared workspace secret.
+var ghTokenSecret = map[string]string{"GH_TOKEN": "ghp_abc123"}
+
+// TestShipper_PlainTextIsNotHeldBack asserts the mask holds nothing back from
+// a stream that carries no secret, so the shipped log keeps up with the written
+// one between flushes rather than trailing it by the length of a secret.
+func TestShipper_PlainTextIsNotHeldBack(t *testing.T) {
+	t.Parallel()
+	// Arrange - a long secret value, so any length-based holdback would swallow
+	// the whole write below
+	var delivered testx.SafeSlice[string]
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			delivered.Append(string(req.Data))
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper := New(client, 7, map[string]string{"GH_TOKEN": strings.Repeat("s", 900)})
+	shipper.flushInterval = 10 * time.Millisecond
+	go shipper.Run(t.Context())
+
+	// Act - no Flush, so only what the mask lets through can be cut and shipped
+	_, err := shipper.Write([]byte("cloning the repo\n"))
+	assert.NilError(t, err)
+
+	// Assert
+	testx.WaitForWithTimeout(t, t.Context(), 5*time.Second, func() bool {
+		return len(delivered.Slice()) == 1
+	})
+	assert.DeepEqual(t, delivered.Slice(), []string{"cloning the repo\n"})
+}
 
 // TestShipper_MasksAcrossWrites asserts a secret split across two writes is
 // still masked: log bytes arrive in arbitrary runs, so a value can land on any
@@ -376,7 +405,7 @@ func TestShipper_MasksAcrossWrites(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, maskGHToken)
+	shipper := New(client, 7, ghTokenSecret)
 
 	// Act
 	for _, w := range []string{"cloning with ghp_", "abc123 now\n"} {
@@ -400,7 +429,7 @@ func TestShipper_MasksAcrossChunks(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, maskGHToken)
+	shipper := New(client, 7, ghTokenSecret)
 	shipper.chunkSize = 4
 
 	// Act
@@ -427,7 +456,7 @@ func TestShipper_FlushDrainsHeldBytes(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, maskGHToken)
+	shipper := New(client, 7, ghTokenSecret)
 
 	// Act - the stream ends mid-match, so "ghp_abc" is held back
 	_, err := shipper.Write([]byte("prefix ghp_abc"))
