@@ -20,7 +20,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/icholy/gritz/internal/bytetrie"
+	"github.com/icholy/gritz/internal/x/bytetrie"
 )
 
 // Marker returns the replacement marker for a named secret:
