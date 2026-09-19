@@ -16,10 +16,10 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/cenkalti/backoff/v5"
-	"golang.org/x/text/transform"
 
 	"github.com/icholy/gritz/internal/gritzclient"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
+	"github.com/icholy/gritz/internal/redactv2"
 	"github.com/icholy/gritz/internal/x/common"
 	"github.com/icholy/gritz/internal/x/wakeup"
 )
@@ -39,9 +39,6 @@ const (
 	// plus queued). Past it, writes are dropped rather than allowed to grow
 	// without bound while the server is unreachable.
 	defaultMaxPendingBytes = 1 << 20 // 1 MiB
-	// maskBufSize is the scratch destination one mask pass transforms into; a
-	// larger input just takes more passes.
-	maskBufSize = 4 << 10 // 4 KiB
 )
 
 // chunk is one queued unit of work: an opaque byte run stamped with the run
@@ -69,11 +66,12 @@ type Shipper struct {
 	client gritzclient.Client
 	taskID int64
 	// mask replaces secret values in the bytes on their way into the buffer,
-	// nil when nothing is masked. It runs before chunking, so a value split
-	// across writes or chunks is still caught: the transformer signals a
-	// trailing potential match and held keeps those bytes for the next write.
-	mask transform.Transformer
-	held []byte
+	// writing what it decides on through to sink. It runs before chunking, so
+	// a value split across writes or chunks is still caught: the bytes that
+	// could still become one are held inside the mask until the writes that
+	// follow settle them. It is not safe for concurrent use and runs under mu.
+	mask *redactv2.Writer
+	sink *appendSink
 
 	// Tunables, defaulted by New. Tests shrink them before Run; they are not
 	// mutated once the sender is running.
@@ -110,16 +108,16 @@ var _ io.Writer = (*Shipper)(nil)
 // pre-run preamble — until SetVersion stamps a run. Nothing is sent until Run
 // (or Flush) drains it.
 //
-// A non-nil mask is applied to every byte before it is buffered, so nothing it
-// replaces can reach the server; a nil one ships the bytes verbatim. Masking
-// belongs here rather than in the caller's tee because this is the boundary
-// that ships: the driver's other writers (the /gritz/log file, os.Stderr) stay
-// raw.
-func New(client gritzclient.Client, taskID int64, mask transform.Transformer) *Shipper {
-	return &Shipper{
+// secrets maps secret name to secret value; every occurrence of a value is
+// replaced by its marker before the bytes are buffered, so nothing the mask
+// replaces can reach the server. A nil or empty map matches nothing and ships
+// the bytes verbatim. Masking belongs here rather than in the caller's tee
+// because this is the boundary that ships: the driver's other writers (the
+// /gritz/log file, os.Stderr) stay raw.
+func New(client gritzclient.Client, taskID int64, secrets map[string]string) *Shipper {
+	s := &Shipper{
 		client:        client,
 		taskID:        taskID,
-		mask:          mask,
 		chunkSize:     defaultChunkSize,
 		flushInterval: defaultFlushInterval,
 		maxPending:    defaultMaxPendingBytes,
@@ -133,6 +131,26 @@ func New(client gritzclient.Client, taskID int64, mask transform.Transformer) *S
 		notify:  wakeup.New(),
 		sendSem: make(chan struct{}, 1),
 	}
+	s.sink = &appendSink{shipper: s}
+	s.mask = redactv2.NewWriter(s.sink, secrets)
+	return s
+}
+
+// appendSink is the writer the mask drains into: it buffers the masked bytes
+// and records whether doing so cut a chunk, so whoever drove the mask can wake
+// the sender afterwards. It is only ever written to from under the shipper's
+// mutex, and never fails — dropping past the pending cap is accounted for in
+// appendLocked, not reported back up.
+type appendSink struct {
+	shipper *Shipper
+	cut     bool
+}
+
+func (a *appendSink) Write(p []byte) (int, error) {
+	if a.shipper.appendLocked(p) {
+		a.cut = true
+	}
+	return len(p), nil
 }
 
 // SetVersion stamps subsequent bytes with version, cutting a chunk at the
@@ -157,7 +175,11 @@ func (s *Shipper) SetVersion(version int64) {
 // masked on the way in, so nothing the mask replaces is ever buffered.
 func (s *Shipper) Write(p []byte) (int, error) {
 	s.mu.Lock()
-	cut := s.appendLocked(s.maskLocked(p, false))
+	s.sink.cut = false
+	// The mask only fails when its underlying writer does, and appendSink
+	// never does.
+	_, _ = s.mask.Write(p)
+	cut := s.sink.cut
 	s.mu.Unlock()
 	if cut {
 		s.notify.Wake()
@@ -192,10 +214,12 @@ func (s *Shipper) Run(ctx context.Context) {
 // requests in flight.
 func (s *Shipper) Flush(ctx context.Context) error {
 	s.mu.Lock()
-	// Drain the mask at EOF before cutting: it can be holding the tail of a
-	// potential match, and those bytes belong in the chunks this flush ships
-	// rather than in whatever the next run writes.
-	s.appendLocked(s.maskLocked(nil, true))
+	// Drain the mask before cutting: it can be holding the tail of a potential
+	// match, and those bytes belong in the chunks this flush ships rather than
+	// in whatever the next run writes. A value split across the flush goes out
+	// unmasked (see redactv2.Writer.Flush); the driver only flushes where the
+	// stream has ended or stalled, so that tail is the log's, not a secret's.
+	_ = s.mask.Flush()
 	s.cutLocked()
 	// A drop streak that never saw another accepted write has no later chunk to
 	// precede, so record it here rather than lose the accounting.
@@ -205,41 +229,6 @@ func (s *Shipper) Flush(ctx context.Context) error {
 		return fmt.Errorf("flushing log chunks: %w", ctx.Err())
 	}
 	return nil
-}
-
-// maskLocked runs p through the mask and returns the bytes to buffer, which is
-// everything the transformer emitted: input it consumed, minus a trailing
-// potential match it held back for the next call (at most one secret value
-// long), plus any replacement markers. With atEOF set, the held bytes are
-// drained too and the transformer is reset for continued use.
-func (s *Shipper) maskLocked(p []byte, atEOF bool) []byte {
-	if s.mask == nil {
-		return p
-	}
-	// Prepend what the last call held back, so a value split across two writes
-	// is seen whole.
-	src := p
-	if len(s.held) > 0 {
-		src = append(s.held, p...)
-	}
-	var out []byte
-	dst := make([]byte, maskBufSize)
-	for {
-		nDst, nSrc, err := s.mask.Transform(dst, src, atEOF)
-		out = append(out, dst[:nDst]...)
-		src = src[nSrc:]
-		// Another pass only for a filled scratch buffer, and only while the
-		// transformer is still making progress. Any other outcome — a trailing
-		// potential match, most often — leaves src held for the next call.
-		if err != transform.ErrShortDst || nDst+nSrc == 0 {
-			break
-		}
-	}
-	s.held = append(s.held[:0], src...)
-	if atEOF {
-		s.mask.Reset()
-	}
-	return out
 }
 
 // appendLocked buffers p, dropping it when the pending cap is reached, and
