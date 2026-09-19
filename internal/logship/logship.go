@@ -1,11 +1,12 @@
 // Package logship mirrors a driver's log bytes to the server as asynchronous
 // chunks. Its Shipper is an io.Writer spliced into the driver's log tee, so
-// buffering, secret masking, chunk cutting, overflow accounting and retry all
-// happen behind a Write that never blocks and never fails. It depends only on
-// the gritz client and the proto types, not on internal/agent.
+// buffering, secret masking, chunk cutting and retry all happen behind a Write
+// that never blocks and never fails. It depends only on the gritz client and
+// the proto types, not on internal/agent.
 package logship
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -31,18 +32,18 @@ const (
 	// matches shell.Serve's PTY pump: big enough that per-request overhead is
 	// negligible, small enough to keep a chatty run's chunks flowing.
 	defaultChunkSize = 32 << 10 // 32 KiB
-	// defaultFlushInterval cuts a partial chunk when it fires with pending
-	// bytes, so a quiet run still ships promptly instead of sitting in the
-	// buffer until the next 32 KiB.
+	// defaultFlushInterval drains whatever is buffered when it fires, so a
+	// quiet run still ships promptly instead of sitting in the buffer until the
+	// next 32 KiB.
 	defaultFlushInterval = 2 * time.Second
-	// defaultMaxPendingBytes caps the unsent bytes held in memory (buffered
-	// plus queued). Past it, writes are dropped rather than allowed to grow
-	// without bound while the server is unreachable.
+	// defaultMaxPendingBytes caps the unsent bytes held in the buffer. Past it,
+	// writes are dropped rather than allowed to grow without bound while the
+	// server is unreachable.
 	defaultMaxPendingBytes = 1 << 20 // 1 MiB
 )
 
-// chunk is one queued unit of work: an opaque byte run stamped with the run
-// version that was current when it was cut.
+// chunk is one unit of work: an opaque byte run stamped with the run version
+// that was current when the drain cut it.
 type chunk struct {
 	version int64
 	data    []byte
@@ -52,7 +53,7 @@ type chunk struct {
 // chunks, one per AppendLogChunk request. Write never blocks and never returns
 // an error; a full buffer drops bytes rather than stall the run.
 //
-// It borrows the shape of the runner's outbox.Outbox — FIFO delivery,
+// It borrows the shape of the runner's outbox.Outbox — in-order delivery,
 // head-of-line retry with backoff, permanent-vs-transient classification —
 // without its on-disk durability: log bytes are diagnostics whose durable copy
 // is already in /gritz/log, so persisting them a second time to ship them is
@@ -65,13 +66,12 @@ type chunk struct {
 type Shipper struct {
 	client gritzclient.Client
 	taskID int64
-	// mask replaces secret values in the bytes on their way into the buffer,
-	// writing what it decides on through to sink. It runs before chunking, so
-	// a value split across writes or chunks is still caught: the bytes that
-	// could still become one are held inside the mask until the writes that
-	// follow settle them. It is not safe for concurrent use and runs under mu.
+	// mask replaces secret values in the bytes on their way into buf. It runs
+	// before chunking, so a value split across writes or chunks is still
+	// caught: the bytes that could still become one are held inside the mask
+	// until the writes that follow settle them. It is not safe for concurrent
+	// use and runs under mu.
 	mask *redact.Writer
-	sink *appendSink
 
 	// Tunables, defaulted by New. Tests shrink them before Run; they are not
 	// mutated once the sender is running.
@@ -81,7 +81,7 @@ type Shipper struct {
 	backoff       backoff.BackOff
 	log           *slog.Logger
 
-	// notify wakes the sender when a chunk is cut.
+	// notify wakes the sender once a chunk's worth of bytes is buffered.
 	notify wakeup.Chan
 	// sendSem admits one sender at a time. Run and Flush both drain, so the
 	// semaphore — not the single Run goroutine — is what guarantees never more
@@ -89,16 +89,19 @@ type Shipper struct {
 	// order is write order. It is a channel rather than a mutex so a caller can
 	// give up on ctx instead of blocking on a sender that is mid-backoff.
 	sendSem chan struct{}
+	// inflight is the chunk the sender is delivering, held across retries so a
+	// transient failure resends the same bytes rather than being overtaken by
+	// newer ones. It lives here rather than in a local so a Flush that follows
+	// a cancelled Run picks it up instead of losing it. Guarded by sendSem, not
+	// mu.
+	inflight chunk
 	// failing suppresses a warning per retry, logging one per failure streak
 	// instead. Guarded by sendSem, not mu.
 	failing bool
 
-	mu           sync.Mutex
-	version      int64
-	buf          []byte
-	pending      []chunk
-	pendingBytes int
-	dropped      int
+	mu      sync.Mutex
+	version int64
+	buf     bytes.Buffer
 }
 
 var _ io.Writer = (*Shipper)(nil)
@@ -131,65 +134,53 @@ func New(client gritzclient.Client, taskID int64, secrets map[string]string) *Sh
 		notify:  wakeup.New(),
 		sendSem: make(chan struct{}, 1),
 	}
-	s.sink = &appendSink{shipper: s}
-	s.mask = redact.NewWriter(s.sink, secrets)
+	s.mask = redact.NewWriter(&s.buf, secrets)
 	return s
 }
 
-// appendSink is the writer the mask drains into: it buffers the masked bytes
-// and records whether doing so cut a chunk, so whoever drove the mask can wake
-// the sender afterwards. It is only ever written to from under the shipper's
-// mutex, and never fails — dropping past the pending cap is accounted for in
-// appendLocked, not reported back up.
-type appendSink struct {
-	shipper *Shipper
-	cut     bool
-}
-
-func (a *appendSink) Write(p []byte) (int, error) {
-	if a.shipper.appendLocked(p) {
-		a.cut = true
-	}
-	return len(p), nil
-}
-
-// SetVersion stamps subsequent bytes with version, cutting a chunk at the
-// boundary so pre-run preamble and run bytes never share one. Because a request
-// carries exactly one chunk, no request can straddle a version boundary and the
-// sender needs no splitting logic.
+// SetVersion stamps subsequent chunks with version. It cuts nothing: bytes
+// written either side of the call can share a chunk, which is then stamped with
+// whatever version is current when the drain cuts it. Nothing reads a chunk's
+// version today beyond recording it.
 func (s *Shipper) SetVersion(version int64) {
 	s.mu.Lock()
-	cut := s.cutLocked()
+	defer s.mu.Unlock()
 	s.version = version
-	s.mu.Unlock()
-	if cut {
-		s.notify.Wake()
-	}
 }
 
 // Write buffers p for shipping. It always reports the full write and a nil
 // error: the caller is a log tee that must not learn about network trouble, and
 // its other writers (the /gritz/log file, os.Stderr) still hold the bytes.
-// Bytes past the pending cap are dropped and counted, and the gap is later
-// reported in the transcript as a synthetic marker chunk. Secret values are
-// masked on the way in, so nothing the mask replaces is ever buffered.
+// Bytes that would take the buffer past the pending cap are dropped silently;
+// the durable copy in /gritz/log is the one that has to be complete. Secret
+// values are masked on the way in, so nothing the mask replaces is ever
+// buffered.
+//
+// The sender is woken only once a whole chunk is buffered. A quiet run
+// therefore ships on the flushInterval tick instead of turning every log line
+// into its own request and row.
 func (s *Shipper) Write(p []byte) (int, error) {
 	s.mu.Lock()
-	s.sink.cut = false
-	// The mask only fails when its underlying writer does, and appendSink
-	// never does.
+	// The cap is enforced on the masked bytes rather than on p, because p is
+	// what the mask needs to stay in sync: skipping input ahead of it would
+	// leave a held prefix stranded and could ship half a secret raw.
+	before := s.buf.Len()
+	// bytes.Buffer.Write never fails, so neither does the mask.
 	_, _ = s.mask.Write(p)
-	cut := s.sink.cut
+	if s.buf.Len() > s.maxPending {
+		s.buf.Truncate(before)
+	}
+	full := s.buf.Len() >= s.chunkSize
 	s.mu.Unlock()
-	if cut {
+	if full {
 		s.notify.Wake()
 	}
 	return len(p), nil
 }
 
-// Run drains pending chunks until ctx is cancelled, cutting a partial chunk
-// every flushInterval so a trickle of output still ships. It is the shipper's
-// background sender and is expected to run for the driver's lifetime.
+// Run drains the buffer on every wake-up and every flushInterval tick, until
+// ctx is cancelled. It is the shipper's background sender and is expected to
+// run for the driver's lifetime.
 func (s *Shipper) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.flushInterval)
 	defer ticker.Stop()
@@ -199,31 +190,24 @@ func (s *Shipper) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.mu.Lock()
-			s.cutLocked()
-			s.mu.Unlock()
 		case <-s.notify:
 		}
 	}
 }
 
-// Flush cuts whatever is buffered and sends everything pending, bounded by ctx.
-// It returns an error only when ctx expires with chunks still unsent — the
-// caller is expected to log it and carry on, since the full log remains in
-// /gritz/log. It is safe to call while Run is sending; the two never have two
-// requests in flight.
+// Flush sends everything buffered, bounded by ctx. It returns an error only
+// when ctx expires with bytes still unsent — the caller is expected to log it
+// and carry on, since the full log remains in /gritz/log. It is safe to call
+// while Run is sending; the two never have two requests in flight.
 func (s *Shipper) Flush(ctx context.Context) error {
 	s.mu.Lock()
-	// Drain the mask before cutting: it can be holding the tail of a potential
-	// match, and those bytes belong in the chunks this flush ships rather than
-	// in whatever the next run writes. A value split across the flush goes out
-	// unmasked (see redact.Writer.Flush); the driver only flushes where the
-	// stream has ended or stalled, so that tail is the log's, not a secret's.
+	// Drain the mask into the buffer first: it can be holding the tail of a
+	// potential match, and those bytes belong in the chunks this flush ships
+	// rather than in whatever the next run writes. A value split across the
+	// flush goes out unmasked (see redact.Writer.Flush); the driver only
+	// flushes where the stream has ended or stalled, so that tail is the log's,
+	// not a secret's.
 	_ = s.mask.Flush()
-	s.cutLocked()
-	// A drop streak that never saw another accepted write has no later chunk to
-	// precede, so record it here rather than lose the accounting.
-	s.markDroppedLocked()
 	s.mu.Unlock()
 	if !s.drain(ctx) {
 		return fmt.Errorf("flushing log chunks: %w", ctx.Err())
@@ -231,102 +215,25 @@ func (s *Shipper) Flush(ctx context.Context) error {
 	return nil
 }
 
-// appendLocked buffers p, dropping it when the pending cap is reached, and
-// reports whether a chunk was queued.
-func (s *Shipper) appendLocked(p []byte) bool {
-	if len(p) == 0 {
-		return false
-	}
-	if s.pendingBytes+len(s.buf)+len(p) > s.maxPending {
-		s.dropped += len(p)
-		return false
-	}
-	cut := false
-	if s.dropped > 0 {
-		// Shipping has resumed. The gap sits between the bytes already buffered
-		// and these first accepted ones, so cut there and splice the marker in
-		// between to put it where the loss actually happened.
-		s.cutLocked()
-		s.markDroppedLocked()
-		cut = true
-	}
-	s.buf = append(s.buf, p...)
-	if s.cutFullLocked() {
-		cut = true
-	}
-	return cut
-}
-
-// cutLocked queues everything buffered, including a partial trailing chunk. It
-// reports whether anything was queued.
-func (s *Shipper) cutLocked() bool {
-	cut := s.cutFullLocked()
-	if len(s.buf) > 0 {
-		s.queueLocked(s.buf)
-		cut = true
-	}
-	// Drop the window on the queued array so the next write allocates instead
-	// of appending next to chunks that are still in flight.
-	s.buf = nil
-	return cut
-}
-
-// cutFullLocked queues whole chunkSize-sized chunks and leaves any remainder
-// buffered to coalesce with the next write. Cutting at a fixed size (rather
-// than at whatever a single write happened to deliver) is also what keeps a
-// huge write from becoming a request over the server's per-chunk cap.
-func (s *Shipper) cutFullLocked() bool {
-	cut := false
-	for len(s.buf) >= s.chunkSize {
-		// Full slice expression: the queued chunk aliases buf's array, and
-		// capping cap keeps a later append from writing into it.
-		s.queueLocked(s.buf[:s.chunkSize:s.chunkSize])
-		s.buf = s.buf[s.chunkSize:]
-		cut = true
-	}
-	return cut
-}
-
-// markDroppedLocked queues the synthetic marker for a finished drop streak, so
-// the gap is visible in the transcript rather than silently missing.
-func (s *Shipper) markDroppedLocked() {
-	if s.dropped == 0 {
-		return
-	}
-	s.queueLocked(fmt.Appendf(nil, "[gritz: dropped %d log bytes]\n", s.dropped))
-	s.dropped = 0
-}
-
-// queueLocked appends data to the send queue, stamped with the current version.
-func (s *Shipper) queueLocked(data []byte) {
-	s.pending = append(s.pending, chunk{version: s.version, data: data})
-	s.pendingBytes += len(data)
-}
-
-// head returns the chunk at the front of the send queue.
-func (s *Shipper) head() (chunk, bool) {
+// cut takes up to chunkSize bytes off the front of the buffer, stamped with the
+// current version, and reports whether there was anything to take. The chunk is
+// a copy rather than a window on the buffer: bytes.Buffer slides its contents
+// down to reclaim the space a cut freed, which a concurrent Write would then
+// overwrite.
+func (s *Shipper) cut() (chunk, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.pending) == 0 {
+	if s.buf.Len() == 0 {
 		return chunk{}, false
 	}
-	return s.pending[0], true
+	return chunk{version: s.version, data: bytes.Clone(s.buf.Next(s.chunkSize))}, true
 }
 
-// pop removes the delivered head, freeing its bytes against the pending cap.
-func (s *Shipper) pop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.pendingBytes -= len(s.pending[0].data)
-	s.pending = s.pending[1:]
-}
-
-// drain sends pending chunks FIFO, one AppendLogChunk per chunk, until the
-// queue is empty or ctx is done; it reports whether the queue drained. A
-// transient failure retries the same head after a backoff (head-of-line
-// blocking, as the outbox does) so a retry can never be overtaken by a newer
-// chunk; a permanent one drops the head and advances rather than wedge the
-// queue forever.
+// drain cuts and sends chunks, one AppendLogChunk per chunk, until the buffer
+// is empty or ctx is done; it reports whether it emptied. A transient failure
+// retries the same chunk after a backoff (head-of-line blocking, as the outbox
+// does) so a retry can never be overtaken by newer bytes; a permanent one drops
+// the chunk and advances rather than wedge the shipper forever.
 func (s *Shipper) drain(ctx context.Context) bool {
 	select {
 	case s.sendSem <- struct{}{}:
@@ -338,23 +245,26 @@ func (s *Shipper) drain(ctx context.Context) bool {
 		if ctx.Err() != nil {
 			return false
 		}
-		chunk, ok := s.head()
-		if !ok {
-			s.backoff.Reset()
-			return true
+		if s.inflight.data == nil {
+			next, ok := s.cut()
+			if !ok {
+				s.backoff.Reset()
+				return true
+			}
+			s.inflight = next
 		}
 		_, err := s.client.AppendLogChunk(ctx, &gritzv1.AppendLogChunkRequest{
 			TaskId:  s.taskID,
-			Version: chunk.version,
-			Data:    chunk.data,
+			Version: s.inflight.version,
+			Data:    s.inflight.data,
 		})
 		switch {
 		case err == nil:
 			s.failing = false
-			s.pop()
+			s.inflight = chunk{}
 		case isPermanentChunkError(err):
-			s.log.Warn("dropping undeliverable log chunk", "task", s.taskID, "bytes", len(chunk.data), "err", err)
-			s.pop()
+			s.log.Warn("dropping undeliverable log chunk", "task", s.taskID, "bytes", len(s.inflight.data), "err", err)
+			s.inflight = chunk{}
 		default:
 			if !s.failing {
 				s.failing = true

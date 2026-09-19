@@ -86,7 +86,41 @@ func TestShipper_SetVersion(t *testing.T) {
 	}
 	shipper := New(client, 7, nil)
 
-	// Act - the pre-run preamble ships as version 0, run bytes as version 3
+	// Act - the pre-run preamble ships as version 0, because the flush cuts it
+	// before the run is stamped; everything after ships as version 3
+	_, err := shipper.Write([]byte("preamble\n"))
+	assert.NilError(t, err)
+	assert.NilError(t, shipper.Flush(t.Context()))
+	shipper.SetVersion(3)
+	_, err = shipper.Write([]byte("run\n"))
+	assert.NilError(t, err)
+	assert.NilError(t, shipper.Flush(t.Context()))
+
+	// Assert
+	assert.DeepEqual(t,
+		client.AppendedLogChunks(),
+		[]*gritzv1.AppendLogChunkRequest{
+			{TaskId: 7, Version: 0, Data: []byte("preamble\n")},
+			{TaskId: 7, Version: 3, Data: []byte("run\n")},
+		},
+		protocmp.Transform(),
+	)
+}
+
+// TestShipper_SetVersionDoesNotCut asserts the version change is only a stamp:
+// bytes written either side of it share a chunk when nothing drained in
+// between, and that chunk carries the version current when it was cut.
+func TestShipper_SetVersionDoesNotCut(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper := New(client, 7, nil)
+
+	// Act
 	_, err := shipper.Write([]byte("preamble\n"))
 	assert.NilError(t, err)
 	shipper.SetVersion(3)
@@ -94,12 +128,11 @@ func TestShipper_SetVersion(t *testing.T) {
 	assert.NilError(t, err)
 	assert.NilError(t, shipper.Flush(t.Context()))
 
-	// Assert - the boundary cut keeps the two versions in separate chunks
+	// Assert
 	assert.DeepEqual(t,
 		client.AppendedLogChunks(),
 		[]*gritzv1.AppendLogChunkRequest{
-			{TaskId: 7, Version: 0, Data: []byte("preamble\n")},
-			{TaskId: 7, Version: 3, Data: []byte("run\n")},
+			{TaskId: 7, Version: 3, Data: []byte("preamble\nrun\n")},
 		},
 		protocmp.Transform(),
 	)
@@ -176,9 +209,9 @@ func TestShipper_PermanentErrorDropsChunk(t *testing.T) {
 	)
 }
 
-func TestShipper_OverflowDropsAndAccounts(t *testing.T) {
+func TestShipper_OverflowDropsSilently(t *testing.T) {
 	t.Parallel()
-	// Arrange - nothing drains, so the cap is reached after two chunks
+	// Arrange - nothing drains, so the cap is reached after 16 bytes
 	client := &gritzclient.ClientMock{
 		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
@@ -197,21 +230,24 @@ func TestShipper_OverflowDropsAndAccounts(t *testing.T) {
 	}
 	assert.NilError(t, shipper.Flush(t.Context()))
 
-	// Assert - the 9 dropped bytes are accounted for by the marker
+	// Assert - what fit ships, the rest is dropped without a trace: the
+	// complete copy is the one in /gritz/log.
 	assert.DeepEqual(t,
 		client.AppendedLogChunks(),
 		[]*gritzv1.AppendLogChunkRequest{
 			{TaskId: 7, Data: []byte("aaaaaaaa")},
 			{TaskId: 7, Data: []byte("bbbbbbbb")},
-			{TaskId: 7, Data: []byte("[gritz: dropped 9 log bytes]\n")},
 		},
 		protocmp.Transform(),
 	)
 }
 
-func TestShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
+// TestShipper_DrainingFreesRoomForNewWrites asserts the cap is on the unsent
+// bytes, not on the run: once a recovered server drains the buffer, writes are
+// accepted again instead of the shipper staying wedged at the cap.
+func TestShipper_DrainingFreesRoomForNewWrites(t *testing.T) {
 	t.Parallel()
-	// Arrange - an unreachable server, so the queue fills and stays full
+	// Arrange - an unreachable server, so the buffer fills and stays full
 	var delivered testx.SafeSlice[string]
 	var down atomic.Bool
 	down.Store(true)
@@ -236,24 +272,25 @@ func TestShipper_DroppedMarkerPrecedesResumedBytes(t *testing.T) {
 		assert.NilError(t, err)
 	}
 
-	// Act - the server comes back, the queue drains, and the next write is
-	// accepted again.
+	// Act - the server comes back and the buffer empties, so the next write has
+	// room again.
 	down.Store(false)
 	testx.WaitForWithTimeout(t, t.Context(), 5*time.Second, func() bool {
-		return len(delivered.Slice()) == 2
+		shipper.mu.Lock()
+		defer shipper.mu.Unlock()
+		return shipper.buf.Len() == 0
 	})
 	_, err := shipper.Write([]byte("dddddddd"))
 	assert.NilError(t, err)
 	assert.NilError(t, shipper.Flush(t.Context()))
 
-	// Assert - the marker lands at the gap: after the bytes that made it into
-	// the queue, before the first bytes accepted once shipping resumed.
-	assert.DeepEqual(t, delivered.Slice(), []string{
-		"aaaaaaaa",
-		"bbbbbbbb",
-		"[gritz: dropped 5 log bytes]\n",
-		"dddddddd",
-	})
+	// Assert - the bytes written once there was room ship, and the gap left by
+	// the ones that were dropped is silent.
+	got := delivered.Slice()
+	assert.DeepEqual(t, got[len(got)-1], "dddddddd")
+	for _, data := range got {
+		assert.Assert(t, !strings.Contains(data, "dropped"), "expected no dropped-bytes marker, got %q", data)
+	}
 }
 
 func TestShipper_FlushDeadline(t *testing.T) {
@@ -348,17 +385,18 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 	close(release)
 	assert.NilError(t, shipper.Flush(t.Context()))
 
-	// Memory stayed bounded at the cap: only the two chunks that fit were kept,
-	// and the 7984 bytes that did not are reported rather than silently lost.
-	assert.DeepEqual(t,
-		client.AppendedLogChunks(),
-		[]*gritzv1.AppendLogChunkRequest{
-			{TaskId: 7, Data: []byte("aaaaaaaa")},
-			{TaskId: 7, Data: []byte("aaaaaaaa")},
-			{TaskId: 7, Data: []byte("[gritz: dropped 7984 log bytes]\n")},
-		},
-		protocmp.Transform(),
-	)
+	// Memory stayed bounded while the sender was stuck: the 8000 bytes written
+	// could only ever leave behind a full buffer plus the one chunk already in
+	// flight, and the rest was dropped rather than queued.
+	shipped := client.ShippedLog()
+	assert.Assert(t, len(shipped) > 0)
+	assert.Assert(t, len(shipped) <= shipper.maxPending+shipper.chunkSize,
+		"shipped %d bytes, more than the cap plus one in-flight chunk", len(shipped))
+	assert.Equal(t, shipped, strings.Repeat("a", len(shipped)))
+	for _, req := range client.AppendedLogChunks() {
+		assert.Assert(t, len(req.GetData()) <= shipper.chunkSize,
+			"chunk of %d bytes exceeds the chunk size", len(req.GetData()))
+	}
 }
 
 // ghTokenSecret is the secrets map the driver hands the shipper for one
