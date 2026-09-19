@@ -1,8 +1,5 @@
 workspaces:
   pets-workshop:
-    # secrets: entries become sandbox environment variables just like
-    # container.environment ones, and their values are masked out of the log
-    # shipped to the server.
     secrets:
       CODEX_API_KEY: ${env:CODEX_API_KEY}
     container:

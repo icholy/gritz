@@ -1,9 +1,6 @@
 workspaces:
   pets-workshop:
     # ...
-    # Declaring the key as a secret masks it in the shipped log: agents that
-    # dump their MCP config (copilot does, on every run) would otherwise ship
-    # the expanded Authorization header verbatim.
     secrets:
       METAMCP_API_KEY: ${env:METAMCP_API_KEY}
     agent:
