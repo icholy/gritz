@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/icholy/gritz/compare/v3.3.0...v3.4.0) (2026-09-19)
+
+
+### Features
+
+* **webui:** replace the icon with the new gritz logo ([66a3a2f](https://github.com/icholy/gritz/commit/66a3a2fdeeb21273b602edb92f3b466c66599d0b))
+
 ## [3.3.0](https://github.com/icholy/gritz/compare/v3.2.0...v3.3.0) (2026-09-19)
 
 
