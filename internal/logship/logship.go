@@ -7,6 +7,7 @@ package logship
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -25,21 +26,20 @@ import (
 	"github.com/icholy/gritz/internal/x/wakeup"
 )
 
-// Shipper defaults. They are fields on Shipper rather than constants used
-// directly so tests can shrink them; production always takes these.
+// Shipper defaults, applied by New to the zero-valued fields of Options.
 const (
-	// defaultChunkSize is the buffered-byte threshold that cuts a chunk. It
+	// DefaultChunkSize is the buffered-byte threshold that cuts a chunk. It
 	// matches shell.Serve's PTY pump: big enough that per-request overhead is
 	// negligible, small enough to keep a chatty run's chunks flowing.
-	defaultChunkSize = 32 << 10 // 32 KiB
-	// defaultFlushInterval is how often the sender is allowed to ship a
+	DefaultChunkSize = 32 << 10 // 32 KiB
+	// DefaultFlushInterval is how often the sender is allowed to ship a
 	// sub-chunk remainder, so a quiet run still ships promptly instead of
 	// sitting in the buffer until the next 32 KiB.
-	defaultFlushInterval = 2 * time.Second
-	// defaultMaxPendingBytes caps the unsent bytes held in the buffer. Past it,
+	DefaultFlushInterval = 2 * time.Second
+	// DefaultMaxPendingBytes caps the unsent bytes held in the buffer. Past it,
 	// writes are dropped rather than allowed to grow without bound while the
 	// server is unreachable.
-	defaultMaxPendingBytes = 1 << 20 // 1 MiB
+	DefaultMaxPendingBytes = 1 << 20 // 1 MiB
 )
 
 // chunk is one unit of work: an opaque byte run stamped with the run version
@@ -73,8 +73,8 @@ type Shipper struct {
 	// use and runs under mu.
 	mask *redact.Writer
 
-	// Tunables, defaulted by New. Tests shrink them before Run; they are not
-	// mutated once the sender is running.
+	// Tunables, taken from Options and defaulted by New. They are not mutated
+	// once the sender is running.
 	chunkSize     int
 	flushInterval time.Duration
 	maxPending    int
@@ -106,35 +106,69 @@ type Shipper struct {
 
 var _ io.Writer = (*Shipper)(nil)
 
+// Options configures a Shipper. Every field takes its default when zero, so a
+// caller states only what it knows: the driver sets TaskID and Secrets, and
+// tests shrink the tunables to keep a test from waiting on production-sized
+// thresholds.
+type Options struct {
+	// TaskID is the task whose log the chunks are appended to.
+	TaskID int64
+	// Secrets maps secret name to secret value; every occurrence of a value is
+	// replaced by its marker before the bytes are buffered, so nothing the mask
+	// replaces can reach the server. A nil or empty map matches nothing and
+	// ships the bytes verbatim.
+	Secrets map[string]string
+	// ChunkSize is the buffered-byte threshold that cuts a chunk.
+	// Defaults to DefaultChunkSize when zero.
+	ChunkSize int
+	// FlushInterval is how often the sender is allowed to ship a sub-chunk
+	// remainder. Defaults to DefaultFlushInterval when zero.
+	FlushInterval time.Duration
+	// MaxPendingBytes caps the unsent bytes held in the buffer; writes past it
+	// are dropped. Defaults to DefaultMaxPendingBytes when zero.
+	MaxPendingBytes int
+	// BackOff schedules the wait between retries of a failed chunk. It is
+	// stateful and becomes the shipper's own. Defaults to a fresh exponential
+	// backoff when nil.
+	BackOff backoff.BackOff
+	// Log reports send failures. It must not write back into the shipper (see
+	// the default in New). Defaults to a text handler on os.Stderr when nil.
+	Log *slog.Logger
+}
+
 // New returns a shipper that mirrors everything written to it to the server as
-// log chunks for taskID. It buffers from construction with version 0 — the
+// log chunks for opts.TaskID. It buffers from construction with version 0 — the
 // pre-run preamble — until SetVersion stamps a run. Nothing is sent until Run
 // (or Flush) drains it.
 //
-// secrets maps secret name to secret value; every occurrence of a value is
-// replaced by its marker before the bytes are buffered, so nothing the mask
-// replaces can reach the server. A nil or empty map matches nothing and ships
-// the bytes verbatim. Masking belongs here rather than in the caller's tee
-// because this is the boundary that ships: the driver's other writers (the
-// /gritz/log file, os.Stderr) stay raw.
-func New(client gritzclient.Client, taskID int64, secrets map[string]string) *Shipper {
+// Secret values named by opts.Secrets are masked on their way into the buffer.
+// Masking belongs here rather than in the caller's tee because this is the
+// boundary that ships: the driver's other writers (the /gritz/log file,
+// os.Stderr) stay raw.
+func New(client gritzclient.Client, opts Options) *Shipper {
 	s := &Shipper{
 		client:        client,
-		taskID:        taskID,
-		chunkSize:     defaultChunkSize,
-		flushInterval: defaultFlushInterval,
-		maxPending:    defaultMaxPendingBytes,
-		backoff:       backoff.NewExponentialBackOff(),
+		taskID:        opts.TaskID,
+		chunkSize:     cmp.Or(opts.ChunkSize, DefaultChunkSize),
+		flushInterval: cmp.Or(opts.FlushInterval, DefaultFlushInterval),
+		maxPending:    cmp.Or(opts.MaxPendingBytes, DefaultMaxPendingBytes),
+		backoff:       opts.BackOff,
+		log:           opts.Log,
+		notify:        wakeup.New(),
+		sendSem:       make(chan struct{}, 1),
+	}
+	if s.backoff == nil {
+		s.backoff = backoff.NewExponentialBackOff()
+	}
+	if s.log == nil {
 		// Deliberately not the driver's logger: the driver's slog handler writes
 		// through the same sink this shipper is teed into, so logging a send
 		// failure there would buffer a line that fails to ship, logging another
 		// line, and so on. os.Stderr is outside the tee (it reaches docker logs)
 		// and breaks the loop.
-		log:     slog.New(slog.NewTextHandler(os.Stderr, nil)),
-		notify:  wakeup.New(),
-		sendSem: make(chan struct{}, 1),
+		s.log = slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
-	s.mask = redact.NewWriter(&s.buf, secrets)
+	s.mask = redact.NewWriter(&s.buf, opts.Secrets)
 	return s
 }
 
