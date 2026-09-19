@@ -1,14 +1,16 @@
 import { useTaskLogs } from '@/hooks/use-task-logs'
 import { Scrollback } from '@/components/scrollback'
 import { Loader2 } from 'lucide-react'
+import { terminalSurfaceStyle, terminalTextStyle } from '@/lib/terminal-theme'
 
 // TaskLogs renders the task's shipped driver log — the server-side mirror of
 // the sandbox's /gritz/log — as a monospace scrollback. It opens at the tail
 // (a post-mortem reads the end first), loads older pages on scroll-up, and
 // polls the tail. `live` only picks the empty-state wording; it does not gate
-// polling, since a task's last chunks land after it reports terminal. The bytes are a raw terminal
-// transcript, not structured events, so they render as plain preformatted text
-// on the same dark surface as the shell tab's terminal.
+// polling, since a task's last chunks land after it reports terminal. The bytes
+// are a raw terminal transcript, not structured events, so they render as plain
+// preformatted text styled to read like the shell tab's terminal — same surface,
+// colour and metrics, all from @/lib/terminal-theme.
 export function TaskLogs({ taskId, live }: { taskId: bigint; live: boolean }) {
   const { text, isLoading, hasOlder, loadOlder, isLoadingOlder } = useTaskLogs(taskId)
 
@@ -42,7 +44,7 @@ export function TaskLogs({ taskId, live }: { taskId: bigint; live: boolean }) {
         isLoadingOlder={isLoadingOlder}
         className="p-4"
       >
-        <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-neutral-200">
+        <pre className="whitespace-pre-wrap break-all" style={terminalTextStyle}>
           {text}
         </pre>
       </Scrollback>
@@ -52,7 +54,10 @@ export function TaskLogs({ taskId, live }: { taskId: bigint; live: boolean }) {
 
 // Surface is the terminal-dark background shared by every state of the tab, so
 // switching between loading, empty and loaded doesn't flash the app background.
-// The colour matches TaskShell's xterm theme.
 function Surface({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-0 flex-1 flex-col bg-[#0a0a0a]">{children}</div>
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" style={terminalSurfaceStyle}>
+      {children}
+    </div>
+  )
 }

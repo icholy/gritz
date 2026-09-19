@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import { useShellSessions } from '@/lib/services'
+import { terminalOverlayStyle, terminalSurfaceStyle, terminalTheme } from '@/lib/terminal-theme'
 import { useShellState } from '@/hooks/use-shell-state'
 import type { ShellPhase } from '@/lib/shell-sessions'
 
@@ -43,9 +44,10 @@ export function TaskShell({ taskId, orgId }: TaskShellProps) {
     const term = new Terminal({
       cursorBlink: true,
       convertEol: false,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-      fontSize: 13,
-      theme: { background: '#0a0a0a' },
+      fontFamily: terminalTheme.fontFamily,
+      fontSize: terminalTheme.fontSize,
+      lineHeight: terminalTheme.lineHeight,
+      theme: { background: terminalTheme.background, foreground: terminalTheme.foreground },
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -74,7 +76,7 @@ export function TaskShell({ taskId, orgId }: TaskShellProps) {
   }, [shell, key])
 
   return (
-    <div className="relative h-full w-full bg-[#0a0a0a]">
+    <div className="relative h-full w-full" style={terminalSurfaceStyle}>
       <div ref={containerRef} className="h-full w-full p-2" />
       {renderOverlay(phase, exitCode, () => shell.open(key, orgId))}
     </div>
@@ -112,7 +114,10 @@ function renderOverlay(phase: ShellPhase, exitCode: number | null, onReconnect: 
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0a0a0a]/80">
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center gap-3"
+      style={terminalOverlayStyle}
+    >
       {children}
     </div>
   )
