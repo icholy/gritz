@@ -19,7 +19,7 @@ import (
 
 	"github.com/icholy/gritz/internal/gritzclient"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
-	"github.com/icholy/gritz/internal/redactv2"
+	"github.com/icholy/gritz/internal/redact"
 	"github.com/icholy/gritz/internal/x/common"
 	"github.com/icholy/gritz/internal/x/wakeup"
 )
@@ -70,7 +70,7 @@ type Shipper struct {
 	// a value split across writes or chunks is still caught: the bytes that
 	// could still become one are held inside the mask until the writes that
 	// follow settle them. It is not safe for concurrent use and runs under mu.
-	mask *redactv2.Writer
+	mask *redact.Writer
 	sink *appendSink
 
 	// Tunables, defaulted by New. Tests shrink them before Run; they are not
@@ -132,7 +132,7 @@ func New(client gritzclient.Client, taskID int64, secrets map[string]string) *Sh
 		sendSem: make(chan struct{}, 1),
 	}
 	s.sink = &appendSink{shipper: s}
-	s.mask = redactv2.NewWriter(s.sink, secrets)
+	s.mask = redact.NewWriter(s.sink, secrets)
 	return s
 }
 
@@ -217,7 +217,7 @@ func (s *Shipper) Flush(ctx context.Context) error {
 	// Drain the mask before cutting: it can be holding the tail of a potential
 	// match, and those bytes belong in the chunks this flush ships rather than
 	// in whatever the next run writes. A value split across the flush goes out
-	// unmasked (see redactv2.Writer.Flush); the driver only flushes where the
+	// unmasked (see redact.Writer.Flush); the driver only flushes where the
 	// stream has ended or stalled, so that tail is the log's, not a secret's.
 	_ = s.mask.Flush()
 	s.cutLocked()
