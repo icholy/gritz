@@ -432,7 +432,7 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, nil))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, logship.Options{TaskID: 1}))
 	t.Cleanup(func() { _ = driver.Log.Close() })
 	// A line emitted before the run, while the version is still unknown.
 	_, err := io.WriteString(driver.Log.Sink(), "preamble\n")
@@ -475,7 +475,10 @@ func TestDriverRun_MasksSecretsInShippedLog(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, map[string]string{"GH_TOKEN": secret}))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, logship.Options{
+		TaskID:  1,
+		Secrets: map[string]string{"GH_TOKEN": secret},
+	}))
 
 	// Act - Close as the driver command defers it, draining the shipper
 	assert.NilError(t, driver.Run(t.Context()))
@@ -516,7 +519,10 @@ func TestDriverRun_MasksTokenInShippedLog(t *testing.T) {
 		return &gritzv1.AppendLogChunkResponse{}, nil
 	}
 	logPath := filepath.Join(t.TempDir(), "log")
-	driver.Log = OpenDriverLog(logPath, logship.New(mock, 1, map[string]string{"token": token}))
+	driver.Log = OpenDriverLog(logPath, logship.New(mock, logship.Options{
+		TaskID:  1,
+		Secrets: map[string]string{"token": token},
+	}))
 
 	// Act
 	assert.NilError(t, driver.Run(t.Context()))

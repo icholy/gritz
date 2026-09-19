@@ -103,7 +103,7 @@ func TestDriverLog_CloseFlushesShipper(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), logship.New(client, 7, nil))
+	log := OpenDriverLog(filepath.Join(t.TempDir(), "log"), logship.New(client, logship.Options{TaskID: 7}))
 	_, err := io.WriteString(log.Sink(), "early failure\n")
 	assert.NilError(t, err)
 

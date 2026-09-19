@@ -49,7 +49,10 @@ var DriverCommand = &cli.Command{
 		//
 		// Declared secret values are masked on their way into the shipper, so
 		// they never reach the server; /gritz/log and stderr stay raw.
-		shipper := logship.New(client, taskID, driverSecrets(cmd.String("token")))
+		shipper := logship.New(client, logship.Options{
+			TaskID:  taskID,
+			Secrets: driverSecrets(cmd.String("token")),
+		})
 		shipCtx, stopShipper := context.WithCancel(ctx)
 		defer stopShipper()
 		go shipper.Run(shipCtx)

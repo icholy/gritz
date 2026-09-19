@@ -28,7 +28,7 @@ func TestShipper_Flush(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
+	shipper := New(client, Options{TaskID: 7})
 
 	// Act - a write below the chunk size stays buffered until Flush cuts it
 	n, err := shipper.Write([]byte("hello\n"))
@@ -55,8 +55,7 @@ func TestShipper_CutsAtChunkSize(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 4
+	shipper := New(client, Options{TaskID: 7, ChunkSize: 4})
 
 	// Act - one oversized write is cut into whole chunks; the 2-byte remainder
 	// stays buffered until Flush.
@@ -84,7 +83,7 @@ func TestShipper_SetVersion(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
+	shipper := New(client, Options{TaskID: 7})
 
 	// Act - the pre-run preamble ships as version 0, because the flush cuts it
 	// before the run is stamped; everything after ships as version 3
@@ -118,7 +117,7 @@ func TestShipper_SetVersionDoesNotCut(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
+	shipper := New(client, Options{TaskID: 7})
 
 	// Act
 	_, err := shipper.Write([]byte("preamble\n"))
@@ -158,7 +157,7 @@ func TestShipper_TickDrainCutsOnePartialChunk(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper = New(client, 7, nil)
+	shipper = New(client, Options{TaskID: 7})
 	_, err := shipper.Write([]byte("line 1\n"))
 	assert.NilError(t, err)
 
@@ -206,8 +205,7 @@ func TestShipper_WakeDrainCutsOnlyFullChunks(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 4
+	shipper := New(client, Options{TaskID: 7, ChunkSize: 4})
 
 	// Act
 	_, err := shipper.Write([]byte("aaaabbbbcc"))
@@ -251,10 +249,12 @@ func TestShipper_OrderingAcrossRetries(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 4
-	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
-	shipper.log = slog.New(slog.DiscardHandler)
+	shipper := New(client, Options{
+		TaskID:    7,
+		ChunkSize: 4,
+		BackOff:   backoff.NewConstantBackOff(time.Millisecond),
+		Log:       slog.New(slog.DiscardHandler),
+	})
 
 	// Act
 	for _, w := range []string{"aaaa", "bbbb", "cccc"} {
@@ -289,9 +289,11 @@ func TestShipper_PermanentErrorDropsChunk(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 4
-	shipper.log = slog.New(slog.DiscardHandler)
+	shipper := New(client, Options{
+		TaskID:    7,
+		ChunkSize: 4,
+		Log:       slog.New(slog.DiscardHandler),
+	})
 
 	// Act
 	_, err := shipper.Write([]byte("bad\nok!\n"))
@@ -318,9 +320,7 @@ func TestShipper_OverflowDropsSilently(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 8
-	shipper.maxPending = 16
+	shipper := New(client, Options{TaskID: 7, ChunkSize: 8, MaxPendingBytes: 16})
 
 	// Act - the last two writes have nowhere to go; they must still report a
 	// full, error-free write.
@@ -361,11 +361,13 @@ func TestShipper_DrainingFreesRoomForNewWrites(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 8
-	shipper.maxPending = 16
-	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
-	shipper.log = slog.New(slog.DiscardHandler)
+	shipper := New(client, Options{
+		TaskID:          7,
+		ChunkSize:       8,
+		MaxPendingBytes: 16,
+		BackOff:         backoff.NewConstantBackOff(time.Millisecond),
+		Log:             slog.New(slog.DiscardHandler),
+	})
 	go shipper.Run(t.Context())
 
 	for _, w := range []string{"aaaaaaaa", "bbbbbbbb", "ccccc"} {
@@ -402,9 +404,11 @@ func TestShipper_FlushDeadline(t *testing.T) {
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("server unreachable"))
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.backoff = backoff.NewConstantBackOff(time.Millisecond)
-	shipper.log = slog.New(slog.DiscardHandler)
+	shipper := New(client, Options{
+		TaskID:  7,
+		BackOff: backoff.NewConstantBackOff(time.Millisecond),
+		Log:     slog.New(slog.DiscardHandler),
+	})
 	_, err := shipper.Write([]byte("hello\n"))
 	assert.NilError(t, err)
 
@@ -433,8 +437,7 @@ func TestShipper_Run(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.flushInterval = 10 * time.Millisecond
+	shipper := New(client, Options{TaskID: 7, FlushInterval: 10 * time.Millisecond})
 	go shipper.Run(t.Context())
 
 	// Act - a write far below the chunk size, so only the interval can cut it
@@ -463,9 +466,8 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, nil)
-	shipper.chunkSize = 8
-	shipper.maxPending = 16
+	opts := Options{TaskID: 7, ChunkSize: 8, MaxPendingBytes: 16}
+	shipper := New(client, opts)
 	go shipper.Run(t.Context())
 
 	// Act - write well past the cap while the sender is blocked
@@ -491,11 +493,11 @@ func TestShipper_WriteDoesNotBlockOnASlowServer(t *testing.T) {
 	// flight, and the rest was dropped rather than queued.
 	shipped := client.ShippedLog()
 	assert.Assert(t, len(shipped) > 0)
-	assert.Assert(t, len(shipped) <= shipper.maxPending+shipper.chunkSize,
+	assert.Assert(t, len(shipped) <= opts.MaxPendingBytes+opts.ChunkSize,
 		"shipped %d bytes, more than the cap plus one in-flight chunk", len(shipped))
 	assert.Equal(t, shipped, strings.Repeat("a", len(shipped)))
 	for _, req := range client.AppendedLogChunks() {
-		assert.Assert(t, len(req.GetData()) <= shipper.chunkSize,
+		assert.Assert(t, len(req.GetData()) <= opts.ChunkSize,
 			"chunk of %d bytes exceeds the chunk size", len(req.GetData()))
 	}
 }
@@ -518,8 +520,11 @@ func TestShipper_PlainTextIsNotHeldBack(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, map[string]string{"GH_TOKEN": strings.Repeat("s", 900)})
-	shipper.flushInterval = 10 * time.Millisecond
+	shipper := New(client, Options{
+		TaskID:        7,
+		Secrets:       map[string]string{"GH_TOKEN": strings.Repeat("s", 900)},
+		FlushInterval: 10 * time.Millisecond,
+	})
 	go shipper.Run(t.Context())
 
 	// Act - no Flush, so only what the mask lets through can be cut and shipped
@@ -544,7 +549,7 @@ func TestShipper_MasksAcrossWrites(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, ghTokenSecret)
+	shipper := New(client, Options{TaskID: 7, Secrets: ghTokenSecret})
 
 	// Act
 	for _, w := range []string{"cloning with ghp_", "abc123 now\n"} {
@@ -568,8 +573,7 @@ func TestShipper_MasksAcrossChunks(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, ghTokenSecret)
-	shipper.chunkSize = 4
+	shipper := New(client, Options{TaskID: 7, Secrets: ghTokenSecret, ChunkSize: 4})
 
 	// Act
 	for _, b := range []byte("using ghp_abc123 now\n") {
@@ -595,7 +599,7 @@ func TestShipper_FlushDrainsHeldBytes(t *testing.T) {
 			return &gritzv1.AppendLogChunkResponse{}, nil
 		},
 	}
-	shipper := New(client, 7, ghTokenSecret)
+	shipper := New(client, Options{TaskID: 7, Secrets: ghTokenSecret})
 
 	// Act - the stream ends mid-match, so "ghp_abc" is held back
 	_, err := shipper.Write([]byte("prefix ghp_abc"))
