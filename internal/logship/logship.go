@@ -43,13 +43,6 @@ const (
 	DefaultMaxPendingBytes = 1 << 20 // 1 MiB
 )
 
-// chunk is one unit of work: an opaque byte run stamped with the run version
-// that was current when the drain cut it.
-type chunk struct {
-	version int64
-	data    []byte
-}
-
 // Shipper is an io.Writer that mirrors log bytes to the server as asynchronous
 // chunks, one per AppendLogChunk request. Write never blocks and never returns
 // an error; a full buffer drops bytes rather than stall the run.
@@ -89,12 +82,12 @@ type Shipper struct {
 	// than one request in flight, and therefore that the server's insertion
 	// order is write order.
 	sendSem *semaphore.Weighted
-	// inflight is the chunk the sender is delivering, held across retries so a
-	// transient failure resends the same bytes rather than being overtaken by
-	// newer ones. It lives here rather than in a local so a Flush that follows
-	// a cancelled Run picks it up instead of losing it. Guarded by sendSem, not
-	// mu.
-	inflight chunk
+	// inflight is the request the sender is delivering, nil when there is none.
+	// It is held across retries so a transient failure resends the same bytes
+	// rather than being overtaken by newer ones. It lives here rather than in a
+	// local so a Flush that follows a cancelled Run picks it up instead of
+	// losing it. Guarded by sendSem, not mu.
+	inflight *gritzv1.AppendLogChunkRequest
 	// failing suppresses a warning per retry, logging one per failure streak
 	// instead. Guarded by sendSem, not mu.
 	failing bool
@@ -261,19 +254,24 @@ func (s *Shipper) Flush(ctx context.Context) error {
 	return nil
 }
 
-// cut takes up to chunkSize bytes off the front of the buffer, stamped with the
-// current version, and reports whether there was anything to take. A remainder
-// smaller than chunkSize is only taken when partial is set; otherwise it stays
-// buffered to coalesce with the bytes still to come. The chunk is a copy rather
-// than a window on the buffer: bytes.Buffer slides its contents down to reclaim
-// the space a cut freed, which a concurrent Write would then overwrite.
-func (s *Shipper) cut(partial bool) (chunk, bool) {
+// cut takes up to chunkSize bytes off the front of the buffer and returns them
+// as the request that ships them, stamped with the current version, or nil when
+// there was nothing to take. A remainder smaller than chunkSize is only taken
+// when partial is set; otherwise it stays buffered to coalesce with the bytes
+// still to come. The data is a copy rather than a window on the buffer:
+// bytes.Buffer slides its contents down to reclaim the space a cut freed, which
+// a concurrent Write would then overwrite.
+func (s *Shipper) cut(partial bool) *gritzv1.AppendLogChunkRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.buf.Len() == 0 || (s.buf.Len() < s.chunkSize && !partial) {
-		return chunk{}, false
+		return nil
 	}
-	return chunk{version: s.version, data: bytes.Clone(s.buf.Next(s.chunkSize))}, true
+	return &gritzv1.AppendLogChunkRequest{
+		TaskId:  s.taskID,
+		Version: s.version,
+		Data:    bytes.Clone(s.buf.Next(s.chunkSize)),
+	}
 }
 
 // drain cuts and sends chunks, one AppendLogChunk per chunk, until nothing is
@@ -300,31 +298,27 @@ func (s *Shipper) drain(ctx context.Context, partial bool) bool {
 		if ctx.Err() != nil {
 			return false
 		}
-		if s.inflight.data == nil {
-			next, ok := s.cut(partial)
-			if !ok {
+		if s.inflight == nil {
+			next := s.cut(partial)
+			if next == nil {
 				s.backoff.Reset()
 				return true
 			}
 			// cut takes min(chunkSize, buffered), so a short chunk is the
 			// remainder and spends the allowance.
-			if len(next.data) < s.chunkSize {
+			if len(next.GetData()) < s.chunkSize {
 				partial = false
 			}
 			s.inflight = next
 		}
-		_, err := s.client.AppendLogChunk(ctx, &gritzv1.AppendLogChunkRequest{
-			TaskId:  s.taskID,
-			Version: s.inflight.version,
-			Data:    s.inflight.data,
-		})
+		_, err := s.client.AppendLogChunk(ctx, s.inflight)
 		switch {
 		case err == nil:
 			s.failing = false
-			s.inflight = chunk{}
+			s.inflight = nil
 		case isPermanentChunkError(err):
-			s.log.Warn("dropping undeliverable log chunk", "task", s.taskID, "bytes", len(s.inflight.data), "err", err)
-			s.inflight = chunk{}
+			s.log.Warn("dropping undeliverable log chunk", "task", s.taskID, "bytes", len(s.inflight.GetData()), "err", err)
+			s.inflight = nil
 		default:
 			if !s.failing {
 				s.failing = true
