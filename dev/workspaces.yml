@@ -1,6 +1,10 @@
 workspaces:
   dummy:
     description: Dummy workspace for exercising the local dev stack
+    secrets:
+      MY_PASSWORD: "password"
+    commands:
+      - "echo \"Password: ${MY_PASSWORD}\""
     container:
       image: alpine:3.21
       # Join the dev compose network so the task container can reach the
