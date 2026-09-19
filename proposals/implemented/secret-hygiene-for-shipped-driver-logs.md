@@ -151,7 +151,7 @@ secret the platform injects rather than the workspace — masked as
 
 ### The mask: a trie-backed `Writer` in the shipper
 
-A thin `internal/redact` package, over a byte trie in `internal/bytetrie`:
+A thin `internal/redact` package, over a byte trie in `internal/x/bytetrie`:
 
 ```go
 // Marker returns the replacement marker for a named secret:
@@ -239,7 +239,7 @@ secret map and hands it to the shipper.
    `Workspace` and runner injection into `Spec.Env` plus `GRITZ_SECRETS`.
    Depends on: nothing. Verifiable by: a runner spec test asserting the
    sandbox env carries the `NAME=value` pairs and the names list.
-2. **`internal/bytetrie` and `internal/redact`** — Delivers: the byte trie
+2. **`internal/x/bytetrie` and `internal/redact`** — Delivers: the byte trie
    with its longest-prefix lookup, then `Marker`, the trie-backed `Writer`
    and `String` over it. Depends on: nothing. Verifiable by: unit tests
    covering overlapping values (the longer masked whole), a value straddling
