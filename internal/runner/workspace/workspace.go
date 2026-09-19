@@ -20,11 +20,14 @@ import (
 var defaultYAML = `workspaces:
   pets-workshop:
     description: Example Node.js pets workshop
+    # Credentials belong here rather than in container.environment: secrets
+    # become sandbox environment variables the same way, but their values are
+    # also masked out of the log shipped to the server.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${env:CLAUDE_CODE_OAUTH_TOKEN}
     container:
       image: ghcr.io/icholy/gritz-workspace-debian:latest
       working_dir: /root
-      environment:
-        CLAUDE_CODE_OAUTH_TOKEN: ${env:CLAUDE_CODE_OAUTH_TOKEN}
     commands:
       - git clone https://github.com/github-samples/pets-workshop
     agent:

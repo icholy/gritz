@@ -1,10 +1,13 @@
 workspaces:
   pets-workshop:
+    # secrets: entries become sandbox environment variables just like
+    # container.environment ones, and their values are masked out of the log
+    # shipped to the server.
+    secrets:
+      CURSOR_API_KEY: ${env:CURSOR_API_KEY}
     container:
       image: ghcr.io/icholy/gritz-workspace-debian:latest
       working_dir: /root
-      environment:
-        CURSOR_API_KEY: ${env:CURSOR_API_KEY}
     commands:
       - git clone https://github.com/github-samples/pets-workshop
     agent:
