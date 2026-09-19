@@ -18,6 +18,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/icholy/gritz/internal/gritzclient"
 	gritzv1 "github.com/icholy/gritz/internal/proto/gritz/v1"
@@ -86,9 +87,8 @@ type Shipper struct {
 	// sendSem admits one sender at a time. Run and Flush both drain, so the
 	// semaphore — not the single Run goroutine — is what guarantees never more
 	// than one request in flight, and therefore that the server's insertion
-	// order is write order. It is a channel rather than a mutex so a caller can
-	// give up on ctx instead of blocking on a sender that is mid-backoff.
-	sendSem chan struct{}
+	// order is write order.
+	sendSem *semaphore.Weighted
 	// inflight is the chunk the sender is delivering, held across retries so a
 	// transient failure resends the same bytes rather than being overtaken by
 	// newer ones. It lives here rather than in a local so a Flush that follows
@@ -155,7 +155,7 @@ func New(client gritzclient.Client, opts Options) *Shipper {
 		backoff:       opts.BackOff,
 		log:           opts.Log,
 		notify:        wakeup.New(),
-		sendSem:       make(chan struct{}, 1),
+		sendSem:       semaphore.NewWeighted(1),
 	}
 	if s.backoff == nil {
 		s.backoff = backoff.NewExponentialBackOff()
@@ -292,12 +292,10 @@ func (s *Shipper) cut(partial bool) (chunk, bool) {
 // An inflight chunk left behind by an earlier drain is sent first either way:
 // it was already cut, so partial has no say over it.
 func (s *Shipper) drain(ctx context.Context, partial bool) bool {
-	select {
-	case s.sendSem <- struct{}{}:
-	case <-ctx.Done():
+	if err := s.sendSem.Acquire(ctx, 1); err != nil {
 		return false
 	}
-	defer func() { <-s.sendSem }()
+	defer s.sendSem.Release(1)
 	for {
 		if ctx.Err() != nil {
 			return false
