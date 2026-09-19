@@ -448,12 +448,13 @@ func TestDriverRun_ShipsLogToServer(t *testing.T) {
 	assert.Assert(t, cmp.Contains(string(file), "task failed"))
 	assert.Equal(t, mock.ShippedLog(), string(file))
 
-	// Assert - chunks are stamped with the run they belong to, and the boundary
-	// cut keeps the pre-run preamble out of the run's first chunk.
+	// Assert - chunks are stamped with the version current when the drain cut
+	// them. Nothing drained before StartRun here, so the pre-run preamble
+	// shares the run's first chunk and is stamped with it.
 	chunks := mock.AppendedLogChunks()
-	assert.DeepEqual(t, string(chunks[0].GetData()), "preamble\n")
-	assert.Equal(t, chunks[0].GetVersion(), int64(0))
-	for _, chunk := range chunks[1:] {
+	assert.Assert(t, strings.HasPrefix(string(chunks[0].GetData()), "preamble\n"))
+	assert.Assert(t, cmp.Contains(string(chunks[0].GetData()), "run version="))
+	for _, chunk := range chunks {
 		assert.Equal(t, chunk.GetVersion(), int64(testTaskVersion))
 	}
 }
