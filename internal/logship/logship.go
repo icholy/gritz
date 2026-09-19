@@ -32,9 +32,9 @@ const (
 	// matches shell.Serve's PTY pump: big enough that per-request overhead is
 	// negligible, small enough to keep a chatty run's chunks flowing.
 	defaultChunkSize = 32 << 10 // 32 KiB
-	// defaultFlushInterval drains whatever is buffered when it fires, so a
-	// quiet run still ships promptly instead of sitting in the buffer until the
-	// next 32 KiB.
+	// defaultFlushInterval is how often the sender is allowed to ship a
+	// sub-chunk remainder, so a quiet run still ships promptly instead of
+	// sitting in the buffer until the next 32 KiB.
 	defaultFlushInterval = 2 * time.Second
 	// defaultMaxPendingBytes caps the unsent bytes held in the buffer. Past it,
 	// writes are dropped rather than allowed to grow without bound while the
@@ -181,16 +181,28 @@ func (s *Shipper) Write(p []byte) (int, error) {
 // Run drains the buffer on every wake-up and every flushInterval tick, until
 // ctx is cancelled. It is the shipper's background sender and is expected to
 // run for the driver's lifetime.
+//
+// Only the tick lets a sub-chunkSize remainder out, and only once per tick: a
+// wake means a whole chunk is already buffered, so a wake-started drain ships
+// full chunks and leaves the rest. Without that, the bytes arriving during each
+// round trip would go out as their own small chunk on the drain's next pass,
+// turning steady output into one request and one log_chunks row per round trip
+// instead of one per chunk.
 func (s *Shipper) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.flushInterval)
 	defer ticker.Stop()
+	// The first pass is neither a tick nor a wake: whatever was buffered before
+	// Run started waits for the first tick, as it would have without it.
+	partial := false
 	for {
-		s.drain(ctx)
+		s.drain(ctx, partial)
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			partial = true
 		case <-s.notify:
+			partial = false
 		}
 	}
 }
@@ -209,32 +221,43 @@ func (s *Shipper) Flush(ctx context.Context) error {
 	// not a secret's.
 	_ = s.mask.Flush()
 	s.mu.Unlock()
-	if !s.drain(ctx) {
+	if !s.drain(ctx, true) {
 		return fmt.Errorf("flushing log chunks: %w", ctx.Err())
 	}
 	return nil
 }
 
 // cut takes up to chunkSize bytes off the front of the buffer, stamped with the
-// current version, and reports whether there was anything to take. The chunk is
-// a copy rather than a window on the buffer: bytes.Buffer slides its contents
-// down to reclaim the space a cut freed, which a concurrent Write would then
-// overwrite.
-func (s *Shipper) cut() (chunk, bool) {
+// current version, and reports whether there was anything to take. A remainder
+// smaller than chunkSize is only taken when partial is set; otherwise it stays
+// buffered to coalesce with the bytes still to come. The chunk is a copy rather
+// than a window on the buffer: bytes.Buffer slides its contents down to reclaim
+// the space a cut freed, which a concurrent Write would then overwrite.
+func (s *Shipper) cut(partial bool) (chunk, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.buf.Len() == 0 {
+	if s.buf.Len() == 0 || (s.buf.Len() < s.chunkSize && !partial) {
 		return chunk{}, false
 	}
 	return chunk{version: s.version, data: bytes.Clone(s.buf.Next(s.chunkSize))}, true
 }
 
-// drain cuts and sends chunks, one AppendLogChunk per chunk, until the buffer
-// is empty or ctx is done; it reports whether it emptied. A transient failure
-// retries the same chunk after a backoff (head-of-line blocking, as the outbox
-// does) so a retry can never be overtaken by newer bytes; a permanent one drops
-// the chunk and advances rather than wedge the shipper forever.
-func (s *Shipper) drain(ctx context.Context) bool {
+// drain cuts and sends chunks, one AppendLogChunk per chunk, until nothing is
+// left that it may cut or ctx is done; it reports whether it got that far. A
+// transient failure retries the same chunk after a backoff (head-of-line
+// blocking, as the outbox does) so a retry can never be overtaken by newer
+// bytes; a permanent one drops the chunk and advances rather than wedge the
+// shipper forever.
+//
+// partial allows one sub-chunkSize chunk — the remainder buffered when the
+// drain started. Once that has been cut, only full chunks are taken, so the
+// bytes that arrive during each round trip wait for the next tick rather than
+// each becoming a chunk of their own. Flush passes it too: absent a concurrent
+// writer, one partial cut is what empties the buffer.
+//
+// An inflight chunk left behind by an earlier drain is sent first either way:
+// it was already cut, so partial has no say over it.
+func (s *Shipper) drain(ctx context.Context, partial bool) bool {
 	select {
 	case s.sendSem <- struct{}{}:
 	case <-ctx.Done():
@@ -246,10 +269,15 @@ func (s *Shipper) drain(ctx context.Context) bool {
 			return false
 		}
 		if s.inflight.data == nil {
-			next, ok := s.cut()
+			next, ok := s.cut(partial)
 			if !ok {
 				s.backoff.Reset()
 				return true
+			}
+			// cut takes min(chunkSize, buffered), so a short chunk is the
+			// remainder and spends the allowance.
+			if len(next.data) < s.chunkSize {
+				partial = false
 			}
 			s.inflight = next
 		}
