@@ -1,13 +1,6 @@
 workspaces:
   pets-workshop:
-    # Declaring the token under secrets: does two things: it becomes an
-    # environment variable in the sandbox (${sh:} is expanded by the runner,
-    # before the task starts), and its value is masked as
-    # [gritz:masked GH_TOKEN] in the log shipped to the server.
     secrets:
       GH_TOKEN: ${sh:gh auth token}
     commands:
-      # ${GH_TOKEN} is left alone by the config loader and expanded by the
-      # sandbox shell, so the command string the driver logs carries the
-      # variable name rather than the token.
       - git clone https://x-access-token:${GH_TOKEN}@github.com/private/repo.git
