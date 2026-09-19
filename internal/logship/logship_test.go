@@ -138,6 +138,107 @@ func TestShipper_SetVersionDoesNotCut(t *testing.T) {
 	)
 }
 
+// TestShipper_TickDrainCutsOnePartialChunk asserts a tick-started drain ships
+// the remainder that was buffered when it started and then stops: the bytes
+// that arrive during each round trip wait for the next tick rather than each
+// going out as a chunk of their own. Without that rule, steady output below the
+// chunk size costs one request and one log_chunks row per round trip.
+func TestShipper_TickDrainCutsOnePartialChunk(t *testing.T) {
+	t.Parallel()
+	// Arrange - a slow client, modelled by the next line of output landing
+	// while the request is still in flight, as a steady trickle does.
+	var shipper *Shipper
+	trickle := []string{"line 2\n", "line 3\n"}
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			if len(trickle) > 0 {
+				_, _ = shipper.Write([]byte(trickle[0]))
+				trickle = trickle[1:]
+			}
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper = New(client, 7, nil)
+	_, err := shipper.Write([]byte("line 1\n"))
+	assert.NilError(t, err)
+
+	// Act - the flushInterval tick
+	assert.Assert(t, shipper.drain(t.Context(), true))
+
+	// Assert - one request, carrying only what was buffered when it started
+	assert.DeepEqual(t,
+		client.AppendedLogChunks(),
+		[]*gritzv1.AppendLogChunkRequest{
+			{TaskId: 7, Data: []byte("line 1\n")},
+		},
+		protocmp.Transform(),
+	)
+
+	// Act - a wake-started drain gets no partial at all, so the line that
+	// arrived during the round trip keeps waiting.
+	assert.Assert(t, shipper.drain(t.Context(), false))
+
+	// Assert
+	assert.Assert(t, cmp.Len(client.AppendedLogChunks(), 1))
+
+	// Act - the next tick ships it
+	assert.Assert(t, shipper.drain(t.Context(), true))
+
+	// Assert
+	assert.DeepEqual(t,
+		client.AppendedLogChunks(),
+		[]*gritzv1.AppendLogChunkRequest{
+			{TaskId: 7, Data: []byte("line 1\n")},
+			{TaskId: 7, Data: []byte("line 2\n")},
+		},
+		protocmp.Transform(),
+	)
+}
+
+// TestShipper_WakeDrainCutsOnlyFullChunks asserts a drain woken by a full chunk
+// ships every full chunk buffered and leaves the remainder to coalesce with the
+// bytes still to come.
+func TestShipper_WakeDrainCutsOnlyFullChunks(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	client := &gritzclient.ClientMock{
+		AppendLogChunkFunc: func(ctx context.Context, req *gritzv1.AppendLogChunkRequest) (*gritzv1.AppendLogChunkResponse, error) {
+			return &gritzv1.AppendLogChunkResponse{}, nil
+		},
+	}
+	shipper := New(client, 7, nil)
+	shipper.chunkSize = 4
+
+	// Act
+	_, err := shipper.Write([]byte("aaaabbbbcc"))
+	assert.NilError(t, err)
+	assert.Assert(t, shipper.drain(t.Context(), false))
+
+	// Assert - the 2-byte remainder stays buffered
+	assert.DeepEqual(t,
+		client.AppendedLogChunks(),
+		[]*gritzv1.AppendLogChunkRequest{
+			{TaskId: 7, Data: []byte("aaaa")},
+			{TaskId: 7, Data: []byte("bbbb")},
+		},
+		protocmp.Transform(),
+	)
+
+	// Act - it takes a tick (or a Flush) to let the remainder out
+	assert.Assert(t, shipper.drain(t.Context(), true))
+
+	// Assert
+	assert.DeepEqual(t,
+		client.AppendedLogChunks(),
+		[]*gritzv1.AppendLogChunkRequest{
+			{TaskId: 7, Data: []byte("aaaa")},
+			{TaskId: 7, Data: []byte("bbbb")},
+			{TaskId: 7, Data: []byte("cc")},
+		},
+		protocmp.Transform(),
+	)
+}
+
 func TestShipper_OrderingAcrossRetries(t *testing.T) {
 	t.Parallel()
 	// Arrange - the first two attempts fail transiently
