@@ -18,7 +18,6 @@ import {
   formatCountdown,
 } from '@/lib/duration'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -142,13 +141,6 @@ export function TaskSidebar({
             <h1 className="text-[15px] font-semibold leading-snug text-pretty" title={title}>
               {title}
             </h1>
-            {task.namespace && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary" title="Namespace">
-                  {task.namespace}
-                </Badge>
-              </div>
-            )}
           </div>
         )}
 
@@ -187,6 +179,9 @@ export function TaskSidebar({
             <dl className="flex flex-col gap-2">
               <Detail label="Runner">{task.runner}</Detail>
               <Detail label="Workspace">{task.workspace}</Detail>
+              <Detail label="Namespace">
+                {task.namespace || <span className="text-muted-foreground">default</span>}
+              </Detail>
               <Detail label="Created">
                 {task.createdAt ? <RelativeTime date={timestampDate(task.createdAt)} /> : '-'}
               </Detail>
