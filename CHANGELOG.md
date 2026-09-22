@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.5.0](https://github.com/icholy/gritz/compare/v3.4.0...v3.5.0) (2026-09-22)
+
+
+### Features
+
+* **dev:** add example secret to dummy workspace ([80ab461](https://github.com/icholy/gritz/commit/80ab461bea658618dc38e6159aa509474e5eb4d3))
+* **webui:** show the task namespace alongside runner and workspace ([092bf9f](https://github.com/icholy/gritz/commit/092bf9f1f887a747c2bccc86f3b6630748755c0b))
+
+
+### Miscellaneous
+
+* **logship:** hold the in-flight request instead of a chunk struct ([119081d](https://github.com/icholy/gritz/commit/119081d016a13d0fff106438ec5a2a92e13bbcff))
+
 ## [3.4.0](https://github.com/icholy/gritz/compare/v3.3.0...v3.4.0) (2026-09-19)
 
 
