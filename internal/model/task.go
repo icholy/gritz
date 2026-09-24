@@ -466,6 +466,11 @@ func (t *Task) CanStart() bool {
 	switch t.Status {
 	case TaskStatusRunning, TaskStatusCompleted, TaskStatusFailed, TaskStatusCancelled:
 		return true
+	case TaskStatusPending:
+		// Idle: created, but never asked to run. Pending *with* a command is
+		// already provisioned — the runner is about to pick it up, so starting
+		// it again would be a no-op.
+		return t.IsIdle()
 	default:
 		return false
 	}
@@ -479,16 +484,27 @@ func (t *Task) CanStart() bool {
 // stopped folds Running+start back to Pending (see applyRunnerEventStopped).
 // For completed, failed, or cancelled tasks: sets status to pending, command to
 // start, increments version — this provisions the next run now.
+// For an idle task (created but never started): sets command to start, keeping
+// version 1 — run 1 was never started, so there is nothing to bump past.
 func (t *Task) Start() bool {
 	if !t.CanStart() {
 		return false
 	}
-	if t.Status != TaskStatusRunning {
+	if t.Status != TaskStatusRunning && !t.IsIdle() {
 		t.Status = TaskStatusPending
 		t.Version++
 	}
 	t.Command = TaskCommandStart
 	return true
+}
+
+// IsIdle reports whether the task has never been asked to run: created, but
+// with no command for the runner to pick up (ListTasksForRunner selects on
+// command != none). It is the state a task created with no instructions starts
+// in — see proposals/draft/create-empty-task.md. Every other transition that
+// lands on Pending sets a command with it, so the pair is unambiguous.
+func (t *Task) IsIdle() bool {
+	return t.Status == TaskStatusPending && t.Command == TaskCommandNone
 }
 
 // PendingRunner returns the runner that has pending work for this task, or ""

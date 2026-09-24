@@ -788,9 +788,17 @@ func TestTask_Start(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "from pending fails",
-			before: Task{Status: TaskStatusPending},
-			after:  Task{Status: TaskStatusPending},
+			// Idle: created but never started. Run 1 is the run to start, so the
+			// version stays put.
+			name:   "from idle succeeds without bumping the version",
+			before: Task{Status: TaskStatusPending, Version: 1},
+			after:  Task{Status: TaskStatusPending, Command: TaskCommandStart, Version: 1},
+			want:   true,
+		},
+		{
+			name:   "from pending with a command fails",
+			before: Task{Status: TaskStatusPending, Command: TaskCommandStart, Version: 1},
+			after:  Task{Status: TaskStatusPending, Command: TaskCommandStart, Version: 1},
 			want:   false,
 		},
 		{
@@ -812,6 +820,12 @@ func TestTask_Start(t *testing.T) {
 			want:   true,
 		},
 		{
+			name:   "archived idle fails",
+			before: Task{Status: TaskStatusPending, Version: 1, Archived: true},
+			after:  Task{Status: TaskStatusPending, Version: 1, Archived: true},
+			want:   false,
+		},
+		{
 			name:   "archived fails",
 			before: Task{Status: TaskStatusCompleted, Archived: true},
 			after:  Task{Status: TaskStatusCompleted, Archived: true},
@@ -826,6 +840,41 @@ func TestTask_Start(t *testing.T) {
 			got := task.Start()
 			assert.Equal(t, got, tt.want)
 			assert.DeepEqual(t, task, tt.after)
+		})
+	}
+}
+
+func TestTask_IsIdle(t *testing.T) {
+	tests := []struct {
+		name string
+		task Task
+		want bool
+	}{
+		{
+			name: "pending with no command is idle",
+			task: Task{Status: TaskStatusPending, Version: 1},
+			want: true,
+		},
+		{
+			name: "pending with a start command is not idle",
+			task: Task{Status: TaskStatusPending, Command: TaskCommandStart, Version: 1},
+			want: false,
+		},
+		{
+			name: "running with no command is not idle",
+			task: Task{Status: TaskStatusRunning, Version: 1},
+			want: false,
+		},
+		{
+			name: "completed with no command is not idle",
+			task: Task{Status: TaskStatusCompleted, Version: 1},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.task.IsIdle(), tt.want)
 		})
 	}
 }
