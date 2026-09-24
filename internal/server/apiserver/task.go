@@ -94,9 +94,16 @@ func (s *Server) CreateTask(ctx context.Context, req *gritzv1.CreateTaskRequest)
 		Workspace: req.Workspace,
 		Namespace: req.Namespace,
 		Status:    model.TaskStatusPending,
-		Command:   model.TaskCommandStart,
 		Version:   1,
 		OrgID:     caller.OrgID,
+	}
+	// Only a task that was given something to do starts. With no instructions the
+	// task is left idle (pending, no command), invisible to the runner until the
+	// first instruction starts it via UpdateTask — otherwise a container would be
+	// launched for an agent with nothing to do. See
+	// proposals/draft/create-empty-task.md.
+	if len(req.Instructions) > 0 {
+		task.Command = model.TaskCommandStart
 	}
 	if req.AutoArchive != nil {
 		task.AutoArchive = req.AutoArchive.AsDuration()
@@ -122,8 +129,8 @@ func (s *Server) CreateTask(ctx context.Context, req *gritzv1.CreateTaskRequest)
 		}
 		// Seed the stream with the initial instructions as instruction events
 		// instead of a tasks.instructions column. The task already starts via
-		// Command=Start above; instruction events always wake (per the proposal's
-		// type semantics).
+		// Command=Start above (their presence is what set it); instruction events
+		// always wake (per the proposal's type semantics).
 		for _, inst := range req.Instructions {
 			if err := s.store.CreateEvent(ctx, tx, &model.Event{
 				TaskID: task.ID,

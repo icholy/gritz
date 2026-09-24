@@ -27,6 +27,8 @@ func TestCreateTask_Publishes(t *testing.T) {
 
 	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 
@@ -55,6 +57,8 @@ func TestUpdateTask_Publishes(t *testing.T) {
 
 	resp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
@@ -300,6 +304,8 @@ func TestSubmitRunnerEvents_Publishes(t *testing.T) {
 
 	taskResp, err := srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
 		Name: "test", Runner: "r", Workspace: "w",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	pub.ResetCalls()
