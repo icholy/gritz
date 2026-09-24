@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import { taskLabel, taskSearchValue, toTaskTab } from './task'
+import { TaskCommand, TaskStatus } from '@/gen/gritz/v1/gritz_pb'
+import { isIdleTask, taskLabel, taskSearchValue, toTaskTab } from './task'
+
+describe('isIdleTask', () => {
+  it('is idle while pending with no command', () => {
+    expect(isIdleTask({ status: TaskStatus.PENDING, command: TaskCommand.NONE })).toBe(true)
+  })
+
+  it('is not idle once a command is set', () => {
+    expect(isIdleTask({ status: TaskStatus.PENDING, command: TaskCommand.START })).toBe(false)
+  })
+
+  it('is not idle in any other status', () => {
+    expect(isIdleTask({ status: TaskStatus.RUNNING, command: TaskCommand.NONE })).toBe(false)
+    expect(isIdleTask({ status: TaskStatus.COMPLETED, command: TaskCommand.NONE })).toBe(false)
+  })
+})
 
 describe('taskLabel', () => {
   it('uses the name when the agent has set one', () => {

@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { isIdleTask } from '@/lib/task'
 import { TaskStatus, type Task } from '@/gen/gritz/v1/gritz_pb'
 
 const statusStyles: Record<TaskStatus, string> = {
@@ -38,12 +39,30 @@ const dotStyles: Record<TaskStatus, { halo: string; dot: string }> = {
   [TaskStatus.CANCELLED]: { halo: 'bg-amber-100', dot: 'bg-amber-500' },
 }
 
+// An idle task is pending with nothing pending — created, but never asked to
+// run. It shares the status enum with a real pending task, so it gets its own
+// label and palette rather than reading as work that is about to start.
+const idleStyle = 'bg-slate-100 text-slate-600 border-slate-200'
+const idleDotStyle = { halo: 'bg-slate-100', dot: 'bg-slate-400' }
+
+function statusStyle(task: Task): string {
+  if (isIdleTask(task)) return idleStyle
+  return statusStyles[task.status] ?? 'bg-gray-100 text-gray-600'
+}
+
+function statusLabel(task: Task): string {
+  if (isIdleTask(task)) return 'draft'
+  return statusLabels[task.status] ?? 'unknown'
+}
+
 // StatusDot is the compact form of StatusBadge for places with no room for a
 // label (the collapsed task sidebar): a colored dot on a soft halo, with the
 // status name in the tooltip. Active statuses pulse like the badge does.
 export function StatusDot({ task }: { task: Task }) {
-  const style = dotStyles[task.status] ?? dotStyles[TaskStatus.UNSPECIFIED]
-  const label = statusLabels[task.status] ?? 'unknown'
+  const style = isIdleTask(task)
+    ? idleDotStyle
+    : (dotStyles[task.status] ?? dotStyles[TaskStatus.UNSPECIFIED])
+  const label = statusLabel(task)
   return (
     <span
       className={cn('flex h-7 w-7 items-center justify-center rounded-full', style.halo)}
@@ -65,17 +84,14 @@ export function StatusBadge({ task }: { task: Task }) {
   const isActive = activeStatuses.has(task.status)
 
   return (
-    <Badge
-      variant="outline"
-      className={cn(statusStyles[task.status] ?? 'bg-gray-100 text-gray-600')}
-    >
+    <Badge variant="outline" className={cn(statusStyle(task))}>
       {isActive && (
         <span className="relative flex h-2 w-2 mr-1">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
         </span>
       )}
-      {statusLabels[task.status] ?? 'unknown'}
+      {statusLabel(task)}
     </Badge>
   )
 }
