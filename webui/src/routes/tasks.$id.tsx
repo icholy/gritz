@@ -12,7 +12,7 @@ import {
 import { useState, useRef, useLayoutEffect } from 'react'
 import type { TaskTab } from '@/lib/task'
 import { toTaskTab } from '@/lib/task'
-import { canOpenShell, isArchivedTask, isTerminalTask } from '@/lib/task'
+import { canOpenShell, isArchivedTask, isIdleTask, isTerminalTask } from '@/lib/task'
 import { useTaskTimeline } from '@/hooks/use-task-timeline'
 import { useOrgId } from '@/hooks/use-org-id'
 import { useShellState } from '@/hooks/use-shell-state'
@@ -224,7 +224,14 @@ function TaskDetail() {
                 <form onSubmit={handleAddInstruction} className="flex items-end gap-2">
                   <Textarea
                     ref={textareaRef}
-                    placeholder="Send an instruction…  (Enter to send, Shift+Enter for newline)"
+                    // An empty task has nothing to do until this is sent, so say
+                    // so — and put the cursor here on arrival from the create page.
+                    autoFocus={isIdleTask(task)}
+                    placeholder={
+                      isIdleTask(task)
+                        ? 'Send the first instruction to start the task…  (Enter to send, Shift+Enter for newline)'
+                        : 'Send an instruction…  (Enter to send, Shift+Enter for newline)'
+                    }
                     value={instruction}
                     onChange={(e) => setInstruction(e.target.value)}
                     onKeyDown={handleInstructionKeyDown}

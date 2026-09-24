@@ -1,8 +1,9 @@
 import { timestampDate } from '@bufbuild/protobuf/wkt'
-import { TaskStatus, type Task } from '@/gen/gritz/v1/gritz_pb'
+import { TaskCommand, TaskStatus, type Task } from '@/gen/gritz/v1/gritz_pb'
 import { durationToMillis } from '@/lib/duration'
 
 type TaskLike = Pick<Task, 'status' | 'actions' | 'archived'>
+type IdleTask = Pick<Task, 'status' | 'command'>
 type AutoArchiveTask = TaskLike & Pick<Task, 'autoArchive' | 'updatedAt'>
 
 export function canArchiveTask(task: TaskLike): boolean {
@@ -19,6 +20,15 @@ export function canCancelTask(task: TaskLike): boolean {
 
 export function canRestartTask(task: TaskLike): boolean {
   return task.actions?.restart ?? false
+}
+
+// isIdleTask reports whether the task has never been asked to run: created,
+// but with no command for the runner to pick up. It mirrors model.Task.IsIdle —
+// a task created with no instructions stays idle until its first instruction.
+// Every other transition that lands on PENDING sets a command with it, so the
+// pair is unambiguous.
+export function isIdleTask(task: IdleTask): boolean {
+  return task.status === TaskStatus.PENDING && task.command === TaskCommand.NONE
 }
 
 export function isArchivedTask(task: TaskLike): boolean {
