@@ -19,6 +19,8 @@ func TestSubmitRunnerEvents(t *testing.T) {
 		Name:      "Test Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	taskID := createResp.Task.Id
@@ -108,12 +110,15 @@ func TestListRunnerTasks(t *testing.T) {
 		Name:      "Task for runner-1",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	_, err = srv.CreateTask(ctx, &gritzv1.CreateTaskRequest{
-		Name:      "Task for runner-2",
-		Workspace: "test-workspace",
-		Runner:    "runner-2",
+		Name:         "Task for runner-2",
+		Workspace:    "test-workspace",
+		Runner:       "runner-2",
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 
@@ -142,6 +147,8 @@ func TestListRunnerTasks_OnlyWithCommand(t *testing.T) {
 		Name:      "Task with command",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	_, err = srv.SubmitRunnerEvents(ctx, &gritzv1.SubmitRunnerEventsRequest{
@@ -178,12 +185,16 @@ func TestListRunnerTasks_Permissions(t *testing.T) {
 		Name:      "User A's Task",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	_, err = srv.CreateTask(ctxB, &gritzv1.CreateTaskRequest{
 		Name:      "User B's Task",
 		Workspace: "test-workspace",
 		Runner:    "runner-1",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 

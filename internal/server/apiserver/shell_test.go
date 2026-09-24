@@ -23,6 +23,8 @@ func TestOpenShell(t *testing.T) {
 		Name:      "Task",
 		Runner:    "test-runner",
 		Workspace: "test-workspace",
+		// An instruction is what starts the task — without one it is created idle.
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	taskID := createResp.Task.Id

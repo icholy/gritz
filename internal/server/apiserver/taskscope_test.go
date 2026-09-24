@@ -65,12 +65,16 @@ func newOrgWithTasks(t *testing.T, srv *Server) (context.Context, *teststore.Org
 		Workspaces: []teststore.WorkspaceOptions{{RunnerID: "test-runner", Name: "test-workspace"}},
 	})
 	adminCtx := createCtx(t, org)
+	// An instruction is what starts a task — without one it is created idle, and
+	// these tests drive their tasks through runner events.
 	taskA, err := srv.CreateTask(adminCtx, &gritzv1.CreateTaskRequest{
 		Name: "A", Runner: "test-runner", Workspace: "test-workspace",
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	taskB, err := srv.CreateTask(adminCtx, &gritzv1.CreateTaskRequest{
 		Name: "B", Runner: "test-runner", Workspace: "test-workspace",
+		Instructions: []*gritzv1.Instruction{{Text: "do it"}},
 	})
 	assert.NilError(t, err)
 	return adminCtx, org, taskA.Task, taskB.Task
