@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.5.1](https://github.com/icholy/gritz/compare/v3.5.0...v3.5.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **webui:** invalidate the edited schedule on save ([227d5c0](https://github.com/icholy/gritz/commit/227d5c0a50eda59f7261c9a40f76ae4ae1cfb7b3))
+* **webui:** refresh schedules after an edit ([5af9d8b](https://github.com/icholy/gritz/commit/5af9d8bc1a429066a6d9c1a929d51ab3bfafe58f))
+* **webui:** render the default namespace in the normal text color ([c04a00a](https://github.com/icholy/gritz/commit/c04a00aa2721762584cc0e99f9af8b1465a8067d)), closes [#1612](https://github.com/icholy/gritz/issues/1612)
+
+
+### Miscellaneous
+
+* **webui:** drop the schedule SSE invalidation test ([b2b550e](https://github.com/icholy/gritz/commit/b2b550eb6c25329abc044aa47973575f6775d696))
+
 ## [3.5.0](https://github.com/icholy/gritz/compare/v3.4.0...v3.5.0) (2026-09-22)
 
 
