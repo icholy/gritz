@@ -129,7 +129,7 @@ export function handleReconnect(qc: QueryClient, timelineFollowers: TimelineFoll
   timelineFollowers.notifyAll()
 }
 
-export function handleNotification(
+function handleNotification(
   qc: QueryClient,
   timelineFollowers: TimelineFollowers,
   n: Notification,
