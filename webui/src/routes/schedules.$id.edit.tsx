@@ -37,7 +37,12 @@ function EditSchedulePage() {
   const navigate = useNavigate()
   const orgId = useOrgId()
 
-  const { data, isLoading, error } = useQuery(getSchedule, { id: BigInt(id) })
+  // ScheduleForm seeds its fields from initialValues once, on mount, so it must
+  // not mount against a cached copy: a refetch landing afterwards updates `data`
+  // but leaves the inputs showing the values the form was seeded with. gcTime: 0
+  // drops the entry when the page unmounts, so re-opening the form always starts
+  // from the loading state and seeds from a fresh read.
+  const { data, isLoading, error } = useQuery(getSchedule, { id: BigInt(id) }, { gcTime: 0 })
   const updateMutation = useMutation(updateSchedule)
   const enabledMutation = useMutation(setScheduleEnabled)
 
