@@ -11,6 +11,8 @@ import {
   listWorkspaces,
   listOrgMembers,
   listKeys,
+  getSchedule,
+  listSchedules,
 } from '@/gen/gritz/v1/gritz-GritzService_connectquery'
 import { useNotificationSSE, useTimelineFollowers } from '@/lib/services'
 import type { TimelineFollowers } from '@/lib/timeline-follow'
@@ -79,6 +81,18 @@ function invalidateResource(
         queryKey: createConnectQueryKey({ schema: listKeys, cardinality: 'finite' }),
       })
       break
+    case 'schedule':
+      qc.invalidateQueries({
+        queryKey: createConnectQueryKey({
+          schema: getSchedule,
+          input: { id: BigInt(r.id) },
+          cardinality: 'finite',
+        }),
+      })
+      qc.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: listSchedules, cardinality: 'finite' }),
+      })
+      break
     default:
       console.warn('[sse] unhandled resource type', r)
   }
@@ -100,6 +114,8 @@ const RECONNECT_SCHEMAS: DescMethodUnary[] = [
   listWorkspaces,
   listOrgMembers,
   listKeys,
+  getSchedule,
+  listSchedules,
 ]
 
 // handleReconnect resyncs after the notification SSE drops and comes back. It
@@ -113,7 +129,7 @@ export function handleReconnect(qc: QueryClient, timelineFollowers: TimelineFoll
   timelineFollowers.notifyAll()
 }
 
-function handleNotification(
+export function handleNotification(
   qc: QueryClient,
   timelineFollowers: TimelineFollowers,
   n: Notification,
