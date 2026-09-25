@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useMutation, useQuery } from '@connectrpc/connect-query'
+import { createConnectQueryKey, useMutation, useQuery } from '@connectrpc/connect-query'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   getSchedule,
   setScheduleEnabled,
@@ -37,12 +38,9 @@ function EditSchedulePage() {
   const navigate = useNavigate()
   const orgId = useOrgId()
 
-  // ScheduleForm seeds its fields from initialValues once, on mount, so it must
-  // not mount against a cached copy: a refetch landing afterwards updates `data`
-  // but leaves the inputs showing the values the form was seeded with. gcTime: 0
-  // drops the entry when the page unmounts, so re-opening the form always starts
-  // from the loading state and seeds from a fresh read.
-  const { data, isLoading, error } = useQuery(getSchedule, { id: BigInt(id) }, { gcTime: 0 })
+  const queryClient = useQueryClient()
+
+  const { data, isLoading, error } = useQuery(getSchedule, { id: BigInt(id) })
   const updateMutation = useMutation(updateSchedule)
   const enabledMutation = useMutation(setScheduleEnabled)
 
@@ -67,6 +65,21 @@ function EditSchedulePage() {
     if (values.enabled !== schedule.enabled) {
       await enabledMutation.mutateAsync({ id: schedule.id, enabled: values.enabled })
     }
+    // Refresh this schedule's cached read before leaving. Awaiting it here is
+    // what makes it take effect: the query still has this page as an observer,
+    // so invalidating refetches now and resolves with the saved row in cache.
+    // Once we navigate the query goes inactive, and an invalidation then (the
+    // SSE notification racing us) only marks it stale — re-opening the form
+    // would render the pre-edit copy while the refetch runs, and ScheduleForm
+    // seeds its fields from initialValues on mount, so the stale values would
+    // stick for the whole visit.
+    await queryClient.invalidateQueries({
+      queryKey: createConnectQueryKey({
+        schema: getSchedule,
+        input: { id: schedule.id },
+        cardinality: 'finite',
+      }),
+    })
     navigate({ to: '/schedules', search: { org: orgId } })
   }
 
